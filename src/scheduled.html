@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>待办列表 - 定时任务</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { margin:0; padding:0; display:flex; align-items:center; justify-content:center; min-height:100vh; background:#e4e4e7; }
+        #app-shell { width:1440px; height:900px; display:flex; flex-direction:column; background:#fafafa; font-family:'Segoe UI','Microsoft YaHei',system-ui,sans-serif; color:#18181b; overflow:hidden; border-radius:8px; box-shadow:0 8px 30px rgba(0,0,0,0.12); }
+        .title-bar { display:flex; align-items:center; height:32px; background:#18181b; color:#fafafa; padding:0 4px 0 12px; flex-shrink:0; user-select:none; }
+        .toolbar { display:flex; align-items:center; height:48px; background:#ffffff; border-bottom:1px solid #e4e4e7; padding:0 16px; flex-shrink:0; gap:12px; }
+        .btn { display:flex; align-items:center; gap:6px; height:32px; padding:0 14px; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; border:none; font-family:inherit; }
+        .btn-primary { background:#18181b; color:#fafafa; }
+        .btn-secondary { background:#ffffff; color:#18181b; border:1px solid #e4e4e7; }
+        .avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#6366f1,#8b5cf6); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; color:#ffffff; font-size:12px; font-weight:600; }
+        .page-scheduled { padding:28px 32px 40px; overflow-y:auto; flex:1; }
+        .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; }
+        .header-title { display:flex; align-items:center; gap:10px; }
+        .header-date { font-size:13px; color:#71717a; }
+        .overview-row { display:flex; gap:16px; margin-bottom:28px; }
+        .overview-card { flex:1; background:#ffffff; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.04); padding:20px 22px; }
+        .timer-row { display:flex; gap:16px; margin-bottom:28px; }
+        .timer-card { flex:1; background:#ffffff; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.04); border-left:4px solid; padding:20px 22px; }
+        .timer-display { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 0; }
+        .timer-ring { width:160px; height:160px; border-radius:50%; position:relative; display:flex; align-items:center; justify-content:center; }
+        .timer-ring-bg { width:100%; height:100%; border-radius:50%; border:8px solid #f4f4f5; }
+        .timer-ring-progress { position:absolute; width:100%; height:100%; border-radius:50%; border:8px solid transparent; border-top-color:#18181b; }
+        .timer-text { font-size:48px; font-weight:700; color:#18181b; line-height:1; }
+        .timer-subtext { font-size:13px; color:#71717a; margin-top:8px; }
+        .timer-controls { display:flex; gap:12px; justify-content:center; margin-top:16px; }
+        .timer-btn { width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; border:none; font-size:18px; }
+        .timer-btn.start { background:#18181b; color:#fafafa; }
+        .timer-btn.pause { background:#f59e0b; color:#ffffff; }
+        .timer-btn.reset { background:#f4f4f5; color:#71717a; }
+        .timer-btn.stop { background:#ef4444; color:#ffffff; }
+        .timer-settings { display:flex; align-items:center; gap:8px; margin-top:12px; justify-content:center; }
+        .timer-preset { padding:6px 14px; border-radius:6px; font-size:12px; font-weight:500; cursor:pointer; border:1px solid #e4e4e7; background:#ffffff; }
+        .timer-preset.active { background:#18181b; color:#ffffff; border-color:#18181b; }
+        .reminder-section { margin-top:0; }
+        .section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+        .reminder-table { background:#ffffff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.04); overflow:hidden; }
+        .reminder-row { display:flex; align-items:center; padding:12px 20px; border-bottom:1px solid #f4f4f5; transition:background 0.15s; }
+        .reminder-row:last-child { border-bottom:none; }
+        .reminder-row:hover { background:#fafafa; }
+        .reminder-checkbox { width:18px; height:18px; border-radius:4px; border:2px solid #d4d4d8; flex-shrink:0; margin-right:12px; display:flex; align-items:center; justify-content:center; }
+        .reminder-checkbox.checked { background:#18181b; border-color:#18181b; }
+        .reminder-content { flex:1; min-width:0; }
+        .reminder-title { font-size:13px; font-weight:500; color:#18181b; margin-bottom:3px; }
+        .reminder-time { font-size:11px; color:#71717a; }
+        .reminder-category { font-size:11px; padding:2px 8px; border-radius:6px; font-weight:500; flex-shrink:0; }
+        .reminder-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; opacity:0; transition:opacity 0.15s; }
+        .reminder-row:hover .reminder-actions { opacity:1; }
+        .modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:1000; }
+        .modal { background:#ffffff; border-radius:12px; padding:24px; width:420px; }
+        .modal h2 { margin:0 0 20px 0; font-size:18px; font-weight:600; }
+        .form-group { margin-bottom:16px; }
+        .form-group label { display:block; font-size:12px; font-weight:500; color:#71717a; margin-bottom:6px; }
+        .form-group input, .form-group select { width:100%; padding:8px 12px; border:1px solid #e4e4e7; border-radius:6px; font-size:13px; font-family:inherit; outline:none; box-sizing:border-box; }
+        .modal-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
+    </style>
+</head>
+<body>
+    <div id="app-shell">
+        <div class="title-bar">
+            <div style="width:14px;height:14px;background:#3b82f6;border-radius:3px;margin-right:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+                <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><rect x="0.5" y="0.5" width="3" height="3" rx="0.5" fill="white"/><rect x="4.5" y="0.5" width="3" height="3" rx="0.5" fill="white" opacity="0.6"/><rect x="0.5" y="4.5" width="3" height="3" rx="0.5" fill="white" opacity="0.6"/><rect x="4.5" y="4.5" width="3" height="3" rx="0.5" fill="white" opacity="0.3"/></svg>
+            </div>
+            <span style="font-size:12px;font-weight:400;letter-spacing:0.02em;flex:1;">待办列表</span>
+            <div style="display:flex;align-items:center;height:32px;">
+                <div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="#a1a1aa"/></svg></div>
+                <div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="0.5" y="0.5" width="9" height="9" rx="1" stroke="#a1a1aa" stroke-width="1"/></svg></div>
+                <div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:0 8px 0 0;"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1L9 9M9 1L1 9" stroke="#a1a1aa" stroke-width="1.2" stroke-linecap="round"/></svg></div>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <button class="btn btn-secondary" id="back-btn">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M8 11L3 7L8 3" stroke="#18181b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>返回</span>
+            </button>
+            <div style="flex:1;"></div>
+            <button class="btn btn-primary" id="add-reminder-btn">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V13M1 7H13" stroke="#fafafa" stroke-width="1.5" stroke-linecap="round"/></svg>
+                <span>添加提醒</span>
+            </button>
+            <div class="avatar" id="theme-toggle">U</div>
+        </div>
+
+        <div class="page-scheduled">
+            <div class="page-header">
+                <div class="header-title">
+                    <h1 style="font-size:22px;font-weight:700;color:#18181b;margin:0;">定时任务</h1>
+                    <span class="header-date" id="current-date"></span>
+                </div>
+            </div>
+
+            <div class="overview-row">
+                <div class="overview-card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                        <span style="font-size:13px;color:#71717a;">今日待办</span>
+                        <div style="width:28px;height:28px;border-radius:8px;background:#fef3c7;display:flex;align-items:center;justify-content:center;">
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="#f59e0b" stroke-width="1.2"/><path d="M4 0V2M10 0V2" stroke="#f59e0b" stroke-width="1.2" stroke-linecap="round"/><path d="M3.5 6H10.5" stroke="#f59e0b" stroke-width="1" stroke-linecap="round"/></svg>
+                        </div>
+                    </div>
+                    <div style="font-size:32px;font-weight:700;color:#18181b;line-height:1;" id="overview-today">8</div>
+                    <div style="font-size:12px;color:#71717a;margin-top:4px;">截止今日的任务数</div>
+                </div>
+                <div class="overview-card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                        <span style="font-size:13px;color:#71717a;">今日已完成</span>
+                        <div style="width:28px;height:28px;border-radius:8px;background:#dcfce7;display:flex;align-items:center;justify-content:center;">
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="#16a34a" stroke-width="1.2"/><path d="M4.5 7L6 8.5L9.5 5" stroke="#16a34a" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </div>
+                    </div>
+                    <div style="font-size:32px;font-weight:700;color:#16a34a;line-height:1;" id="overview-completed">3</div>
+                    <div style="font-size:12px;color:#71717a;margin-top:4px;">完成进度 37%</div>
+                </div>
+                <div class="overview-card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                        <span style="font-size:13px;color:#71717a;">今日专注</span>
+                        <div style="width:28px;height:28px;border-radius:8px;background:#e0e7ff;display:flex;align-items:center;justify-content:center;">
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="#6366f1" stroke-width="1.2"/><path d="M7 4V7L9 8.5" stroke="#6366f1" stroke-width="1.2" stroke-linecap="round"/></svg>
+                        </div>
+                    </div>
+                    <div style="font-size:32px;font-weight:700;color:#6366f1;line-height:1;" id="overview-focus">2h 15m</div>
+                    <div style="font-size:12px;color:#71717a;margin-top:4px;">今日专注时长</div>
+                </div>
+            </div>
+
+            <div class="timer-row">
+                <div class="timer-card" style="border-color:#18181b;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                        <div>
+                            <h3 style="font-size:16px;font-weight:600;color:#18181b;margin:0;">专注计时器</h3>
+                            <p style="font-size:12px;color:#71717a;margin:2px 0 0 0;">保持专注，提高效率</p>
+                        </div>
+                        <div style="font-size:11px;padding:3px 10px;border-radius:12px;background:#f4f4f5;color:#71717a;font-weight:500;" id="timer-status">就绪</div>
+                    </div>
+                    <div class="timer-display">
+                        <div class="timer-ring">
+                            <div class="timer-ring-bg"></div>
+                            <div class="timer-ring-progress" id="timer-ring"></div>
+                            <div style="text-align:center;">
+                                <div class="timer-text" id="timer-text">25:00</div>
+                                <div class="timer-subtext" id="timer-label">专注时间</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="timer-controls">
+                        <button class="timer-btn start" id="timer-start">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M7 5L16 10L7 15V5Z" stroke="#fafafa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </button>
+                        <button class="timer-btn pause" id="timer-pause" style="display:none;">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="6" y="4" width="4" height="12" rx="1" fill="#ffffff"/><rect x="10" y="4" width="4" height="12" rx="1" fill="#ffffff"/></svg>
+                        </button>
+                        <button class="timer-btn reset" id="timer-reset">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 3H7C5.9 3 5 3.9 5 5V15C5 16.1 5.9 17 7 17H13C14.1 17 15 16.1 15 15V5C15 3.9 14.1 3 13 3Z" stroke="#71717a" stroke-width="1.5" stroke-linecap="round"/><path d="M7 9V5C7 3.9 7.9 3 9 3H11C12.1 3 13 3.9 13 5V9" stroke="#71717a" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        </button>
+                        <button class="timer-btn stop" id="timer-stop" style="display:none;">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="5" y="5" width="10" height="10" rx="2" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/></svg>
+                        </button>
+                    </div>
+                    <div class="timer-settings">
+                        <button class="timer-preset active" data-duration="25">25分钟</button>
+                        <button class="timer-preset" data-duration="45">45分钟</button>
+                        <button class="timer-preset" data-duration="60">60分钟</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="reminder-section">
+                <div class="section-header">
+                    <h2 style="font-size:16px;font-weight:600;color:#18181b;margin:0;">今日提醒</h2>
+                    <span style="font-size:13px;color:#71717a;" id="reminder-count">(0)</span>
+                </div>
+                <div class="reminder-table" id="reminder-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-container"></div>
+
+    <script type="module">
+        import { getTasks, getReminders, toggleReminder, addReminder, deleteReminder, generateId, getCategoryColor, getTheme, setTheme } from './api.js';
+
+        let timerInterval = null;
+        let timerSeconds = 25 * 60;
+        let timerTotalSeconds = 25 * 60;
+        let timerRunning = false;
+        let tasks = [];
+        let reminders = [];
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function updateTimerDisplay() {
+            document.getElementById('timer-text').textContent = formatTime(timerSeconds);
+            const progress = ((timerTotalSeconds - timerSeconds) / timerTotalSeconds) * 100;
+            document.getElementById('timer-ring').style.transform = `rotate(${progress * 3.6}deg)`;
+        }
+
+        function startTimer() {
+            if (timerRunning) return;
+            timerRunning = true;
+            document.getElementById('timer-status').textContent = '专注中';
+            document.getElementById('timer-status').style.background = '#dcfce7';
+            document.getElementById('timer-status').style.color = '#166534';
+            document.getElementById('timer-start').style.display = 'none';
+            document.getElementById('timer-pause').style.display = 'flex';
+            document.getElementById('timer-stop').style.display = 'flex';
+            
+            timerInterval = setInterval(() => {
+                if (timerSeconds > 0) {
+                    timerSeconds--;
+                    updateTimerDisplay();
+                } else {
+                    stopTimer();
+                    document.getElementById('timer-status').textContent = '完成';
+                    document.getElementById('timer-status').style.background = '#e0e7ff';
+                    document.getElementById('timer-status').style.color = '#4338ca';
+                    alert('专注时间结束！');
+                }
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            if (!timerRunning) return;
+            timerRunning = false;
+            clearInterval(timerInterval);
+            document.getElementById('timer-status').textContent = '已暂停';
+            document.getElementById('timer-status').style.background = '#fef3c7';
+            document.getElementById('timer-status').style.color = '#92400e';
+            document.getElementById('timer-start').style.display = 'flex';
+            document.getElementById('timer-pause').style.display = 'none';
+        }
+
+        function resetTimer() {
+            pauseTimer();
+            timerSeconds = timerTotalSeconds;
+            updateTimerDisplay();
+            document.getElementById('timer-status').textContent = '就绪';
+            document.getElementById('timer-status').style.background = '#f4f4f5';
+            document.getElementById('timer-status').style.color = '#71717a';
+            document.getElementById('timer-stop').style.display = 'none';
+        }
+
+        function stopTimer() {
+            pauseTimer();
+            document.getElementById('timer-stop').style.display = 'none';
+        }
+
+        async function loadData() {
+            tasks = await getTasks();
+            reminders = await getReminders();
+            updateOverview();
+            renderReminders();
+        }
+
+        function updateOverview() {
+            const today = new Date().toISOString().split('T')[0];
+            const todayTasks = tasks.filter(t => {
+                const dueDate = t.due_date.split(' ')[0];
+                return dueDate === today || t.due_date.includes(today);
+            });
+            const completedCount = todayTasks.filter(t => t.completed).length;
+            
+            document.getElementById('overview-today').textContent = todayTasks.length;
+            document.getElementById('overview-completed').textContent = completedCount;
+            document.getElementById('current-date').textContent = new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
+        }
+
+        function renderReminders() {
+            const container = document.getElementById('reminder-list');
+            document.getElementById('reminder-count').textContent = `(${reminders.length})`;
+            
+            container.innerHTML = '';
+            reminders.forEach(reminder => {
+                const row = document.createElement('div');
+                row.className = 'reminder-row';
+                
+                const checkbox = document.createElement('div');
+                checkbox.className = `reminder-checkbox${reminder.completed ? ' checked' : ''}`;
+                if (reminder.completed) checkbox.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 5L4.5 6.5L8 3" stroke="#fafafa" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+                checkbox.addEventListener('click', () => toggleReminder(reminder.id).then(loadData));
+
+                const content = document.createElement('div');
+                content.className = 'reminder-content';
+                
+                const title = document.createElement('div');
+                title.className = 'reminder-title';
+                title.textContent = reminder.title;
+                
+                const time = document.createElement('div');
+                time.className = 'reminder-time';
+                time.textContent = reminder.time;
+                
+                content.appendChild(title);
+                content.appendChild(time);
+
+                const categoryColor = getCategoryColor(reminder.category);
+                const category = document.createElement('span');
+                category.className = 'reminder-category';
+                category.style.background = categoryColor.bg;
+                category.style.color = categoryColor.text;
+                category.textContent = reminder.category;
+
+                const actions = document.createElement('div');
+                actions.className = 'reminder-actions';
+                
+                const deleteIcon = document.createElement('svg');
+                deleteIcon.width = '14'; deleteIcon.height = '14'; deleteIcon.viewBox = '0 0 14 14';
+                deleteIcon.style.color = '#a1a1aa'; deleteIcon.style.cursor = 'pointer';
+                deleteIcon.innerHTML = '<path d="M3 3L11 11M11 3L3 11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>';
+                deleteIcon.addEventListener('click', () => {
+                    if (confirm('确定删除此提醒？')) deleteReminder(reminder.id).then(loadData);
+                });
+                
+                actions.appendChild(deleteIcon);
+
+                row.appendChild(checkbox);
+                row.appendChild(content);
+                row.appendChild(category);
+                row.appendChild(actions);
+                container.appendChild(row);
+            });
+        }
+
+        function openAddReminderModal() {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal">
+                    <h2>添加提醒</h2>
+                    <div class="form-group"><label>提醒标题</label><input type="text" id="reminder-title" placeholder="输入提醒内容" /></div>
+                    <div class="form-group"><label>提醒时间</label><input type="datetime-local" id="reminder-time" /></div>
+                    <div class="form-group"><label>分类</label><select id="reminder-category"><option value="工作">工作</option><option value="个人">个人</option><option value="学习">学习</option></select></div>
+                    <div class="modal-footer">
+                        <button id="reminder-cancel" style="height:32px;padding:0 16px;border-radius:6px;border:1px solid #e4e4e7;background:#ffffff;color:#18181b;font-size:13px;cursor:pointer;">取消</button>
+                        <button id="reminder-save" style="height:32px;padding:0 16px;border-radius:6px;border:none;background:#18181b;color:#fafafa;font-size:13px;cursor:pointer;">保存</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-container').appendChild(modal);
+
+            modal.querySelector('#reminder-cancel').addEventListener('click', () => modal.remove());
+            modal.querySelector('#reminder-save').addEventListener('click', async () => {
+                const title = modal.querySelector('#reminder-title').value.trim();
+                const time = modal.querySelector('#reminder-time').value;
+                if (!title || !time) return;
+                
+                await addReminder({
+                    id: generateId(),
+                    title: title,
+                    time: time,
+                    category: modal.querySelector('#reminder-category').value,
+                    completed: false
+                });
+                modal.remove();
+                await loadData();
+            });
+        }
+
+        document.getElementById('timer-start').addEventListener('click', startTimer);
+        document.getElementById('timer-pause').addEventListener('click', pauseTimer);
+        document.getElementById('timer-reset').addEventListener('click', resetTimer);
+        document.getElementById('timer-stop').addEventListener('click', stopTimer);
+
+        document.querySelectorAll('.timer-preset').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.timer-preset').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const duration = parseInt(btn.dataset.duration);
+                timerTotalSeconds = duration * 60;
+                resetTimer();
+            });
+        });
+
+        document.getElementById('add-reminder-btn').addEventListener('click', openAddReminderModal);
+        
+        document.getElementById('theme-toggle').addEventListener('click', async () => {
+            const currentTheme = await getTheme();
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            await setTheme(newTheme);
+            document.documentElement.className = newTheme;
+        });
+
+        loadData();
+    </script>
+</body>
+</html>

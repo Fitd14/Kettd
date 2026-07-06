@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>待办列表</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { margin:0; padding:0; display:flex; align-items:center; justify-content:center; min-height:100vh; background:#e4e4e7; }
+        #app-shell { width:1440px; height:900px; display:flex; flex-direction:column; background:#fafafa; font-family:'Segoe UI','Microsoft YaHei',system-ui,sans-serif; color:#18181b; overflow:hidden; border-radius:8px; box-shadow:0 8px 30px rgba(0,0,0,0.12); }
+        .title-bar { display:flex; align-items:center; height:32px; background:#18181b; color:#fafafa; padding:0 4px 0 12px; flex-shrink:0; user-select:none; }
+        .toolbar { display:flex; align-items:center; height:48px; background:#ffffff; border-bottom:1px solid #e4e4e7; padding:0 16px; flex-shrink:0; gap:12px; }
+        .search-wrap { flex:1; max-width:420px; position:relative; }
+        .search-input { width:100%; height:32px; border:1px solid #e4e4e7; border-radius:6px; padding:0 12px 0 34px; font-size:13px; background:#fafafa; outline:none; box-sizing:border-box; }
+        .btn { display:flex; align-items:center; gap:6px; height:32px; padding:0 14px; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; border:none; font-family:inherit; }
+        .btn-primary { background:#18181b; color:#fafafa; }
+        .btn-secondary { background:#ffffff; color:#18181b; border:1px solid #e4e4e7; }
+        .avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#6366f1,#8b5cf6); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; color:#ffffff; font-size:12px; font-weight:600; }
+        .body { display:flex; flex:1; overflow:hidden; }
+        .sidebar { width:260px; flex-shrink:0; background:#ffffff; border-right:1px solid #e4e4e7; display:flex; flex-direction:column; padding:8px 0; overflow-y:auto; }
+        .nav-item { display:flex; align-items:center; height:38px; padding:0 12px; border-radius:6px; color:#18181b; font-size:13px; transition:background 0.15s; cursor:pointer; }
+        .nav-item.category-item { height:36px; }
+        .nav-item:hover { background:#f4f4f5; }
+        .nav-item.active { background:#f4f4f5; }
+        .nav-icon { width:20px; height:20px; border-radius:5px; flex-shrink:0; display:flex; align-items:center; justify-content:center; margin-right:10px; }
+        .nav-count { font-size:11px; color:#71717a; background:#f4f4f5; padding:1px 8px; border-radius:10px; }
+        .cat-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-right:12px; margin-left:6px; }
+        .sidebar-divider { height:1px; background:#e4e4e7; margin:8px 16px; }
+        .sidebar-label { padding:4px 20px; font-size:11px; font-weight:600; color:#71717a; text-transform:uppercase; letter-spacing:0.05em; }
+        .sidebar-footer { padding:12px 16px; margin:8px; background:#f4f4f5; border-radius:8px; }
+        .main-content { flex:1; overflow-y:auto; background:#fafafa; padding:0; display:flex; }
+        .task-panel { flex:1; padding:24px 28px; overflow-y:auto; }
+        .filter-bar { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+        .filter-btn { height:30px; padding:0 14px; border-radius:6px; border:none; font-size:12px; font-weight:500; cursor:pointer; font-family:inherit; }
+        .filter-btn.active { background:#18181b; color:#ffffff; }
+        .filter-btn:not(.active) { background:#ffffff; color:#18181b; border:1px solid #e4e4e7; }
+        .stats-row { display:flex; gap:12px; margin-bottom:24px; }
+        .stat-card { flex:1; background:#ffffff; border:1px solid #e4e4e7; border-radius:12px; padding:16px 20px; }
+        .section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+        .task-list { display:flex; flex-direction:column; border:1px solid #e4e4e7; border-radius:12px; background:#ffffff; overflow:hidden; }
+        .task-item { display:flex; align-items:center; padding:14px 20px; border-bottom:1px solid #e4e4e7; cursor:pointer; transition:background 0.12s; }
+        .task-item:last-child { border-bottom:none; }
+        .task-item:hover { background:#fafafa; }
+        .task-item.completed { background:#fafaf9; }
+        .task-checkbox { width:20px; height:20px; border-radius:50%; border:2px solid #d4d4d8; flex-shrink:0; margin-right:14px; display:flex; align-items:center; justify-content:center; }
+        .task-checkbox.checked { background:#16a34a; border-color:#16a34a; }
+        .task-content { flex:1; min-width:0; }
+        .task-title { font-size:13px; font-weight:500; color:#18181b; margin-bottom:3px; }
+        .task-item.completed .task-title { color:#a1a1aa; text-decoration:line-through; }
+        .task-meta { display:flex; align-items:center; gap:8px; }
+        .task-badge { font-size:11px; padding:1px 8px; border-radius:10px; font-weight:500; }
+        .task-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:12px; opacity:0; transition:opacity 0.15s; }
+        .task-item:hover .task-actions { opacity:1; }
+        .detail-panel { width:380px; flex-shrink:0; border-left:1px solid #e4e4e7; background:#ffffff; display:flex; flex-direction:column; overflow:hidden; }
+        .detail-content { flex:1; overflow-y:auto; padding:24px; }
+        .detail-footer { flex-shrink:0; padding:12px 24px; border-top:1px solid #e4e4e7; display:flex; align-items:center; gap:8px; background:#ffffff; }
+        .empty-detail { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 32px; text-align:center; flex:1; }
+        .modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:1000; }
+        .modal { background:#ffffff; border-radius:12px; padding:24px; width:480px; max-height:90vh; overflow-y:auto; }
+        .modal h2 { margin:0 0 20px 0; font-size:18px; font-weight:600; }
+        .form-group { margin-bottom:16px; }
+        .form-group label { display:block; font-size:12px; font-weight:500; color:#71717a; margin-bottom:6px; }
+        .form-group input, .form-group textarea, .form-group select { width:100%; padding:8px 12px; border:1px solid #e4e4e7; border-radius:6px; font-size:13px; font-family:inherit; outline:none; box-sizing:border-box; }
+        .form-group textarea { resize:vertical; min-height:80px; }
+        .form-row { display:flex; gap:12px; }
+        .form-row .form-group { flex:1; }
+        .modal-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
+        .subtask-item { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; }
+        .subtask-item.completed { background:#fafafa; }
+        .subtask-checkbox { width:16px; height:16px; border-radius:4px; border:1.5px solid #d4d4d8; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+        .subtask-checkbox.checked { background:#18181b; }
+        .note-item { display:flex; gap:10px; margin-bottom:12px; }
+        .note-avatar { width:28px; height:28px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:#fff; }
+        .note-content { flex:1; }
+        .note-header { display:flex; align-items:baseline; gap:8px; margin-bottom:3px; }
+        .priority-dot { width:6px; height:6px; border-radius:50%; }
+        .page-scheduled { padding:28px 32px 40px; }
+        .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; }
+        .timer-card { flex:1; background:#ffffff; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.04); border-left:4px solid; padding:20px 22px; }
+        .reminder-table { background:#ffffff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.04); overflow:hidden; }
+        .reminder-row { display:flex; align-items:center; padding:12px 20px; border-bottom:1px solid #f4f4f5; transition:background 0.15s; }
+        .reminder-row:last-child { border-bottom:none; }
+        .reminder-row:hover { background:#fafafa; }
+    </style>
+</head>
+<body>
+    <div id="app-shell">
+        <div class="title-bar">
+            <div style="width:14px;height:14px;background:#3b82f6;border-radius:3px;margin-right:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+                <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><rect x="0.5" y="0.5" width="3" height="3" rx="0.5" fill="white"/><rect x="4.5" y="0.5" width="3" height="3" rx="0.5" fill="white" opacity="0.6"/><rect x="0.5" y="4.5" width="3" height="3" rx="0.5" fill="white" opacity="0.6"/><rect x="4.5" y="4.5" width="3" height="3" rx="0.5" fill="white" opacity="0.3"/></svg>
+            </div>
+            <span style="font-size:12px;font-weight:400;letter-spacing:0.02em;flex:1;">待办列表</span>
+            <div style="display:flex;align-items:center;height:32px;">
+                <div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="#a1a1aa"/></svg></div>
+                <div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="0.5" y="0.5" width="9" height="9" rx="1" stroke="#a1a1aa" stroke-width="1"/></svg></div>
+                <div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:0 8px 0 0;"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1L9 9M9 1L1 9" stroke="#a1a1aa" stroke-width="1.2" stroke-linecap="round"/></svg></div>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <div class="search-wrap">
+                <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="#a1a1aa" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="#a1a1aa" stroke-width="1.5" stroke-linecap="round"/></svg>
+                <input type="text" class="search-input" id="search-input" placeholder="搜索任务..." />
+            </div>
+            <div style="flex:1;"></div>
+            <button class="btn btn-primary" id="new-task-btn">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V13M1 7H13" stroke="#fafafa" stroke-width="1.5" stroke-linecap="round"/></svg>
+                <span>新建任务</span>
+            </button>
+            <button class="btn btn-secondary" id="open-float-btn">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="12" height="9" rx="2" stroke="#18181b" stroke-width="1.2"/><path d="M4 3V2a3 3 0 0 1 6 0v1" stroke="#18181b" stroke-width="1.2" stroke-linecap="round"/><circle cx="7" cy="8" r="1.2" fill="#18181b"/></svg>
+                <span>悬浮面板</span>
+            </button>
+            <div class="avatar" id="theme-toggle">U</div>
+        </div>
+
+        <div class="body">
+            <nav class="sidebar">
+                <div style="padding:0 8px;">
+                    <div class="nav-item active" data-nav="inbox"><div class="nav-icon" style="background:#3b82f6;"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3L6 1L10 3V8L6 11L2 8V3Z" stroke="white" stroke-width="1.2"/></svg></div><span style="flex:1;">收件箱</span><span class="nav-count" id="count-inbox">12</span></div>
+                    <div class="nav-item" data-nav="today"><div class="nav-icon" style="background:#f59e0b;"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.5" stroke="white" stroke-width="1.2"/><path d="M6 3.5V6L8 7.5" stroke="white" stroke-width="1.2" stroke-linecap="round"/></svg></div><span style="flex:1;">今天</span><span class="nav-count" id="count-today">5</span></div>
+                    <div class="nav-item" data-nav="upcoming"><div class="nav-icon" style="background:#10b981;"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="3" width="10" height="8" rx="1.5" stroke="white" stroke-width="1.2"/><path d="M3 1V3M9 1V3" stroke="white" stroke-width="1.2" stroke-linecap="round"/></svg></div><span style="flex:1;">即将到来</span><span class="nav-count" id="count-upcoming">8</span></div>
+                    <div class="nav-item" data-nav="completed"><div class="nav-icon" style="background:#8b5cf6;"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.5" stroke="white" stroke-width="1.2"/><path d="M4 6L5.5 7.5L8.5 4.5" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span style="flex:1;">已完成</span><span class="nav-count" id="count-completed">24</span></div>
+                </div>
+                <div class="sidebar-divider"></div>
+                <div class="sidebar-label">分类</div>
+                <div style="padding:0 8px;">
+                    <div class="nav-item category-item" data-nav="work"><div class="cat-dot" style="background:#ef4444;"></div><span style="flex:1;">工作</span><span class="nav-count" id="count-work">6</span></div>
+                    <div class="nav-item category-item" data-nav="personal"><div class="cat-dot" style="background:#3b82f6;"></div><span style="flex:1;">个人</span><span class="nav-count" id="count-personal">4</span></div>
+                    <div class="nav-item category-item" data-nav="study"><div class="cat-dot" style="background:#10b981;"></div><span style="flex:1;">学习</span><span class="nav-count" id="count-study">3</span></div>
+                </div>
+                <div style="flex:1;"></div>
+                <div class="sidebar-footer">
+                    <div style="display:flex;justify-content:space-between;font-size:12px;color:#71717a;margin-bottom:6px;"><span>今日进度</span><span style="color:#18181b;font-weight:600;" id="today-progress">3/5</span></div>
+                    <div style="height:4px;background:#e4e4e7;border-radius:2px;overflow:hidden;"><div style="width:60%;height:100%;background:#18181b;border-radius:2px;" id="progress-bar"></div></div>
+                </div>
+            </nav>
+
+            <main class="main-content" id="main-content">
+                <div class="task-panel" id="task-panel">
+                    <div class="filter-bar" id="filter-bar">
+                        <button class="filter-btn active" data-filter="all">全部</button>
+                        <button class="filter-btn" data-filter="work">工作</button>
+                        <button class="filter-btn" data-filter="personal">个人</button>
+                        <button class="filter-btn" data-filter="study">学习</button>
+                        <button class="filter-btn" data-filter="important">重要</button>
+                    </div>
+                    <div class="stats-row">
+                        <div class="stat-card"><div style="font-size:12px;color:#71717a;margin-bottom:4px;">今日任务</div><div style="font-size:28px;font-weight:700;color:#18181b;line-height:1;" id="stat-today">8</div></div>
+                        <div class="stat-card"><div style="font-size:12px;color:#71717a;margin-bottom:4px;">已完成</div><div style="font-size:28px;font-weight:700;color:#16a34a;line-height:1;" id="stat-completed">3</div></div>
+                        <div class="stat-card"><div style="font-size:12px;color:#71717a;margin-bottom:4px;">已逾期</div><div style="font-size:28px;font-weight:700;color:#dc2626;line-height:1;" id="stat-overdue">1</div></div>
+                    </div>
+                    <div class="section-header">
+                        <div style="display:flex;align-items:baseline;gap:8px;"><h2 style="font-size:16px;font-weight:600;color:#18181b;margin:0;" id="section-title">收件箱</h2><span style="font-size:13px;color:#71717a;" id="section-count">(12)</span></div>
+                        <div style="display:flex;align-items:center;gap:4px;font-size:12px;color:#71717a;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1.5 4.5L7 10L12.5 4.5" stroke="#71717a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>排序</span></div>
+                    </div>
+                    <div class="task-list" id="task-list"></div>
+                </div>
+                <div class="detail-panel" id="detail-panel">
+                    <div class="empty-detail">
+                        <div style="width:56px;height:56px;border-radius:12px;background:#f4f4f5;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 5H7C5.9 5 5 5.9 5 7V19C5 20.1 5.9 21 7 21H17C18.1 21 19 20.1 19 19V7C19 5.9 18.1 5 17 5H15" stroke="#a1a1aa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 5C9 3.9 9.9 3 11 3H13C14.1 3 15 3.9 15 5C15 6.1 14.1 7 13 7H11C9.9 7 9 6.1 9 5Z" stroke="#a1a1aa" stroke-width="1.5"/><path d="M9 12H15M9 16H13" stroke="#a1a1aa" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        </div>
+                        <p style="font-size:14px;color:#71717a;margin:0 0 6px;font-weight:500;">选择一个任务查看详情</p>
+                        <p style="font-size:12px;color:#a1a1aa;margin:0;">点击左侧任务列表中的任务<br/>即可在此处查看详细信息</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <div id="modal-container"></div>
+
+    <script type="module">
+        import { getTasks, toggleTask, updateTask, deleteTask, addTask, toggleSubtask, addNote, generateId, formatDate, getCategoryColor, getPriorityColor, openMainWindow, getTheme, setTheme, getReminders, toggleReminder, addReminder, deleteReminder } from './api.js';
+
+        let currentView = 'inbox';
+        let currentFilter = 'all';
+        let selectedTask = null;
+        let tasks = [];
+        let reminders = [];
+
+        async function loadData() {
+            tasks = await getTasks();
+            reminders = await getReminders();
+            updateStats();
+            renderTaskList();
+            renderNavCounts();
+        }
+
+        function updateStats() {
+            const today = new Date().toISOString().split('T')[0];
+            const todayTasks = tasks.filter(t => {
+                const dueDate = t.due_date.split(' ')[0];
+                return dueDate === today || t.due_date.includes(today);
+            });
+            const completedCount = tasks.filter(t => t.completed).length;
+            const overdueCount = tasks.filter(t => {
+                if (t.completed) return false;
+                const dueDate = new Date(t.due_date.split(' ')[0]);
+                dueDate.setHours(0, 0, 0, 0);
+                return dueDate < new Date();
+            }).length;
+
+            document.getElementById('stat-today').textContent = todayTasks.length;
+            document.getElementById('stat-completed').textContent = completedCount;
+            document.getElementById('stat-overdue').textContent = overdueCount;
+
+            const todayPending = todayTasks.filter(t => !t.completed).length;
+            const todayCompleted = todayTasks.filter(t => t.completed).length;
+            const total = todayPending + todayCompleted;
+            const progress = total > 0 ? (todayCompleted / total) * 100 : 0;
+            
+            document.getElementById('today-progress').textContent = `${todayCompleted}/${total}`;
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+        }
+
+        function renderNavCounts() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('count-inbox').textContent = tasks.length;
+            document.getElementById('count-today').textContent = tasks.filter(t => {
+                const dueDate = t.due_date.split(' ')[0];
+                return dueDate === today || t.due_date.includes(today);
+            }).length;
+            document.getElementById('count-upcoming').textContent = tasks.filter(t => !t.completed).length;
+            document.getElementById('count-completed').textContent = tasks.filter(t => t.completed).length;
+            document.getElementById('count-work').textContent = tasks.filter(t => t.category === '工作').length;
+            document.getElementById('count-personal').textContent = tasks.filter(t => t.category === '个人').length;
+            document.getElementById('count-study').textContent = tasks.filter(t => t.category === '学习').length;
+        }
+
+        function filterTasks() {
+            let filtered = tasks;
+            if (currentView === 'completed') filtered = filtered.filter(t => t.completed);
+            else if (currentView === 'today') {
+                const today = new Date().toISOString().split('T')[0];
+                filtered = filtered.filter(t => {
+                    const dueDate = t.due_date.split(' ')[0];
+                    return dueDate === today || t.due_date.includes(today);
+                });
+            } else if (currentView === 'upcoming') filtered = filtered.filter(t => !t.completed);
+            else if (currentView === 'work' || currentView === 'personal' || currentView === 'study') {
+                const names = { 'work': '工作', 'personal': '个人', 'study': '学习' };
+                filtered = filtered.filter(t => t.category === names[currentView]);
+            }
+
+            if (currentFilter === 'work') filtered = filtered.filter(t => t.category === '工作');
+            else if (currentFilter === 'personal') filtered = filtered.filter(t => t.category === '个人');
+            else if (currentFilter === 'study') filtered = filtered.filter(t => t.category === '学习');
+            else if (currentFilter === 'important') filtered = filtered.filter(t => t.priority === 'high');
+
+            return filtered;
+        }
+
+        function renderTaskList() {
+            const container = document.getElementById('task-list');
+            const filtered = filterTasks();
+            
+            const titles = { 'inbox': '收件箱', 'today': '今天', 'upcoming': '即将到来', 'completed': '已完成', 'work': '工作', 'personal': '个人', 'study': '学习' };
+            document.getElementById('section-title').textContent = titles[currentView] || '收件箱';
+            document.getElementById('section-count').textContent = `(${filtered.length})`;
+
+            container.innerHTML = '';
+            filtered.forEach(task => {
+                const item = document.createElement('div');
+                item.className = `task-item${task.completed ? ' completed' : ''}`;
+                item.dataset.taskId = task.id;
+
+                const checkbox = document.createElement('div');
+                checkbox.className = `task-checkbox${task.completed ? ' checked' : ''}`;
+                if (task.completed) checkbox.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 6L5 8L9 4" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+                checkbox.addEventListener('click', (e) => { e.stopPropagation(); toggleTask(task.id).then(loadData); });
+
+                const content = document.createElement('div');
+                content.className = 'task-content';
+                
+                const title = document.createElement('div');
+                title.className = 'task-title';
+                title.textContent = task.title;
+
+                const meta = document.createElement('div');
+                meta.className = 'task-meta';
+
+                const formattedDate = formatDate(task.due_date);
+                if (formattedDate === '已逾期') {
+                    const overdueBadge = document.createElement('span');
+                    overdueBadge.style.fontSize = '11px';
+                    overdueBadge.style.color = '#dc2626';
+                    overdueBadge.style.fontWeight = '500';
+                    overdueBadge.textContent = '已逾期';
+                    meta.appendChild(overdueBadge);
+                }
+
+                const dateSpan = document.createElement('span');
+                dateSpan.style.fontSize = '11px';
+                dateSpan.style.color = task.completed ? '#a1a1aa' : '#71717a';
+                dateSpan.textContent = task.completed ? formattedDate.split(' ')[0] : formattedDate;
+                meta.appendChild(dateSpan);
+
+                const categoryColor = getCategoryColor(task.category);
+                const categoryBadge = document.createElement('span');
+                categoryBadge.className = 'task-badge';
+                categoryBadge.style.background = categoryColor.bg;
+                categoryBadge.style.color = categoryColor.text;
+                categoryBadge.textContent = task.category;
+                meta.appendChild(categoryBadge);
+
+                content.appendChild(title);
+                content.appendChild(meta);
+
+                const actions = document.createElement('div');
+                actions.className = 'task-actions';
+
+                if (!task.completed) {
+                    const priorityColor = getPriorityColor(task.priority);
+                    const priorityDot = document.createElement('div');
+                    priorityDot.className = 'priority-dot';
+                    priorityDot.style.background = priorityColor;
+                    actions.appendChild(priorityDot);
+
+                    const editIcon = document.createElement('svg');
+                    editIcon.width = '16'; editIcon.height = '16'; editIcon.viewBox = '0 0 16 16';
+                    editIcon.style.color = '#a1a1aa'; editIcon.style.cursor = 'pointer';
+                    editIcon.innerHTML = '<path d="M10.5 2.5L13.5 5.5M2 10L2.5 7.5L10 2L13 4L6.5 11.5L4 12L2 10Z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>';
+                    editIcon.addEventListener('click', (e) => { e.stopPropagation(); openEditModal(task); });
+                    actions.appendChild(editIcon);
+
+                    const deleteIcon = document.createElement('svg');
+                    deleteIcon.width = '16'; deleteIcon.height = '16'; deleteIcon.viewBox = '0 0 16 16';
+                    deleteIcon.style.color = '#a1a1aa'; deleteIcon.style.cursor = 'pointer';
+                    deleteIcon.innerHTML = '<path d="M3 2L13 2L13 4L8 8.5L8 13L5 14L5 8.5L3 4Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>';
+                    deleteIcon.addEventListener('click', (e) => { e.stopPropagation(); if (confirm('确定删除此任务？')) deleteTask(task.id).then(loadData); });
+                    actions.appendChild(deleteIcon);
+                } else {
+                    const completedSpan = document.createElement('span');
+                    completedSpan.style.fontSize = '11px'; completedSpan.style.color = '#16a34a'; completedSpan.style.fontWeight = '500';
+                    completedSpan.textContent = '已完成';
+                    actions.appendChild(completedSpan);
+                }
+
+                item.appendChild(checkbox);
+                item.appendChild(content);
+                item.appendChild(actions);
+                item.addEventListener('click', () => selectTask(task));
+                container.appendChild(item);
+            });
+        }
+
+        function selectTask(task) {
+            selectedTask = task;
+            renderDetailPanel(task);
+        }
+
+        function renderDetailPanel(task) {
+            const panel = document.getElementById('detail-panel');
+            const completedCount = task.subtasks.filter(s => s.completed).length;
+            const totalSubtasks = task.subtasks.length;
+
+            panel.innerHTML = `
+                <div class="detail-content">
+                    <h1 style="font-size:20px;font-weight:700;color:#18181b;margin:0 0 16px 0;line-height:1.3;">${task.title}</h1>
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+                        <span style="height:26px;padding:0 10px;display:inline-flex;align-items:center;border-radius:6px;font-size:12px;font-weight:500;background:${task.completed ? '#dcfce7' : '#fef3c7'};color:${task.completed ? '#166534' : '#92400e'};">${task.completed ? '已完成' : '进行中'}</span>
+                        <div style="display:flex;align-items:center;gap:5px;"><div style="width:7px;height:7px;border-radius:50%;background:${getPriorityColor(task.priority)};"></div><span style="font-size:12px;color:#71717a;">优先级：${task.priority === 'high' ? '高' : task.priority === 'medium' ? '中' : '低'}</span></div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+                        <div style="display:flex;align-items:center;gap:8px;"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="3" width="12" height="10" rx="1.5" stroke="#a1a1aa" stroke-width="1.2"/><path d="M5 1.5V3M10 1.5V3" stroke="#a1a1aa" stroke-width="1.2" stroke-linecap="round"/><path d="M4.5 7H10.5" stroke="#a1a1aa" stroke-width="1" stroke-linecap="round"/></svg><span style="font-size:13px;color:#18181b;">截止日期：${task.due_date}</span></div>
+                        <div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:${getCategoryColor(task.category).dot};"></div><span style="font-size:13px;color:#18181b;">分类：${task.category}</span></div>
+                    </div>
+                    <div style="height:1px;background:#e4e4e7;margin:0 0 20px 0;"></div>
+                    <div style="margin-bottom:20px;"><h3 style="font-size:12px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 8px 0;">描述</h3><p style="font-size:13px;color:#3f3f46;line-height:1.7;margin:0;">${task.description || '暂无描述'}</p></div>
+                    <div style="height:1px;background:#e4e4e7;margin:0 0 20px 0;"></div>
+                    <div style="margin-bottom:20px;"><h3 style="font-size:12px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 10px 0;">子任务 (${completedCount}/${totalSubtasks})</h3><div style="display:flex;flex-direction:column;gap:6px;" id="subtasks-list">${task.subtasks.map(s => `<div class="subtask-item${s.completed ? ' completed' : ''}"><div class="subtask-checkbox${s.completed ? ' checked' : ''}" data-subtask-id="${s.id}">${s.completed ? '<svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M2 4.5L3.5 6L7 2.5" stroke="#fafafa" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}</div><span style="font-size:12px;color:${s.completed ? '#71717a' : '#18181b'};${s.completed ? 'text-decoration:line-through;' : ''}">${s.title}</span></div>`).join('')}</div></div>
+                    <div style="height:1px;background:#e4e4e7;margin:0 0 20px 0;"></div>
+                    <div><h3 style="font-size:12px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 12px 0;">备注 (${task.notes.length})</h3><div style="display:flex;flex-direction:column;gap:12px;">${task.notes.map(n => `<div class="note-item"><div class="note-avatar" style="background:${n.author === '我' ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'linear-gradient(135deg,#f59e0b,#ef4444)'};">${n.author.charAt(0)}</div><div class="note-content"><div class="note-header"><span style="font-size:12px;font-weight:600;color:#18181b;">${n.author}</span><span style="font-size:11px;color:#a1a1aa;">${n.created_at}</span></div><p style="font-size:12px;color:#3f3f46;line-height:1.6;margin:0;">${n.content}</p></div></div>`).join('')}</div><div style="margin-top:12px;"><textarea id="note-input" placeholder="添加备注..." style="width:100%;padding:8px 12px;border:1px solid #e4e4e7;border-radius:6px;font-size:12px;font-family:inherit;resize:none;min-height:48px;"></textarea><button id="add-note-btn" style="margin-top:8px;height:28px;padding:0 12px;border-radius:6px;border:none;background:#18181b;color:#fafafa;font-size:12px;cursor:pointer;">添加备注</button></div></div>
+                </div>
+                <div class="detail-footer">
+                    <button id="edit-task-btn" style="height:32px;padding:0 16px;display:inline-flex;align-items:center;border-radius:6px;font-size:13px;font-weight:500;background:#18181b;color:#fafafa;cursor:pointer;gap:6px;border:none;"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M8.5 2.5H4.5C3.5 2.5 2.5 3 2.5 4.5V8.5C2.5 10 3.5 10.5 4.5 10.5H8.5C9.5 10.5 10.5 10 10.5 8.5V4.5C10.5 3 9.5 2.5 8.5 2.5Z" stroke="#fafafa" stroke-width="1.2"/><path d="M5 6.5L6 7.5L8.5 5" stroke="#fafafa" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>编辑</button>
+                    <button id="delete-task-btn" style="height:32px;padding:0 16px;display:inline-flex;align-items:center;border-radius:6px;font-size:13px;font-weight:500;background:#ffffff;color:#ef4444;border:1px solid #e4e4e7;cursor:pointer;gap:6px;"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3.5 3.5L9.5 9.5M9.5 3.5L3.5 9.5" stroke="#ef4444" stroke-width="1.2" stroke-linecap="round"/></svg>删除</button>
+                    <div style="flex:1;"></div>
+                    <button id="close-detail-btn" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid #e4e4e7;cursor:pointer;"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 3L4 7M4 3L8 7" stroke="#71717a" stroke-width="1.2" stroke-linecap="round"/></svg></button>
+                </div>
+            `;
+
+            document.getElementById('subtasks-list').addEventListener('click', (e) => {
+                const checkbox = e.target.closest('.subtask-checkbox');
+                if (checkbox) toggleSubtask(task.id, checkbox.dataset.subtaskId).then(loadData);
+            });
+
+            document.getElementById('add-note-btn').addEventListener('click', async () => {
+                const input = document.getElementById('note-input');
+                const content = input.value.trim();
+                if (content) {
+                    await addNote(task.id, { id: generateId(), author: '我', content: content, created_at: new Date().toLocaleString('zh-CN') });
+                    input.value = '';
+                    loadData();
+                    selectTask(task);
+                }
+            });
+
+            document.getElementById('edit-task-btn').addEventListener('click', () => openEditModal(task));
+            document.getElementById('delete-task-btn').addEventListener('click', () => {
+                if (confirm('确定删除此任务？')) {
+                    deleteTask(task.id).then(() => { loadData(); selectedTask = null; renderEmptyDetail(); });
+                }
+            });
+            document.getElementById('close-detail-btn').addEventListener('click', () => { selectedTask = null; renderEmptyDetail(); });
+        }
+
+        function renderEmptyDetail() {
+            const panel = document.getElementById('detail-panel');
+            panel.innerHTML = `<div class="empty-detail"><div style="width:56px;height:56px;border-radius:12px;background:#f4f4f5;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 5H7C5.9 5 5 5.9 5 7V19C5 20.1 5.9 21 7 21H17C18.1 21 19 20.1 19 19V7C19 5.9 18.1 5 17 5H15" stroke="#a1a1aa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 5C9 3.9 9.9 3 11 3H13C14.1 3 15 3.9 15 5C15 6.1 14.1 7 13 7H11C9.9 7 9 6.1 9 5Z" stroke="#a1a1aa" stroke-width="1.5"/><path d="M9 12H15M9 16H13" stroke="#a1a1aa" stroke-width="1.5" stroke-linecap="round"/></svg></div><p style="font-size:14px;color:#71717a;margin:0 0 6px;font-weight:500;">选择一个任务查看详情</p><p style="font-size:12px;color:#a1a1aa;margin:0;">点击左侧任务列表中的任务<br/>即可在此处查看详细信息</p></div>`;
+        }
+
+        function openEditModal(task) {
+            const isNew = !task;
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal">
+                    <h2>${isNew ? '新建任务' : '编辑任务'}</h2>
+                    <div class="form-group"><label>任务标题</label><input type="text" id="modal-title" value="${task ? task.title : ''}" placeholder="输入任务标题" /></div>
+                    <div class="form-group"><label>描述</label><textarea id="modal-desc" placeholder="输入任务描述">${task ? task.description : ''}</textarea></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>分类</label><select id="modal-category"><option value="工作" ${task && task.category === '工作' ? 'selected' : ''}>工作</option><option value="个人" ${task && task.category === '个人' ? 'selected' : ''}>个人</option><option value="学习" ${task && task.category === '学习' ? 'selected' : ''}>学习</option></select></div>
+                        <div class="form-group"><label>优先级</label><select id="modal-priority"><option value="high" ${task && task.priority === 'high' ? 'selected' : ''}>高</option><option value="medium" ${task && task.priority === 'medium' ? 'selected' : ''}>中</option><option value="low" ${task && task.priority === 'low' ? 'selected' : ''}>低</option></select></div>
+                    </div>
+                    <div class="form-group"><label>截止日期</label><input type="datetime-local" id="modal-date" value="${task ? formatDateTimeLocal(task.due_date) : ''}" /></div>
+                    <div class="modal-footer">
+                        <button id="modal-cancel" style="height:32px;padding:0 16px;border-radius:6px;border:1px solid #e4e4e7;background:#ffffff;color:#18181b;font-size:13px;cursor:pointer;">取消</button>
+                        <button id="modal-save" style="height:32px;padding:0 16px;border-radius:6px;border:none;background:#18181b;color:#fafafa;font-size:13px;cursor:pointer;">保存</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-container').appendChild(modal);
+
+            modal.querySelector('#modal-cancel').addEventListener('click', () => modal.remove());
+            modal.querySelector('#modal-save').addEventListener('click', async () => {
+                const title = modal.querySelector('#modal-title').value.trim();
+                if (!title) return;
+                const now = new Date();
+                const taskData = {
+                    id: isNew ? generateId() : task.id,
+                    title: title,
+                    description: modal.querySelector('#modal-desc').value,
+                    category: modal.querySelector('#modal-category').value,
+                    priority: modal.querySelector('#modal-priority').value,
+                    due_date: modal.querySelector('#modal-date').value || now.toISOString().split('T')[0],
+                    completed: task ? task.completed : false,
+                    subtasks: task ? task.subtasks : [],
+                    notes: task ? task.notes : [],
+                    created_at: isNew ? now.toISOString().split('T')[0] : task.created_at,
+                    updated_at: now.toISOString().split('T')[0]
+                };
+                if (isNew) await addTask(taskData);
+                else await updateTask(task.id, taskData);
+                modal.remove();
+                await loadData();
+                if (!isNew) selectTask(taskData);
+            });
+        }
+
+        function formatDateTimeLocal(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return '';
+            return date.toISOString().slice(0, 16);
+        }
+
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+                currentView = item.dataset.nav;
+                renderTaskList();
+            });
+        });
+
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.dataset.filter;
+                renderTaskList();
+            });
+        });
+
+        document.getElementById('new-task-btn').addEventListener('click', openEditModal);
+        document.getElementById('open-float-btn').addEventListener('click', openMainWindow);
+        
+        document.getElementById('theme-toggle').addEventListener('click', async () => {
+            const currentTheme = await getTheme();
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            await setTheme(newTheme);
+            document.documentElement.className = newTheme;
+        });
+
+        document.getElementById('search-input').addEventListener('input', () => {
+            renderTaskList();
+        });
+
+        loadData();
+    </script>
+</body>
+</html>

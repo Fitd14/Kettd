@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>待办列表 - 悬浮面板</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            width: 380px;
+            height: 520px;
+            background: linear-gradient(135deg, #e8e8e8 0%, #d0d0d0 100%);
+            font-family: 'Segoe UI', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+            color: #18181b;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .float-window {
+            width: 380px;
+            height: 520px;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.08);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            z-index: 10;
+        }
+
+        .mini-title-bar {
+            height: 32px;
+            background: #18181b;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            flex-shrink: 0;
+        }
+
+        .window-content {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section {
+            padding: 10px 14px 6px;
+            border-bottom: 1px solid #e4e4e7;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 0;
+            border-bottom: 1px solid #f4f4f5;
+            cursor: pointer;
+            transition: background 0.12s;
+        }
+
+        .task-item:hover {
+            background: #fafafa;
+        }
+
+        .task-item:last-child {
+            border-bottom: none;
+        }
+
+        .checkbox {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #d4d4d8;
+            border-radius: 4px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .checkbox.checked {
+            background: #16a34a;
+            border-color: #16a34a;
+        }
+
+        .priority-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .time-badge {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        .timer-card {
+            background: #fafafa;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            border-left: 3px solid;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .quick-add-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 44px;
+            background: #fafafa;
+            border-top: 1px solid #e4e4e7;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .quick-add-input {
+            flex: 1;
+            height: 28px;
+            border: 1px solid #e4e4e7;
+            border-radius: 6px;
+            padding: 0 10px;
+            font-size: 13px;
+            background: #ffffff;
+            color: #18181b;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .add-btn {
+            width: 28px;
+            height: 28px;
+            background: #18181b;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 300;
+            cursor: pointer;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+
+        .add-btn:hover {
+            background: #27272a;
+        }
+
+        .close-btn, .min-btn {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #a1a1aa;
+            font-size: 14px;
+            line-height: 1;
+        }
+
+        .close-btn:hover, .min-btn:hover {
+            background: #3f3f46;
+            color: #fafafa;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 3px;
+            background: #f4f4f5;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #18181b;
+            border-radius: 2px;
+        }
+
+        .scroll-spacer {
+            height: 44px;
+            flex-shrink: 0;
+        }
+
+        .open-main-btn {
+            font-size: 11px;
+            color: #71717a;
+            cursor: pointer;
+        }
+
+        .open-main-btn:hover {
+            color: #18181b;
+        }
+    </style>
+</head>
+<body>
+    <div class="float-window">
+        <div class="mini-title-bar">
+            <div style="display:flex;align-items:center;gap:6px;">
+                <div style="width:14px;height:14px;background:#3b82f6;border-radius:3px;flex-shrink:0;"></div>
+                <span style="font-size:11px;color:#d4d4d8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">待办列表</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+                <div class="min-btn" title="最小化">─</div>
+                <div class="close-btn" title="关闭">&times;</div>
+            </div>
+        </div>
+
+        <div class="window-content">
+            <div class="section" style="padding-bottom:10px;">
+                <div class="section-title">
+                    <span style="font-size:13px;font-weight:600;color:#18181b;">今日概览</span>
+                    <span style="font-size:11px;color:#a1a1aa;" id="current-date">2026年7月6日 周日</span>
+                </div>
+                <div style="font-size:12px;color:#71717a;margin-bottom:8px;" id="stats-text">8 待办 | 3 已完成 | 1 逾期</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width:60%;"></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">
+                    <span style="font-size:12px;font-weight:600;color:#18181b;">即将到来</span>
+                    <span style="font-size:10px;background:#f4f4f5;color:#71717a;padding:1px 6px;border-radius:4px;">近2小时</span>
+                </div>
+                <div id="upcoming-tasks"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">
+                    <span style="font-size:12px;font-weight:600;color:#18181b;">计时器</span>
+                    <span class="open-main-btn" id="open-scheduled">管理</span>
+                </div>
+                <div class="timer-card" style="border-left-color:#16a34a;">
+                    <div>
+                        <div style="font-size:11px;color:#71717a;margin-bottom:2px;">专注工作</div>
+                        <div style="font-size:20px;font-family:'Consolas','Courier New',monospace;font-weight:600;color:#18181b;letter-spacing:1px;">25:00</div>
+                    </div>
+                    <div style="font-size:11px;color:#71717a;cursor:pointer;padding:3px 8px;border-radius:4px;border:1px solid #e4e4e7;">暂停</div>
+                </div>
+                <div class="timer-card" style="border-left-color:#3b82f6;">
+                    <div>
+                        <div style="font-size:11px;color:#71717a;margin-bottom:2px;">休息提醒</div>
+                        <div style="font-size:20px;font-family:'Consolas','Courier New',monospace;font-weight:600;color:#18181b;letter-spacing:1px;">05:00</div>
+                    </div>
+                    <div style="font-size:11px;color:#71717a;cursor:pointer;padding:3px 8px;border-radius:4px;border:1px solid #e4e4e7;">暂停</div>
+                </div>
+            </div>
+
+            <div class="section" style="border-bottom:none;">
+                <div style="display:flex;align-items:center;gap:4px;margin-bottom:8px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="#f59e0b" stroke="none">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                    <span style="font-size:12px;font-weight:600;color:#18181b;">重要任务</span>
+                </div>
+                <div id="important-tasks"></div>
+            </div>
+
+            <div class="scroll-spacer"></div>
+        </div>
+
+        <div class="quick-add-bar">
+            <input type="text" class="quick-add-input" id="quick-add-input" placeholder="快速添加待办..." />
+            <div class="add-btn" id="quick-add-btn">+</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { getTasks, toggleTask, addTask, generateId, formatDate, getCategoryColor, getPriorityColor, openMainWindow } from './api.js';
+
+        const today = new Date();
+        const dateStr = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日`;
+        const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+        document.getElementById('current-date').textContent = `${dateStr} ${days[today.getDay()]}`;
+
+        async function loadTasks() {
+            const tasks = await getTasks();
+            renderStats(tasks);
+            renderUpcomingTasks(tasks);
+            renderImportantTasks(tasks);
+        }
+
+        function renderStats(tasks) {
+            const todayStr = today.toISOString().split('T')[0];
+            const todayTasks = tasks.filter(t => {
+                const dueDate = t.due_date.split(' ')[0];
+                return dueDate === todayStr || t.due_date.includes(todayStr);
+            });
+            
+            const pending = tasks.filter(t => !t.completed).length;
+            const completed = tasks.filter(t => t.completed).length;
+            const overdue = tasks.filter(t => {
+                if (t.completed) return false;
+                const dueDate = new Date(t.due_date.split(' ')[0]);
+                dueDate.setHours(0, 0, 0, 0);
+                return dueDate < today;
+            }).length;
+            
+            document.getElementById('stats-text').textContent = `${pending} 待办 | ${completed} 已完成 | ${overdue} 逾期`;
+            
+            const todayPending = todayTasks.filter(t => !t.completed).length;
+            const todayCompleted = todayTasks.filter(t => t.completed).length;
+            const total = todayPending + todayCompleted;
+            const progress = total > 0 ? (todayCompleted / total) * 100 : 0;
+            document.getElementById('progress-fill').style.width = `${progress}%`;
+        }
+
+        function renderUpcomingTasks(tasks) {
+            const container = document.getElementById('upcoming-tasks');
+            container.innerHTML = '';
+            
+            const sortedTasks = tasks.filter(t => !t.completed).sort((a, b) => {
+                return new Date(a.due_date) - new Date(b.due_date);
+            }).slice(0, 5);
+
+            sortedTasks.forEach(task => {
+                const item = document.createElement('div');
+                item.className = 'task-item';
+                
+                const checkbox = document.createElement('div');
+                checkbox.className = 'checkbox';
+                checkbox.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleTask(task.id).then(loadTasks);
+                });
+
+                const title = document.createElement('span');
+                title.style.fontSize = '12px';
+                title.style.color = '#18181b';
+                title.style.flex = '1';
+                title.textContent = task.title;
+
+                const priorityColor = getPriorityColor(task.priority);
+                const priorityDot = document.createElement('div');
+                priorityDot.className = 'priority-dot';
+                priorityDot.style.background = priorityColor;
+
+                const formattedDate = formatDate(task.due_date);
+                const isOverdue = formattedDate === '已逾期';
+                const isToday = formattedDate.includes('今天');
+                
+                const badge = document.createElement('span');
+                badge.className = 'time-badge';
+                if (isOverdue) {
+                    badge.style.background = '#fef2f2';
+                    badge.style.color = '#b91c1c';
+                } else if (isToday) {
+                    badge.style.background = '#fef3c7';
+                    badge.style.color = '#92400e';
+                } else {
+                    badge.style.background = '#f4f4f5';
+                    badge.style.color = '#a1a1aa';
+                }
+                badge.textContent = formattedDate;
+
+                item.appendChild(checkbox);
+                item.appendChild(title);
+                item.appendChild(badge);
+                
+                container.appendChild(item);
+            });
+        }
+
+        function renderImportantTasks(tasks) {
+            const container = document.getElementById('important-tasks');
+            container.innerHTML = '';
+            
+            const importantTasks = tasks.filter(t => !t.completed && (t.priority === 'high' || formatDate(t.due_date) === '已逾期')).slice(0, 3);
+
+            importantTasks.forEach(task => {
+                const item = document.createElement('div');
+                item.className = 'task-item';
+                
+                const priorityColor = getPriorityColor(task.priority);
+                const priorityDot = document.createElement('div');
+                priorityDot.className = 'priority-dot';
+                priorityDot.style.background = priorityColor;
+
+                const title = document.createElement('span');
+                title.style.fontSize = '12px';
+                title.style.color = '#18181b';
+                title.style.flex = '1';
+                title.textContent = task.title;
+
+                const formattedDate = formatDate(task.due_date);
+                const isOverdue = formattedDate === '已逾期';
+                
+                const badge = document.createElement('span');
+                badge.className = 'time-badge';
+                if (isOverdue) {
+                    badge.style.background = '#fef2f2';
+                    badge.style.color = '#b91c1c';
+                } else {
+                    badge.style.background = '#fef3c7';
+                    badge.style.color = '#92400e';
+                }
+                badge.textContent = formattedDate;
+
+                item.appendChild(priorityDot);
+                item.appendChild(title);
+                item.appendChild(badge);
+                
+                container.appendChild(item);
+            });
+        }
+
+        document.getElementById('quick-add-btn').addEventListener('click', async () => {
+            const input = document.getElementById('quick-add-input');
+            const title = input.value.trim();
+            if (title) {
+                const now = new Date();
+                const task = {
+                    id: generateId(),
+                    title: title,
+                    description: '',
+                    category: '个人',
+                    priority: 'low',
+                    due_date: now.toISOString().split('T')[0],
+                    completed: false,
+                    subtasks: [],
+                    notes: [],
+                    created_at: now.toISOString().split('T')[0],
+                    updated_at: now.toISOString().split('T')[0]
+                };
+                await addTask(task);
+                input.value = '';
+                await loadTasks();
+            }
+        });
+
+        document.getElementById('quick-add-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('quick-add-btn').click();
+            }
+        });
+
+        document.getElementById('open-scheduled').addEventListener('click', openMainWindow);
+
+        document.querySelector('.close-btn').addEventListener('click', () => {
+            window.close();
+        });
+
+        document.querySelector('.min-btn').addEventListener('click', () => {
+            if (window.__TAURI__) {
+                window.__TAURI__.window.getCurrent().then(win => win.minimize());
+            }
+        });
+
+        loadTasks();
+        setInterval(loadTasks, 30000);
+    </script>
+</body>
+</html>

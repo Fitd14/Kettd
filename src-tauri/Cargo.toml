@@ -1,0 +1,22 @@
+[package]
+name = "todo-list-tauri"
+version = "1.0.0"
+description = "待办列表 - 一款简洁高效的待办列表应用"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.57"
+
+[build-dependencies]
+tauri-build = { version = "1.0.0", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "1.0.0", features = [ "api-all" ] }
+dirs = "4.0"
+
+[features]
+default = [ "custom-protocol" ]
+custom-protocol = [ "tauri/custom-protocol" ]
