@@ -384,6 +384,26 @@
 
 ---
 
+### 29. openspec-superpowers-workflow（OpenSpec+Superpowers 混合流程）
+
+**中文描述**：当开始一个新的开发变更时使用，结合 OpenSpec 的结构化规划和 Superpowers 的质量保证技能，形成一套完整的开发流程。
+
+**用途场景**：
+- 新功能开发的完整流程
+- 架构重构项目
+- 需要系统化分析的复杂 Bug 修复
+
+**触发方式**：开始新的开发变更时使用。
+
+**流程阶段**：
+- **Phase 1（规划）**：openspec-propose → brainstorming → openspec-explore
+- **Phase 2（实施）**：writing-plans → test-driven-development → systematic-debugging → verification-before-completion
+- **Phase 3（归档）**：人验证 → openspec-archive-change
+
+**触发方式**：开始新的开发变更时使用。
+
+---
+
 ## 七、技能调用速查表
 
 | 需求类型 | 推荐技能 |
@@ -406,6 +426,7 @@
 | 查找技能 | find-skills |
 | 创建技能 | skill-creator |
 | 验证完成 | verification-before-completion |
+| OpenSpec流程 | openspec-superpowers-workflow |
 
 ---
 

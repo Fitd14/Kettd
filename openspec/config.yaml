@@ -1,20 +1,34 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Tech stack: Tauri v1, Rust 1.65+, Vue 3, Vite 6
+  Development workflow: OpenSpec + Superpowers hybrid workflow
+  - Phase 1 (Planning): openspec-propose → brainstorming → openspec-explore
+  - Phase 2 (Implementation): writing-plans → test-driven-development → systematic-debugging → verification-before-completion
+  - Phase 3 (Verification & Archive): Human verification → openspec-archive-change
+  Coding conventions:
+  - Rust: snake_case for functions/variables, PascalCase for types
+  - Vue: Composition API, camelCase for methods/props
+  - SQL: keywords in UPPERCASE, proper indentation
+  Testing:
+  - Frontend: Vitest for unit tests, Playwright for E2E
+  - Backend: Cargo test for unit/integration tests
+  Database: SQLite with rusqlite, schema version migration system
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - Keep proposals under 500 words
+    - Always include a "Non-goals" section
+    - Include success criteria
+  design:
+    - Include architecture diagrams
+    - Document data flow
+    - Identify risks and mitigations
+  specs:
+    - Use "SHALL" for requirements
+    - Include scenarios with WHEN/THEN structure
+    - Reference related capabilities
+  tasks:
+    - Break tasks into chunks of max 2 hours
+    - Include verification steps
+    - Follow test-driven-development approach
