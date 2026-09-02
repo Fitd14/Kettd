@@ -1,0 +1,104 @@
+{
+  "skill": "pitch",
+  "generated_at": "2026-09-02T17:40:00+08:00",
+  "project_name": "Kettd v2 · 个人待办记录汇总",
+  "audience": "stakeholder(owner)",
+  "format": "doc",
+  "pitch_file": "spark-output/pitch/kettd-v2.md",
+  "sections": {
+    "the_bet": {
+      "one_liner": "押『离线轻量的个人记录-汇总工具』竞品空位：4 周推 Wave-1 Beta（10-20 人）",
+      "success_metric": "P50 捕获 ≤3s 且周汇总打开/导出≥40%（未达=假设错回炉，不加功能）"
+    },
+    "why_now": "订阅疲劳（139-168元/年差评原话）+ 三家头部全留『完成即蒸发/重规划轻总结』空位 + Tauri 栈 3h 已落地原型的低成本窗口；晚进则被任意头部顺手填掉",
+    "user_jtbd": {
+      "persona_name": "小柯",
+      "persona_description": "Windows 笔电学生/上班族，怕忘事、反感云账号与订阅、周末写周报",
+      "jtbd": "当脑中有事冒出，比备忘录更快乐库，到点被真提醒，周末一眼看完成果"
+    },
+    "direction": {
+      "chosen": "A 记录-提醒-汇总闭环（本地）",
+      "chosen_id": "A",
+      "alternatives_considered": [
+        "B 云同步轻量版→与『永不收费』矛盾，毁定位",
+        "C 习惯/番茄全象→功能广度正是竞品差评源",
+        "D $49.99 买断→无品牌资产，只能打开源免费信任牌"
+      ],
+      "why_this_one": "三屏赢进门+两屏赢留存，全部能力可本地零成本兑现",
+      "key_risk": "B4 周汇总真实需求 = 零一手证据，100% 靠 Beta Gate",
+      "critical_assumption": "「每周自动汇总+导出」是高频刚需"
+    },
+    "design_decisions": [
+      {
+        "decision": "信任底座先于功能（坏消息永远显式）",
+        "rationale": "audit 三 blocker 的反例设计",
+        "evidence": "F0/F6 + edge gate 最高优先",
+        "related_screen": "F0 迁移兜底/F6 恢复"
+      },
+      {
+        "decision": "捕获是唯一货币（交互预算全给它）",
+        "rationale": "S3 moment-of-truth",
+        "evidence": "bench takeaway-1 + F1 ≤2 键",
+        "related_screen": "F1"
+      },
+      {
+        "decision": "今天=计划非日历",
+        "rationale": "承诺『今天可做完』",
+        "evidence": "To Do 区第一好评 + audit-11/12 销账",
+        "related_screen": "F3"
+      },
+      {
+        "decision": "克制做进机制不做海报",
+        "rationale": "anti-metrics 落地",
+        "evidence": "edge dnd/≤3 次/小时/24h 降级",
+        "related_screen": "F4+通知策略"
+      }
+    ],
+    "asks": [
+      {
+        "ask": "批准『Beta 前不对外承诺周汇总；Gate 不过降级为纯日志簿』",
+        "why_needed": "全案唯一零证据押注需预设退路",
+        "decision_needed_by": "≤2026-09-09（Wave-2 前）",
+        "impact_if_no_decision": "招募文案无法定稿，营销全停"
+      },
+      {
+        "ask": "批准推送本地 v2 分支至远端（新建 v2，不动 master）",
+        "why_needed": "产物只活在沙箱，无远端无 Beta 源",
+        "decision_needed_by": "本周五前",
+        "impact_if_no_decision": "Beta 无法版本发放，链产物悬空"
+      },
+      {
+        "ask": "提醒机制默认=托盘常驻 vs 计划任务，接受 0.5d spike 后凭数据选",
+        "why_needed": "『关了也响』双分叉锁排期",
+        "decision_needed_by": "Wave-2 spike 出数后 3 日",
+        "impact_if_no_decision": "Wave-3 排期锁不住"
+      },
+      {
+        "ask": "Beta 同意加 1 道单选题（『你之前用什么记』）",
+        "why_needed": "补 workaround 一手证据（PRD thin#2）",
+        "decision_needed_by": "Beta 问卷定稿前（Ask2 后一周内）",
+        "impact_if_no_decision": "Retro rev.2 的产品级验证永远缺项"
+      }
+    ]
+  },
+  "source_skills": {
+    "bench": true,
+    "audit": true,
+    "brief": true,
+    "journey": true,
+    "stories": true,
+    "sitemap": true,
+    "flow_web": true,
+    "check": true,
+    "edge": true,
+    "prd": true,
+    "extract": true,
+    "retro": true,
+    "qa": false,
+    "metric": false,
+    "access": false
+  },
+  "thin_sections": [
+    "无一手用户数据（全文数字=目标非成果，文首/文尾双声明）"
+  ]
+}

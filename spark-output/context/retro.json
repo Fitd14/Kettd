@@ -1,0 +1,153 @@
+{
+  "skill": "retro",
+  "retro_type": "process_pre_launch",
+  "project_name": "Kettd v2 · 个人待办记录汇总",
+  "project_type": "产品改版",
+  "data_source": "spark-output/context/[bench,audit,brief,journey,stories,sitemap,prd,extract].json + 会话记录",
+  "generated_at": "2026-09-02T14:25:00+08:00",
+  "project_summary": {
+    "skills_completed": 8,
+    "span": "11:00-14:10 ≈3h10m",
+    "deliverables": "context×8 + docs×7 + tokens×6",
+    "team": "1人+QwenWork",
+    "no_user_signal": true,
+    "retro_gate": {
+      "when": "PRD S8 三波灰度上线后",
+      "why": "产品decision_validation缺NSM不可验",
+      "artifacts": "PRD §6 / extract tokens",
+      "report": "spark-output/retro/kettd-v2.md"
+    }
+  },
+  "decision_validation": [
+    {
+      "id": "P1",
+      "source": "bench#first-then-audit",
+      "outcome": "audit 8 处引用 bench；hypothesis 全程标注",
+      "status": "validated",
+      "note": "单人无反馈时外部语料可当用户信号但必须标源"
+    },
+    {
+      "id": "P2",
+      "source": "audit#code-mode",
+      "outcome": "行级证据→可定位 PRD 与销账矩阵",
+      "status": "validated",
+      "note": "private/desktop 代码走查 > URL"
+    },
+    {
+      "id": "P3",
+      "source": "brief#strategy-dims",
+      "outcome": "stories 8/8 映射成功",
+      "status": "partially-validated",
+      "note": "3列压得过瘦致引导类复合标签缺失"
+    },
+    {
+      "id": "P6",
+      "source": "flow-web#react-proto",
+      "outcome": "中断且未续，6 屏留 PRD'待生成'",
+      "status": "partially-validated",
+      "note": "设计原型≠生产但缺断点恢复契约"
+    },
+    {
+      "id": "P4/P5",
+      "source": "extract#self-baseline",
+      "outcome": "循环源已显式声明为'提案基线'",
+      "status": "validated",
+      "note": "链路快可 1h 固化 tokens，慢则需外部输入"
+    },
+    {
+      "id": "B4",
+      "source": "stories-6⭐",
+      "outcome": "无真实周汇总使用率",
+      "status": "inconclusive",
+      "next_action": "Beta 前 mini-probe（5人）验周汇总表打开率"
+    }
+  ],
+  "assumption_validation": [
+    {
+      "assumption": "链路接力可持续（用户逐个slash）",
+      "actual": "8节点无烂尾；flow-web 停 Phase B",
+      "status": "partially-validated",
+      "next": "面板关2→自动跳默认"
+    },
+    {
+      "assumption": "专家启发+竞品语料可撑到 PRD",
+      "actual": "每条锚定但5⭐未验",
+      "status": "partially-validated",
+      "next": "Beta 前 mini-probe"
+    },
+    {
+      "assumption": "B4·周汇总为差异化主轴",
+      "actual": "零证据",
+      "status": "inconclusive",
+      "next": "Beta 数据回收后重跑完整 Retro+Metric"
+    }
+  ],
+  "what_worked": [
+    "机读双通道贯穿：8 context 全可 json.load，跨引用零悬挂",
+    "Audit→PRD 销账闭环：24 findings 以编号进 PRD 风险/验收",
+    "事实校准型走查，UI 层落到数据/代码可定位层（audit-2/3/5）"
+  ],
+  "what_didnt": [
+    "W1 PRD 一度写入虚构实测值（自查删）",
+    "W2 flow-web 中断无 resume 契约",
+    "W3 shadcn CLI 非交互适配失败+缺组件超时",
+    "W4 面板 8 次降级——真因非资产缺失：模板一直在 /workspace/.qwenwork/plugins/product-design/_shared/，检索只在会话工作区 glob，把「没搜到」当「不存在」；面板已补生成（9/28），安装目录需纳入检索口径",
+    "W5 全程 0 真实用户信号（未跑 Probe/Signal）"
+  ],
+  "surprises": [
+    "S1 贴皮假控件密度远超预期（audit-3/7/8/9/10/11 成片）",
+    "S3 设计语言源头循环（自写原型→抽取自猜）→须打提案基线水印"
+  ],
+  "skill_usage": [
+    "bench:high",
+    "audit:high",
+    "brief:high",
+    "journey:medium",
+    "stories:high",
+    "sitemap:high",
+    "prd:high(未测禁列)",
+    "flow-web:low",
+    "retro:high",
+    "frame/scope:n-a",
+    "probe/signal:GAP(最大单点风险)",
+    "board:n-a",
+    "check/edge/access/qa/metric/pitch:pending",
+    "chart:pending"
+  ],
+  "recommendations": [
+    {
+      "audience": "self",
+      "action": "改版链路固定 Bench∥Signal(若有)→Audit→Brief→Journey/Stories",
+      "rationale": "8环全部可追溯，未再插方向讨论"
+    },
+    {
+      "audience": "self",
+      "action": "PRD 模板加'来源+测量状态'硬字段，未测=占位符禁自觉",
+      "rationale": "W1 教训"
+    },
+    {
+      "audience": "team",
+      "action": "补 _shared：面板模板+semantic-rules+skill-graph；长管线加 resume 机制",
+      "rationale": "W4+W2"
+    },
+    {
+      "audience": "next-project",
+      "action": "out_of_scope 若切高频抱怨必进风险表非仅范围表",
+      "rationale": "'不做云'赌反定位，无依据别学"
+    }
+  ],
+  "summary_stats": {
+    "total_findings_audited": 24,
+    "audit_findings_reconciled_in_prd": 24,
+    "stories_mapped_to_sitemap": "8/8",
+    "tokens_extracted": 20,
+    "context_jsons_valid": "8/8",
+    "critical_assumptions": "5⭐",
+    "validated": "6",
+    "partial": "2",
+    "inconclusive": "4+5(未上线)"
+  },
+  "correction_log": [
+    "W4 初判『模板缺失』证伪，修正为『检索范围不足』，面板已生成 9/28"
+  ]
+}

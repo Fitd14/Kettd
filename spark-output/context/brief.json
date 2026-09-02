@@ -1,0 +1,93 @@
+{
+  "skill": "brief",
+  "generated_at": "2026-09-02T17:05:00+08:00",
+  "project_name": "Kettd v2 · 个人待办记录汇总",
+  "project_type": "产品设计",
+  "project_subtype": "产品改版",
+  "business_context": "v1 体验触底（搜索失效/数据静默丢失/提醒不可达）触发重构；竞品重型化与订阅化使『离线轻量 · 记录+汇总』窗口敞开；Wave-1 关键屏已在 v2 原型落地可演示，本简报升格为交付基线。",
+  "business_goal": [
+    "记录到落库≤3s、≤2步",
+    "提醒系统级触达率100%",
+    "完成记录100%入日志、可导周报",
+    "存量数据丢失率0"
+  ],
+  "user": [
+    "学生/上班族，单人Windows桌面",
+    "反感云账号登录与订阅费的用户",
+    "怕忘事，要「记下来就安全」",
+    "周末需回看完成汇总、写复盘"
+  ],
+  "strategy_dimensions": [
+    {
+      "dimension": "信息架构 IA",
+      "thesis": "「今日计划」单源视图，收件箱-计划-回顾主轴",
+      "tactics": [
+        "视图收敛为三态轴",
+        "分类语义全局统一",
+        "双轨筛选合并单入口"
+      ],
+      "rationale": "F3 已实现；audit-11/12 销账（原型验证）"
+    },
+    {
+      "dimension": "交互设计",
+      "thesis": "记-看-改-删可信闭环，到点真的提醒",
+      "tactics": [
+        "全局热键+语法快录",
+        "软删撤销、inline 校验",
+        "系统通知与计时实装"
+      ],
+      "rationale": "F0-F7 must 全落地；edge Gate=CLEARED"
+    },
+    {
+      "dimension": "视觉设计",
+      "thesis": "diverge 桌面文具感，常驻面积极小",
+      "tactics": [
+        "Token 层收编真实暗色",
+        "面板透明+自动淡出",
+        "窗口缩放桌面自适应"
+      ],
+      "rationale": "extract 20 色对已固化；纸白 #fcfaf8+石墨 #18181b"
+    }
+  ],
+  "design_criteria": {
+    "quantitative": [
+      "热键唤起≤1s、落库≤3s",
+      "运行中提醒触达100%"
+    ],
+    "qualitative": [
+      "三处「今天」语义一致",
+      "数字可追溯、控件皆有实行为"
+    ]
+  },
+  "constraints": [
+    "沿用 Tauri+原生前端不加重框架",
+    "v1 数据一次性兼容迁移零丢失",
+    "Audit/edge must 不得重犯（12/12 已落地原型）",
+    "单人项目，改版范围克制",
+    "Windows 优先，1366 宽可用"
+  ],
+  "out_of_scope": [
+    "云同步/账号/协作",
+    "订阅与功能付费墙",
+    "移动端",
+    "复杂长句AI语义解析",
+    "习惯/看板/四象限模块"
+  ],
+  "upstream": {
+    "bench": "spark-output/context/bench.json",
+    "audit": "spark-output/context/audit.json"
+  },
+  "style": "chalk",
+  "ratio": "16-9",
+  "scale": "md",
+  "revision": 2,
+  "supersedes": "2026-09-02T11:50:00+08:00",
+  "revision_notes": "rev.2：策略三列由『主张』升级为『已被原型验证』；约束新增发布波次与销账基线；其余目标/标准/用户与 rev.1 一致（未漂移即稳定信号）。",
+  "downstream_verified": [
+    "flow-web(8屏)",
+    "edge(must16/16)",
+    "check(B1/M1销账)",
+    "extract(tokens)",
+    "prd"
+  ]
+}

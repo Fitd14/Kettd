@@ -1,0 +1,75 @@
+{
+  "skill": "bench",
+  "generated_at": "2026-09-02T11:00:00+08:00",
+  "project_name": "Kettd 重构 · 个人待办任务记录汇总",
+  "scope": {
+    "goal": "全面对标",
+    "dimensions": ["information-architecture", "interaction-patterns", "visual-language", "content-strategy"],
+    "time_budget": "标准"
+  },
+  "data_caveat": "基于官网/帮助文档/App Store 评论/2026 公开横评分析，未登录竞品实机体验",
+  "competitors": [
+    { "name": "滴答清单 TickTick", "tier": "direct", "url": "https://dida365.com", "rationale": "桌面端最强，悬浮窗/嵌桌小部件/NLP 快录/真提醒与我们场景重合度最高" },
+    { "name": "Microsoft To Do", "tier": "direct", "url": "https://to-do.microsoft.com", "rationale": "免费轻量+Windows 原生形态标杆，我的一天与迷你小窗是被验证的模式" },
+    { "name": "Things 3", "tier": "aspirational", "url": "https://culturedcode.com/things", "rationale": "个人待办交互/视觉天花板（Apple 设计大奖），When/Where 双轴与 Magic Plus/Jump Start/Logbook 可学" },
+    { "name": "闪点清单/小黄条/Todoist", "tier": "indirect", "url": "", "rationale": "旁证：PC 悬浮窗口碑、零干扰桌面便签语汇、NLP 行业标配基线" }
+  ],
+  "current_product": {
+    "repo": "https://github.com/Fitd14/Kettd",
+    "summary": "Tauri v1 桌面待办：主窗+380px 悬浮面板+提醒表，本地 JSON；无全局热键、无系统级定时通知、搜索未接通、完成记录不可回看"
+  },
+  "feature_matrix_key_findings": [
+    "快速捕获：竞品 2 步内（全局热键+NLP），我们需开主窗多步 = none",
+    "今天视图：竞品为「主动计划/自动拉取+粘留」语义，我们仅是 due 过滤",
+    "桌面常驻：滴答嵌桌小部件双态为最强，我们固定置顶窗为 partial",
+    "真提醒：三家均支持系统级，我们完全缺失",
+    "记录汇总：三家全部薄弱（Things 用户差评『重规划轻总结』）= 我们核心差异化空位",
+    "离线/隐私/轻：唯一我们 5/5 领先项，应升级为产品主张"
+  ],
+  "castle_vs_shack": {
+    "durable_advantages": [
+      "滴答 7 端云同步+协作+3000 万用户数据沉淀",
+      "滴答 MCP/AI 生态与 11 年功能广度",
+      "To Do 的 Outlook/Exchange/M365 深度绑定与企业分发",
+      "Things 的设计品牌资产与买断口碑（Apple 生态专属）"
+    ],
+    "mimicable_advantages": [
+      "全局热键快捕获+中文 NLP 一行成型",
+      "桌面小部件置于顶层/嵌入桌面双态",
+      "我的一天每日清空+一键加入今天的仪式",
+      "When/Where 双轴+粘性今天",
+      "Magic Plus / Jump Start / Quick Find 键盘流",
+      "annoying alerts 重复提醒、批量移未完成到今日",
+      "Logbook 完成历史（可看不可导是其坑，可导是我们的机会）"
+    ]
+  },
+  "visual_strategy_decision": {
+    "choice": "diverge",
+    "rationale": "桌面待办视觉同质化（白卡片+灰边线），lean-in 只会像更简陋的云产品；以『离线轻』为锚走桌面文具/纸感方向：更低窗口 chrome、更小默认信息面积、动效只服务记录落纸与完成划掉反馈",
+    "reference_landscape": ["Things 3 纸感留白", "Microsoft To Do Fluent 彩色卡片", "滴答商务蓝高密度", "小黄条零干扰桌面便签", "Sticky Notes 桌面纸片语汇"]
+  },
+  "takeaways": [
+    { "id": "takeaway-1", "action": "borrow", "description": "全局快捷键快捕获浮窗 + 轻量结构化语法（日期/时间/#分类/!优先级），解析失败不阻塞纯文本先入收件箱", "source_competitor": "滴答清单 / Things 3 / Todoist", "target_design_area": "新增快速捕获浮窗；主窗新建弹窗降级为编辑页", "copy_check": { "why_it_works": "录入路径从多字段表单塌缩为一行文字，消除『记不下来就忘了』焦虑", "context_match": "yes", "side_effects": "解析错误引发不信任→解析仅辅助、结果 chip 可一键修正" } },
+    { "id": "takeaway-2", "action": "borrow", "description": "「今天计划」主动制+粘性今天：planned_date 字段+昨日未完成自动粘留+逾期折叠", "source_competitor": "Microsoft To Do / Things 3 / Todo清单", "target_design_area": "侧栏「今天」、悬浮面板默认视图", "copy_check": { "why_it_works": "解耦『任务库大』与『今天少』，让『今天做完』成为可达成状态", "context_match": "yes", "side_effects": "多一层主动决策→自动粘留+一键加入兜底" } },
+    { "id": "takeaway-3", "action": "borrow", "description": "悬浮面板升级三形态（置于顶层/嵌入桌面/迷你条）+系统级定时通知+重复提醒", "source_competitor": "滴答清单 / 闪点清单 / 小黄条", "target_design_area": "float.html 重做，Rust 通知/透明/穿透能力", "copy_check": { "why_it_works": "常驻可见使『打开应用』变成可选项，是 PC 待办被口碑验证的决定性能力", "context_match": "yes", "side_effects": "桌面噪音/遮挡→默认极小+透明+自动淡出+一键收起" } },
+    { "id": "takeaway-4", "action": "borrow", "description": "日志簿+每周自动汇总：完成时间戳记录、周五生成可编辑周汇总、导出 markdown/csv", "source_competitor": "Things Logbook（反例启发）/ 小智日历 AI 周报", "target_design_area": "新增日志/汇总页+导出；差异化主轴", "copy_check": { "why_it_works": "App Store 原话痛点『重规划轻总结、做完就完、周报无抓手』（含竞品差评证据链）", "context_match": "yes", "side_effects": "监控感→仅计完成数、可关闭隐藏、数据留本地" } },
+    { "id": "takeaway-5", "action": "borrow", "description": "最小键盘流：任意处打字即搜索（先修好 v1 搜索）、j/k/勾选/删除/撤销 5 键", "source_competitor": "Things Quick Find / Type Travel", "target_design_area": "主窗键盘层", "copy_check": { "why_it_works": "搜索与勾选是常驻工具最高频动作，肌肉记忆决定留存", "context_match": "partial→仅 5 个必要快捷键，不做全命令面板", "side_effects": "与输入焦点冲突→列表获焦才生效+可视提示" } },
+    { "id": "takeaway-6", "action": "avoid", "description": "订阅/会员功能墙、功能广度堆叠（四象限/协作/习惯/番茄/看板均不做）、以日历为主卖点", "source_competitor": "滴答清单 / Todoist（功能过载+付费墙+新 UI 路径变长差评）", "copy_check": { "why_it_works": "n/a", "context_match": "n/a", "side_effects": "n/a" } },
+    { "id": "takeaway-7", "action": "avoid", "description": "Things 式零引导、云端账号依赖、承诺复杂语境 AI 自然语言解析", "source_competitor": "Things 3 onboarding 抱怨 / To Do 同步 bug / 国产工具 NLP 解析出错差评", "copy_check": { "why_it_works": "n/a", "context_match": "n/a", "side_effects": "n/a" } },
+    { "id": "takeaway-8", "action": "match", "description": "行业标配：M1 中文日期时间识别、M2 真系统提醒+多提醒/延后/重复、M3 优先级+重复+子任务+分类完整组合且重复语义显式、M4 主题/排序/拖拽/逾期批量处理、M5 导入导出与本地备份", "source_competitor": "全体竞品", "copy_check": { "why_it_works": "不做即被认为不专业", "context_match": "yes", "side_effects": "范围控制：全部服务于『记-排-醒-汇』主轴" } }
+  ],
+  "annotated_references": [
+    { "id": "ref-1", "competitor": "滴答清单", "screen_or_url": "https://www.zhihu.com/question/436838825", "annotation": "PC 悬浮窗/嵌桌小部件是用户留存决定性因素；功能最全但『容易觉得没它也行』", "category": "pattern" },
+    { "id": "ref-2", "competitor": "滴答清单", "screen_or_url": "https://www.php.cn/faq/1611345.html", "annotation": "全局热键→NLP 一行→回车保存的最短录入闭环", "category": "pattern" },
+    { "id": "ref-3", "competitor": "横向", "screen_or_url": "https://post.m.smzdm.com/p/apq558k2/", "annotation": "微软 NLP 仅英文；部分产品复杂语境解析出错", "category": "weakness" },
+    { "id": "ref-4", "competitor": "Microsoft To Do", "screen_or_url": "https://apps.apple.com/us/app/microsoft-to-do/id1274495053?l=zh", "annotation": "『一次点击加入我的一天』被高赞为全品类最佳单一功能", "category": "strength" },
+    { "id": "ref-5", "competitor": "Things 3", "screen_or_url": "https://apps.apple.com/cn/app/things-3/id904237743?see-all=reviews", "annotation": "『重规划轻总结、不能导出、要写周报』——汇总空位的直接用户证据", "category": "weakness" },
+    { "id": "ref-6", "competitor": "Things/To Do", "screen_or_url": "https://crm.org/news/things-3-review", "annotation": "When/Where 双轴、Magic Plus、Jump Start；To Do 邮件转任务+Steps", "category": "pattern" },
+    { "id": "ref-7", "competitor": "小黄条/闪点", "screen_or_url": "http://m.toutiao.com/group/7574333594622083618/", "annotation": "桌面便签反杂乱设计：透明度/固定位置/点击即编辑自动保存/双重提醒", "category": "anti-pattern-context" }
+  ],
+  "handoff": {
+    "to_audit": ["记录一条任务的实际步数", "『今天』是否有计划语义", "悬浮面板+提醒可用性", "完成记录回看出口", "搜索是否真实可用"],
+    "to_brief": ["视觉策略 diverge（桌面文具/纸感）", "本地离线升级为产品主张", "主轴=快速记录+今日计划+自动周汇总", "禁区=同步/协作/订阅/日历看板/复杂 NLP"],
+    "to_pitch": ["ref-1", "ref-4", "ref-5", "ref-2"]
+  }
+}

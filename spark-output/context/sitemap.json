@@ -1,0 +1,59 @@
+{
+  "skill": "sitemap",
+  "generated_at": "2026-09-02T12:50:00+08:00",
+  "project_name": "Kettd v2 · 个人待办记录汇总",
+  "platform": "web",
+  "platform_note": "Tauri 桌面多窗口应用，结构按 web 管线建模供 Flow Web 消费；win:// 独立窗口、overlay:// 浮层、main:// 主窗SPA",
+  "primary_navigation": [
+    { "id": "today", "label": "今天", "route": "/today", "icon_hint": "calendar-check", "children": [] },
+    { "id": "inbox", "label": "收件箱", "route": "/inbox", "icon_hint": "inbox", "children": [] },
+    { "id": "planned", "label": "计划", "route": "/planned", "icon_hint": "calendar", "children": ["reminders"] },
+    { "id": "review", "label": "回顾", "route": "/review", "icon_hint": "book-open", "children": ["log", "weekly"] },
+    { "id": "settings", "label": "设置", "route": "/settings", "icon_hint": "settings-2", "children": ["appearance", "notify", "data"] }
+  ],
+  "surfaces": [
+    { "id": "win-capture", "type": "window", "label": "快捕获条", "trigger": "全局热键", "related_stories": ["story-1"] },
+    { "id": "win-float", "type": "window", "label": "悬浮面板·三态", "states": ["置顶", "嵌桌面", "迷你条"], "related_stories": ["story-3", "story-5"] },
+    { "id": "overlay-onboarding", "type": "overlay", "label": "首启三步引导", "related_stories": ["story-3"] },
+    { "id": "overlay-search", "type": "overlay", "label": "全局搜索浮层", "related_stories": ["story-2"] },
+    { "id": "panel-task", "type": "inline-panel", "label": "任务详情右栏", "deep_link": "?open=:id", "related_stories": ["story-1", "story-4", "story-6"] },
+    { "id": "toast-undo", "type": "feedback", "label": "删除撤销 toast（10s）", "related_stories": ["story-8"] },
+    { "id": "modal-recovery", "type": "modal", "label": "数据异常恢复", "related_stories": ["story-8"] }
+  ],
+  "pages": [
+    { "id": "page-today", "route": "/today", "label": "今天", "purpose": "每日主屏：主动计划+昨日粘留+逾期折叠，今日唯一事实源", "parent": "today", "access": "public", "related_features": ["信息架构 IA"], "related_stories": ["story-4"] },
+    { "id": "page-inbox", "route": "/inbox", "label": "收件箱", "purpose": "一切未整理捕获的落点，晨间拉取源", "parent": "inbox", "access": "public", "related_features": ["交互设计"], "related_stories": ["story-1", "story-3"] },
+    { "id": "page-planned", "route": "/planned", "label": "计划·即将到来", "purpose": "未来任务时间轴，提醒的上下文", "parent": "planned", "access": "public", "related_features": ["信息架构 IA"], "related_stories": ["story-4"] },
+    { "id": "page-reminders", "route": "/planned/reminders", "label": "提醒管理", "purpose": "v1孤岛提醒系统并入主导航，增删改+稍后策略", "parent": "planned", "access": "public", "related_features": ["交互设计"], "related_stories": ["story-5"] },
+    { "id": "page-review", "route": "/review", "label": "回顾", "purpose": "容器tab：日志簿⇄周汇总", "parent": "review", "access": "public", "related_features": ["信息架构 IA"], "related_stories": ["story-6"] },
+    { "id": "page-log", "route": "/review/log", "label": "日志簿", "purpose": "完成历史按日回看含完成时刻", "parent": "review", "access": "public", "related_features": ["信息架构 IA"], "related_stories": ["story-6"] },
+    { "id": "page-log-date", "route": "/review/log/:date", "label": "某日全列", "purpose": "单日完成明细", "parent": "review", "access": "public", "related_features": ["信息架构 IA"], "related_stories": ["story-6"] },
+    { "id": "page-weekly", "route": "/review/weekly", "label": "周汇总", "purpose": "每周五自动草稿列表", "parent": "review", "access": "public", "related_features": ["信息架构 IA"], "related_stories": ["story-6"] },
+    { "id": "page-weekly-detail", "route": "/review/weekly/:week", "label": "草稿详情", "purpose": "勾选删改+一键导出md/csv", "parent": "review", "access": "public", "related_features": ["信息架构 IA"], "related_stories": ["story-6"] },
+    { "id": "page-settings", "route": "/settings", "label": "设置", "purpose": "外观/通知/数据/快捷键四组", "parent": "settings", "access": "public", "related_features": ["视觉设计"], "related_stories": ["story-7", "story-8"] },
+    { "id": "page-appearance", "route": "/settings/appearance", "label": "外观", "purpose": "主题+面板三形态+透明度+淡出", "parent": "settings", "access": "public", "related_features": ["视觉设计"], "related_stories": ["story-5", "story-7"] },
+    { "id": "page-notify", "route": "/settings/notify", "label": "通知", "purpose": "提醒策略/免打扰/系统权限引导", "parent": "settings", "access": "public", "related_features": ["交互设计"], "related_stories": ["story-5"] },
+    { "id": "page-data", "route": "/settings/data", "label": "数据", "purpose": "备份5档/恢复/导出导入/损坏修复", "parent": "settings", "access": "public", "related_features": ["交互设计"], "related_stories": ["story-8"] }
+  ],
+  "routing_table": [
+    "/today", "/inbox", "/planned", "/planned/reminders",
+    "/review", "/review/log", "/review/log/:date", "/review/weekly", "/review/weekly/:week",
+    "/settings", "/settings/appearance", "/settings/notify", "/settings/data",
+    "deep-link: /:view?open=:id（通知/搜索直达）", "windows: main:// | win:capture | win:float", "overlays: onboarding | search | modal-recovery | toast-undo"
+  ],
+  "key_flows": [
+    { "name": "首启成功（S2）", "page_sequence": ["overlay-onboarding", "win-capture", "page-today", "win-float"] },
+    { "name": "3秒捕获（S3）", "page_sequence": ["win-capture", "page-inbox", "page-today"] },
+    { "name": "晨间计划（S4）", "page_sequence": ["page-today", "page-inbox", "page-planned"] },
+    { "name": "提醒抵达（S4）", "page_sequence": ["page-today", "panel-task", "page-reminders"] },
+    { "name": "周五复盘（S5·差异化主轴）", "page_sequence": ["page-weekly", "page-weekly-detail", "page-log", "page-data"] },
+    { "name": "误操作恢复（横向）", "page_sequence": ["page-today", "panel-task", "modal-recovery", "page-data"] }
+  ],
+  "naming_table": { "提醒": ["定时任务", "今日提醒"], "计划": ["即将到来"], "悬浮面板": ["悬浮小窗", "桌面小部件"], "周汇总": ["周报草稿"] },
+  "metadata": {
+    "depth_max": 3,
+    "page_count": 18,
+    "platform_notes": "桌面单端（Windows 优先），无账号体系 access 统一 public(=local)；浮层/独立窗口不占导航与树深度；术语收敛修复 audit-24",
+    "markdown_report": "spark-output/sitemap/kettd-v2.md"
+  }
+}

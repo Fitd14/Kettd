@@ -1,0 +1,305 @@
+{
+  "skill": "journey",
+  "generated_at": "2026-09-02T17:20:00+08:00",
+  "project_name": "Kettd v2 · 个人待办记录汇总",
+  "hypothesis_journey": true,
+  "hypothesis_note": "无 Probe/Test 一手数据，痛点等级锚定 audit findings 与 bench 公开评价；quotes 留空待验证",
+  "persona": {
+    "name": "小柯",
+    "description": "上班族/备考学生，Windows 笔电（1366×768）主战场，反感云账号与订阅费，怕忘事要『记下来就安全』，周末要回看完成汇总",
+    "jtbd": "当脑子里冒出一件事时，用比打开备忘录更快的速度记下来，到点被真正提醒，周末一眼看到一周做完了什么——而不是被工具反过来管理。"
+  },
+  "journey_type": "end-to-end",
+  "upstream_refs": [
+    "brief",
+    "audit",
+    "bench"
+  ],
+  "stages": [
+    {
+      "name": "认知与获取",
+      "emoji": "👀",
+      "order": 1,
+      "user_goal": "找到不用登录、不乱收费、数据在自己机器上的待办工具",
+      "touchpoints": [
+        "社区口碑/横评文章",
+        "官网/GitHub Release",
+        "安装包（<20MB/便携版）"
+      ],
+      "actions": [
+        "比较清单工具",
+        "被离线免费无账号吸引",
+        "下载安装"
+      ],
+      "thoughts": [
+        "又一个要订阅的？",
+        "数据只在自己电脑上？那放心"
+      ],
+      "emotion": "😐",
+      "pain_level": 2,
+      "quotes": [],
+      "pain_points": [
+        "品类同质化，差异点听不见",
+        "行业订阅疲劳红利未被v1说出口"
+      ],
+      "opportunities": [
+        "主张『3秒记·数据在你手里·永不收费』差异定位",
+        "便携版+小安装包即卖点"
+      ]
+    },
+    {
+      "name": "首启与落地",
+      "emoji": "📦",
+      "order": 2,
+      "user_goal": "打开就明白在哪记、在哪看、谁陪着我",
+      "touchpoints": [
+        "悬浮面板首启（v1默认）",
+        "主窗口+托盘菜单",
+        "首次轻引导（v2）"
+      ],
+      "actions": [
+        "双击启动",
+        "面对悬浮面板",
+        "试窗口按钮/找主窗"
+      ],
+      "thoughts": [
+        "桌面这块小卡片是什么？",
+        "标题栏按钮怎么没反应？"
+      ],
+      "emotion": "😞",
+      "pain_level": 4,
+      "quotes": [],
+      "pain_points": [
+        "主窗默认隐藏+悬浮面板接待，0引导（audit-15）",
+        "双标题条+假窗口按钮（audit-3）",
+        "1440写死壳1366裁切（audit-14）"
+      ],
+      "opportunities": [
+        "首启3步轻引导：记一条→看到它→收进托盘",
+        "真窗口控制+1366自适应"
+      ]
+    },
+    {
+      "name": "首次记录",
+      "emoji": "✍️",
+      "order": 3,
+      "user_goal": "把怕忘的事3秒内记进系统",
+      "touchpoints": [
+        "全局热键快捕获浮窗（v2）",
+        "悬浮面板quick-add",
+        "主窗新建弹窗/搜索"
+      ],
+      "actions": [
+        "呼出输入入口",
+        "输一行含时间文字回车",
+        "搜索找回"
+      ],
+      "thoughts": [
+        "记一条要开窗口填五个框？",
+        "『明天15点』它认识吗？"
+      ],
+      "emotion": "😡",
+      "pain_level": 5,
+      "quotes": [],
+      "pain_points": [
+        "无全局热键记一条4+步（audit-16）",
+        "空标题静默拒绝（audit-5）",
+        "编辑时间漂移8h（audit-6）",
+        "搜索失效记了找不回（audit-1）"
+      ],
+      "opportunities": [
+        "全局热键+语法快录，解析chips一键修正（bench B-1）",
+        "纯文本先落收件箱，解析永不拦路"
+      ]
+    },
+    {
+      "name": "日常循环",
+      "emoji": "🔁",
+      "order": 4,
+      "user_goal": "每天只看今天的事，到点真提醒，勾选无负担",
+      "touchpoints": [
+        "今天计划视图",
+        "桌面常驻三形态（置顶/嵌桌/迷你条）",
+        "系统通知+撤销toast"
+      ],
+      "actions": [
+        "晨间确认今日计划",
+        "瞥常驻面板",
+        "到点收通知勾选"
+      ],
+      "thoughts": [
+        "这个『今天』是我计划的吗？",
+        "到点没弹通知要它何用？"
+      ],
+      "emotion": "😞",
+      "pain_level": 4,
+      "quotes": [],
+      "pain_points": [
+        "提醒链路不可达且不会响（audit-4）",
+        "今天无计划语义（audit-12）",
+        "统计口径矛盾（audit-11）",
+        "删除无撤销/数据可静默覆盖（audit-2,7）"
+      ],
+      "opportunities": [
+        "主动今日计划+昨日粘留（B-2）",
+        "三形态常驻+系统级真通知（B-3）",
+        "软删除+撤销"
+      ]
+    },
+    {
+      "name": "周回顾·汇总",
+      "emoji": "📊",
+      "order": 5,
+      "user_goal": "周末一眼看到做完什么、还欠什么",
+      "touchpoints": [
+        "日志簿",
+        "周汇总草稿页",
+        "导出对话框"
+      ],
+      "actions": [
+        "按日/周翻日志",
+        "打开自动周汇总",
+        "导出md/csv"
+      ],
+      "thoughts": [
+        "这一周不算白过吧？",
+        "写周复盘还要手工数？"
+      ],
+      "emotion": "😕",
+      "pain_level": 3,
+      "quotes": [
+        "竞品侧证据：『重规划轻总结……做完了就完了，都不能导出』（Things 区评论）"
+      ],
+      "pain_points": [
+        "完成即消失：无日志无汇总不可导出（audit-7+bench）",
+        "v1仅当日统计卡且含假数据（audit-10）"
+      ],
+      "opportunities": [
+        "日志簿+每周自动汇总+一键导出（B-4差异化主轴）"
+      ]
+    },
+    {
+      "name": "持续与推荐",
+      "emoji": "📣",
+      "order": 6,
+      "user_goal": "长期轻量使用并推荐给别人",
+      "touchpoints": [
+        "托盘常驻/自启动",
+        "周报分享图",
+        "本地备份文件"
+      ],
+      "actions": [
+        "维持日循环",
+        "一键备份",
+        "推荐给朋友"
+      ],
+      "thoughts": [
+        "一直没跑路没开会员真好",
+        "适合旧笔记本同学"
+      ],
+      "emotion": "🙂",
+      "pain_level": 2,
+      "quotes": [],
+      "pain_points": [
+        "同类工具弃更/转订阅伤过信任",
+        "无备份通道，重装=丢数据恐惧"
+      ],
+      "opportunities": [
+        "本地明文备份/迁移承诺，把『不走』做成品牌",
+        "周报分享图自传播"
+      ]
+    }
+  ],
+  "emotion_curve": [
+    {
+      "stage_order": 1,
+      "pain_level": 2
+    },
+    {
+      "stage_order": 2,
+      "pain_level": 4
+    },
+    {
+      "stage_order": 3,
+      "pain_level": 5
+    },
+    {
+      "stage_order": 4,
+      "pain_level": 4
+    },
+    {
+      "stage_order": 5,
+      "pain_level": 3
+    },
+    {
+      "stage_order": 6,
+      "pain_level": 2
+    }
+  ],
+  "key_moments": [
+    {
+      "stage_order": 2,
+      "type": "dropout-risk",
+      "status": "mitigated(原型)",
+      "evidence": "audit-15/3/14 → F2"
+    },
+    {
+      "stage_order": 3,
+      "type": "moment-of-truth",
+      "status": "implemented(待生产热键测延迟)",
+      "evidence": "F1"
+    },
+    {
+      "stage_order": 4,
+      "type": "dropout-risk",
+      "status": "mitigated(UI 层)·生产通知待接",
+      "evidence": "F4+edge CLEARED"
+    },
+    {
+      "stage_order": 5,
+      "type": "recovery",
+      "status": "implemented",
+      "evidence": "F5"
+    }
+  ],
+  "journey_file": "spark-output/journey/kettd-v2.html",
+  "revision": 2,
+  "supersedes": "2026-09-02T12:10:00+08:00",
+  "revision_note": "rev.2=实施注记版：stage 机会点→落地屏+Gate；触点换原型路由；曲线保留 v1 证据线并叠加 v2 预期虚线（设计目标非实测）。情感分仍假设——红线未破。",
+  "emotion_curve_v2_projected": [
+    2,
+    2,
+    2,
+    3,
+    2,
+    2
+  ],
+  "projection_basis": [
+    "S2/S3 由 F2/F1 修复（原型可演示）",
+    "S4 保守给 3：生产层 Tauri 通知未接",
+    "S5 由 F5 兑现",
+    "S6 依赖 F6 三兜底"
+  ],
+  "stage_landed": {
+    "1": [],
+    "2": [
+      "F2 三步引导",
+      "真窗口控件",
+      "F0 迁移兜底"
+    ],
+    "3": [
+      "F1 热键条+chips",
+      "F7 搜索"
+    ],
+    "4": [
+      "F3 今日计划",
+      "F4 通知+三形态+管理卡(模拟)"
+    ],
+    "5": [
+      "F5 日志+草稿+导出"
+    ],
+    "6": [
+      "F6 撤销/备份/恢复"
+    ]
+  }
+}

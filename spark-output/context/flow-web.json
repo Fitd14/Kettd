@@ -1,0 +1,118 @@
+{
+  "skill": "flow-web",
+  "generated_at": "2026-09-02T16:55:00+08:00",
+  "project_name": "Kettd v2 · 个人待办记录汇总",
+  "scenario": "Productivity Tool（单人模式）",
+  "component_library": "shadcn/ui",
+  "tech_stack": "Vite react-ts + Tailwind3 + shadcn(new-york, slate) + react-router-dom + lucide-react",
+  "flows": [
+    {
+      "name": "Quick Capture · 3 秒捕获",
+      "screens": [
+        {
+          "name": "CaptureBar",
+          "file_path": "src/flows/flow-1-capture/flow1-quick-capture.tsx"
+        },
+        {
+          "name": "Landed"
+        },
+        {
+          "name": "InboxLanding"
+        }
+      ],
+      "story": "story-1"
+    },
+    {
+      "name": "First-Run Lessons · 首启三课",
+      "screens": [
+        {
+          "name": "Welcome→Practice→Today→Tray→Done",
+          "file_path": "src/flows/flow-2-first-run/flow2-onboarding.tsx"
+        }
+      ],
+      "story": "story-3"
+    },
+    {
+      "name": "Today Planning · 今日计划",
+      "screens": [
+        {
+          "name": "Today(+carried/overdue/empty/all-done)",
+          "file_path": "src/flows/flow-3-today/flow3-today.tsx"
+        }
+      ],
+      "story": "story-4"
+    },
+    {
+      "name": "Reminder Arrival · 到点真提醒",
+      "screens": [
+        {
+          "name": "通知/snooze + 三形态 + 权限态 + 补发",
+          "file_path": "src/flows/flow-4-reminders/flow4-reminders.tsx"
+        }
+      ],
+      "story": "story-5"
+    },
+    {
+      "name": "Weekly Review · 周汇总",
+      "screens": [
+        {
+          "name": "Tabs(草稿勾选→导出结果)/日志簿",
+          "file_path": "src/flows/flow-5-review/flow5-weekly-review.tsx"
+        }
+      ],
+      "story": "story-6"
+    },
+    {
+      "name": "Undo & Recovery · 撤销恢复",
+      "screens": [
+        {
+          "name": "undo条/损坏恢复/写失败",
+          "file_path": "src/flows/flow-6-recovery/flow6-recovery.tsx"
+        }
+      ],
+      "story": "story-8"
+    },
+    {
+      "name": "Boot Migration F0·迁移兜底",
+      "screens": [
+        {
+          "name": "Migration",
+          "file_path": "src/flows/flow-boot/flow-boot-migration.tsx"
+        }
+      ],
+      "story": "edge-gate"
+    },
+    {
+      "name": "Global Search F7",
+      "screens": [
+        {
+          "name": "SearchOverlay",
+          "file_path": "src/flows/flow-search/flow-search.tsx"
+        }
+      ],
+      "story": "story-2"
+    }
+  ],
+  "app_shell": "src/flows/kettd-app/kettd-app.tsx",
+  "entry": "src/main.tsx (BrowserRouter)",
+  "output_files": [
+    "src/flows/flow-1-capture/flow1-quick-capture.tsx",
+    "src/flows/flow-2-first-run/flow2-onboarding.tsx",
+    "src/flows/flow-3-today/flow3-today.tsx",
+    "src/flows/flow-4-reminders/flow4-reminders.tsx",
+    "src/flows/flow-5-review/flow5-weekly-review.tsx",
+    "src/flows/flow-6-recovery/flow6-recovery.tsx",
+    "src/flows/kettd-app/kettd-app.tsx",
+    "src/flows/shared/types.ts",
+    "src/flows/shared/mock-data.ts",
+    "src/flows/flow-boot/flow-boot-migration.tsx",
+    "src/flows/flow-search/flow-search.tsx"
+  ],
+  "build": "tsc 0 error · vite build ✓ 16.5s",
+  "not_covered": [
+    "真·全局热键（生产层）",
+    "Tauri 通知（生产层）",
+    "?open= 深链选中联动",
+    "should 级空档见 edge.json"
+  ]
+}

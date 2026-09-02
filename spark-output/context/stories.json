@@ -1,0 +1,211 @@
+{
+  "skill": "stories",
+  "generated_at": "2026-09-02T12:30:00+08:00",
+  "project_name": "Kettd v2 · 个人待办记录汇总",
+  "direction": "按 journey 断点把 v2 重构拆为设计可执行的用户故事",
+  "persona": {
+    "name": "小柯",
+    "description": "上班族/备考学生，Windows 笔电（1366×768），反感云账号与订阅，怕忘事、周末要回看汇总",
+    "jtbd": "当脑子里冒出一件事时，用比备忘录更快的速度记下来，到点被真正提醒，周末一眼看到一周做完了什么。"
+  },
+  "stories": [
+    {
+      "id": "story-1",
+      "title": "念头冒出来时，一键一行就记下",
+      "size": "story",
+      "persona": "小柯",
+      "scenario": "用别的软件干活时想起要记的事",
+      "acceptance_criteria": [
+        "任何界面≤1秒唤出输入条，按键到落库≤2次按键",
+        "解析时间/分类/优先级为可点chips，可一键改，未识别也先收下",
+        "次日收件箱可见该条，截止时间与输入一致（无时区漂移）",
+        "纯文本输入不弹窗拦截，2秒内落袋"
+      ],
+      "design_touchpoints": [
+        "screen:快捕获浮条",
+        "screen:收件箱",
+        "component:解析chips",
+        "component:轻确认toast",
+        "state:初始/成功/解析兜底/保存失败",
+        "pattern:quick-capture"
+      ],
+      "related_strategy_dimension": "交互设计",
+      "risk": "v2唯一不能输的story；语法限定四类token，不做长句理解",
+      "priority": "p0",
+      "critical_assumption": true
+    },
+    {
+      "id": "story-2",
+      "title": "记过的东西，打字就能找回来",
+      "size": "story",
+      "persona": "小柯",
+      "scenario": "想找回上周记过的条目",
+      "acceptance_criteria": [
+        "列表获焦时打字即搜索",
+        "1秒内出分组结果（进行中/日志簿）",
+        "关键词高亮、回车直达；无结果有明确空态"
+      ],
+      "design_touchpoints": [
+        "screen:全局搜索浮层",
+        "component:分组结果/高亮",
+        "state:输入中/无结果/故障",
+        "pattern:search"
+      ],
+      "related_strategy_dimension": "交互设计",
+      "risk": "先修到及格再谈Type Travel，勿为键盘流牺牲鼠标用户",
+      "priority": "p1",
+      "critical_assumption": false
+    },
+    {
+      "id": "story-3",
+      "title": "第一次打开，三课就够",
+      "size": "story",
+      "persona": "小柯",
+      "scenario": "刚安装完成首次启动",
+      "acceptance_criteria": [
+        "1分钟三步引导：记一条→看今天→收进托盘，每步可跳过且不再出现",
+        "首启收件箱为空、零演示假数据",
+        "窗口按钮真实响应、只有一层边框",
+        "1366×768无裁切无横向滚动"
+      ],
+      "design_touchpoints": [
+        "screen:首启引导浮层",
+        "screen:主窗口",
+        "component:coach marks/步骤指示",
+        "state:步1-3/已跳过/首次成功",
+        "pattern:onboarding"
+      ],
+      "related_strategy_dimension": "视觉设计+用户引导",
+      "risk": "悬浮+托盘接待是价值还是困惑——v1证明了后者；假协作者种子数据必须清",
+      "priority": "p0",
+      "critical_assumption": true
+    },
+    {
+      "id": "story-4",
+      "title": "每天的「今天」，是挑出来的不是滤出来的",
+      "size": "story",
+      "persona": "小柯",
+      "scenario": "早晨规划当日",
+      "acceptance_criteria": [
+        "任意列表一键「加入今天」（鼠标/键盘）",
+        "昨日未完成自动粘留带「拖了N天」标记",
+        "逾期收进一条折叠行，展开可改期/移今天/丢弃",
+        "三处今日进度数字同源一致"
+      ],
+      "design_touchpoints": [
+        "screen:今天视图",
+        "screen:即将到来",
+        "component:加入今天/粘留徽标/折叠行",
+        "state:空今天/晨间确认/全完成/逾期折叠",
+        "pattern:daily planning"
+      ],
+      "related_strategy_dimension": "信息架构 IA",
+      "risk": "需planned_date/carried_from字段迁移，与story-8备份机制绑定交付",
+      "priority": "p0",
+      "critical_assumption": true
+    },
+    {
+      "id": "story-5",
+      "title": "到点了，真的会响",
+      "size": "story",
+      "persona": "小柯",
+      "scenario": "任务到点而人在别的软件中",
+      "acceptance_criteria": [
+        "到点弹系统通知，点击直达任务，通知含稍后选项",
+        "面板三态一键切换（置顶/嵌桌面/迷你条），迷你条仅今日剩余+下一条",
+        "装饰性计时卡清零：要么真实倒计时并入库，要么删除",
+        "后台/托盘运行时提醒照响（机制PRD定夺）"
+      ],
+      "design_touchpoints": [
+        "screen:系统通知",
+        "screen:悬浮面板三形态",
+        "component:snooze/形态切换器",
+        "state:临期/到点/未运行/免打扰",
+        "pattern:notifications+ambient"
+      ],
+      "related_strategy_dimension": "交互设计+视觉设计",
+      "risk": "「应用没开也要响」是最大工程坑，设计先别把必达承诺说满",
+      "priority": "p0",
+      "critical_assumption": true
+    },
+    {
+      "id": "story-6",
+      "title": "一周的完成不蒸发：自动周汇总",
+      "size": "story",
+      "persona": "小柯",
+      "scenario": "周五复盘与写周报",
+      "acceptance_criteria": [
+        "日志簿按日翻看完成记录含完成时刻",
+        "每周五自动草稿：完成/顺延/分类分布+全明细，条目可勾选删改",
+        "一键导出md/csv本地明文",
+        "可关闭草稿生成，日志簿不受影响"
+      ],
+      "design_touchpoints": [
+        "screen:日志簿",
+        "screen:周汇总草稿",
+        "screen:导出对话框",
+        "component:时间线/统计行/编辑草稿",
+        "state:空周/草稿/编辑中/导出成功",
+        "pattern:review loop"
+      ],
+      "related_strategy_dimension": "信息架构 IA",
+      "risk": "差异化主轴但需验证「周复盘」是真需求（Probe/灰度）；首版不做AI生成",
+      "priority": "p0",
+      "critical_assumption": true
+    },
+    {
+      "id": "story-7",
+      "title": "暗色真的能暗，窗口缩了还能用",
+      "size": "micro",
+      "persona": "小柯",
+      "scenario": "深夜学习/半屏并排",
+      "acceptance_criteria": [
+        "主题切换即时、跨窗同步、重启保持",
+        "暗色零白底残留，对比度抽样达标",
+        "最小1024宽功能不裁切，侧栏自动折叠",
+        "组件禁止新内联颜色，仅消费token"
+      ],
+      "design_touchpoints": [
+        "screen:三窗暗色态",
+        "component:token对照表/主题开关",
+        "state:light/dark/切换/持久化",
+        "pattern:theming"
+      ],
+      "related_strategy_dimension": "视觉设计",
+      "risk": "token化是后续全部功能的底座成本，宜早不宜晚",
+      "priority": "p1",
+      "critical_assumption": false
+    },
+    {
+      "id": "story-8",
+      "title": "点错的能回来，装坏了也不丢",
+      "size": "story",
+      "persona": "小柯",
+      "scenario": "误删/文件异常/写入失败",
+      "acceptance_criteria": [
+        "删除后≥10秒撤销窗口，原样回归含子任务备注",
+        "每次写盘自动留档最近5份且路径可见",
+        "文件异常显示明确错误+恢复入口，绝不显示空的app",
+        "保存失败明示「没有保存」并提供重试"
+      ],
+      "design_touchpoints": [
+        "screen:删除toast",
+        "screen:备份恢复面板",
+        "screen:错误恢复页",
+        "state:undo窗口/损坏恢复/写失败",
+        "pattern:error recovery+undo"
+      ],
+      "related_strategy_dimension": "交互设计",
+      "risk": "零截图亮点，但它是两条blocker的药；用户只在被救回那刻想起它",
+      "priority": "p0",
+      "critical_assumption": false
+    }
+  ],
+  "upstream_refs": [
+    "brief",
+    "journey",
+    "audit",
+    "bench"
+  ],
+  "markdown_report": "spark-output/stories/kettd-v2.md"
+}

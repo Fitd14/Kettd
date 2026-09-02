@@ -1,0 +1,99 @@
+{
+  "skill": "prd",
+  "generated_at": "2026-09-02T13:40:00+08:00",
+  "project_name": "Kettd v2 · 个人待办记录汇总",
+  "direction": "按旅程断点的可信重构（记-排-醒-汇）",
+  "prd_file": "spark-output/prd/kettd-v2.md",
+  "sections_summary": {
+    "summary": "离线优先 Windows 桌面待办：3秒记、到点真提醒、数据在你手里、自动周汇总可导出——填竞品云+订阅+全家桶留下的空白",
+    "primary_persona": "小柯",
+    "product_goal": "不打断手头工作完成 记→排→醒→汇 全循环，且对数据信任达到可托付",
+    "success_metrics": [
+      {
+        "metric": "捕获时延 P50",
+        "target": "≤3s、≤2 次按键",
+        "timeframe": "30 天"
+      },
+      {
+        "metric": "提醒触达（运行/托盘）",
+        "target": "100%",
+        "timeframe": "版本回归必测"
+      },
+      {
+        "metric": "周汇总采用率",
+        "target": "≥40% 周活",
+        "timeframe": "90 天"
+      },
+      {
+        "metric": "数据丢失",
+        "target": "0",
+        "timeframe": "持续"
+      },
+      {
+        "metric": "4 周留存",
+        "target": "≥45%",
+        "timeframe": "cohort 90 天"
+      }
+    ],
+    "feature_count": 8,
+    "in_scope_features": [
+      "全局热键快捕获+受限语法解析",
+      "首启三步引导+真窗口控件",
+      "今日计划/粘留/逾期折叠",
+      "系统通知+三形态悬浮面板",
+      "日志簿+自动周汇总+导出",
+      "软删撤销+备份轮转+恢复页",
+      "打字即搜",
+      "暗色 token+窗口自适应"
+    ],
+    "out_of_scope_features": [
+      "云同步/账号/协作",
+      "订阅付费墙",
+      "移动端",
+      "长句 AI 解析",
+      "习惯/看板/四象限"
+    ],
+    "critical_assumption": "「每周自动汇总+导出」是真实高频刚需（无自身用户证据，Beta 10 人先行验证）",
+    "mvp_stories": [
+      "三秒捕获",
+      "首启三课",
+      "今日计划",
+      "到点真提醒",
+      "存储安全底座"
+    ]
+  },
+  "source_skills": {
+    "brief": true,
+    "stories": true,
+    "sitemap": true,
+    "journey": true,
+    "audit": true,
+    "bench": true,
+    "flow_web": false,
+    "frame": false,
+    "scope": false,
+    "check": false
+  },
+  "thin_sections": [
+    "Section6 设计资产路径（flow-web 六屏待生成）",
+    "Section3 workaround 基于外推（建议 Beta 补一题）",
+    "Section7 check 未跑：风险表第5行为占位"
+  ],
+  "release_waves": [
+    [
+      "6.6 存储安全",
+      "6.1 三秒捕获",
+      "6.2 首启三课"
+    ],
+    [
+      "6.3 今日计划",
+      "6.4 真提醒",
+      "6.8 暗色token"
+    ],
+    [
+      "6.5 周汇总(灰度先行)",
+      "6.7 搜索"
+    ]
+  ],
+  "repo_note": "Fitd14/Kettd 本地 v2 分支：prototype/ 设计原型（Phase A 中断待续）；master 替换需用户二次授权"
+}

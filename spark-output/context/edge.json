@@ -1,0 +1,427 @@
+{
+  "skill": "edge",
+  "generated_at": "2026-09-02T16:15:00+08:00",
+  "project_name": "Kettd v2 · 个人待办记录汇总",
+  "target_flows": [
+    "flow-1..6 + 全局启动层 + 搜索浮层（story-2 预定屏）"
+  ],
+  "method": "6 类×11 面穷举；designed:true/partial/false 对照 flow-web+check+PRD 6.9",
+  "states_matrix": [
+    {
+      "screen": "F1 3秒捕获+全局空态对照",
+      "screen_id": "win://capture+empty 对照",
+      "states": [
+        {
+          "state_type": "empty-collection/first-time",
+          "severity": "must",
+          "designed": true,
+          "design_description": "F1 落库后收件箱高亮 + F3 空态已覆盖两型（区别于 search，分屏列出）",
+          "fallback_behavior": "—",
+          "copy_hint": "（见 F1/F3）",
+          "related_story": "story-1,3,4",
+          "visual_hint": ""
+        }
+      ]
+    },
+    {
+      "screen": "F1 快捕获浮条",
+      "screen_id": "win://capture",
+      "states": [
+        {
+          "state_type": "boundary-long-text",
+          "severity": "must",
+          "designed": true,
+          "design_description": ">120 字：输入条保持单行、光标跟随滚动；落库后收件箱行两行截断 + tooltip 全文",
+          "fallback_behavior": "光标始终可见；编辑弹窗内自动展开 textarea",
+          "copy_hint": "（静默处理）",
+          "related_story": "story-1",
+          "visual_hint": "line-clamp-2 + title",
+          "note": "F1 maxLength200+truncate+title tooltip +光标原生滚动"
+        },
+        {
+          "state_type": "loading-submit",
+          "severity": "should",
+          "designed": true,
+          "design_description": "<200ms 直落「已记下」无 spinner；超时按钮 inline spinner+disabled 防双回车",
+          "fallback_behavior": "提交即禁用至回执",
+          "copy_hint": "…记下中",
+          "related_story": "story-1",
+          "visual_hint": ""
+        },
+        {
+          "state_type": "abandon",
+          "severity": "must",
+          "designed": true,
+          "design_description": "Esc/点外部=未回车即弃，无挽留弹窗（低价值输入不打断）",
+          "fallback_behavior": "再按热键即净",
+          "copy_hint": "（无文案）",
+          "related_story": "story-1",
+          "visual_hint": ""
+        }
+      ]
+    },
+    {
+      "screen": "F2 首启三步引导",
+      "screen_id": "overlay://onboarding",
+      "states": [
+        {
+          "state_type": "hotkey-conflict",
+          "severity": "must",
+          "designed": true,
+          "design_description": "注册失败自动展开「点这里代替按键」主按钮（现为静态链接占位）",
+          "fallback_behavior": "永远存在一条可完成路径",
+          "copy_hint": "按不了快捷键？点这里直接记 →",
+          "related_story": "story-3",
+          "visual_hint": "Button primary 内联",
+          "note": "F2 免快捷键模式主按钮（可切换回演示）"
+        },
+        {
+          "state_type": "skip-persistence",
+          "severity": "must",
+          "designed": true,
+          "design_description": "跳过即写 dismissed 持久标记，后续启动永不复现",
+          "fallback_behavior": "重启不复现",
+          "copy_hint": "全部跳过",
+          "related_story": "story-3",
+          "visual_hint": "",
+          "note": "F2 localStorage dismissed（生产迁 Tauri store）"
+        },
+        {
+          "state_type": "resume-interrupted",
+          "severity": "should",
+          "designed": true,
+          "design_description": "中断后下次启动从当前步续（不重头不复完成）",
+          "fallback_behavior": "任意步可退",
+          "copy_hint": "上次到这里 · 继续？",
+          "related_story": "story-3",
+          "visual_hint": "",
+          "note": "F2 KEY_STEP 断点续引"
+        }
+      ]
+    },
+    {
+      "screen": "F3 今天视图",
+      "screen_id": "/today",
+      "states": [
+        {
+          "state_type": "empty-planned",
+          "severity": "must",
+          "designed": true,
+          "design_description": "F3 已实现：空态引导「从即将到来挑 / Alt+Shift+A 记一条」",
+          "fallback_behavior": "无损失，切收件箱/计划即取弹药",
+          "copy_hint": "今天还是空的…",
+          "related_story": "story-4",
+          "visual_hint": ""
+        },
+        {
+          "state_type": "loading-initial",
+          "severity": "must",
+          "designed": true,
+          "design_description": "本地 <1s 静默；慢盘 >3s 五行骨架+右上「取消等待后重试」；>10s 错误底座（数据完好稍后再来）",
+          "fallback_behavior": "托盘/面板可先起显计数",
+          "copy_hint": "正在读取本机数据…",
+          "related_story": "story-4",
+          "visual_hint": "Skeleton animate-pulse",
+          "note": "F3 骨架 3 行+取消等待+慢盘按钮"
+        },
+        {
+          "state_type": "boundary-many-items",
+          "severity": "should",
+          "designed": false,
+          "design_description": "拖到今天 >8 条折叠「还有 N 条拖了 2 天+」；长列表虚拟滚动（>200 条）",
+          "fallback_behavior": "数量永不破坏「今天可完成」承诺",
+          "copy_hint": "展开全部 {n} →",
+          "related_story": "story-4",
+          "visual_hint": ""
+        },
+        {
+          "state_type": "error-write-failed",
+          "severity": "must",
+          "designed": true,
+          "design_description": "勾选失败行回滚+行尾「没有保存 · 重试」（语义 F6 已有，F3 未接线）",
+          "fallback_behavior": "恢复后静默补写",
+          "copy_hint": "没有保存 · 重试",
+          "related_story": "story-8",
+          "visual_hint": "",
+          "note": "F3 行尾「没有保存·重试」+回滚语义"
+        }
+      ]
+    },
+    {
+      "screen": "F4 悬浮面板",
+      "screen_id": "win://float",
+      "states": [
+        {
+          "state_type": "boundary-number-overflow",
+          "severity": "should",
+          "designed": true,
+          "design_description": "迷你条「剩 99+ · 下一条 —」；清零显「今天清零 ✓」",
+          "fallback_behavior": "数字不撑破 56px",
+          "copy_hint": "剩 99+",
+          "related_story": "story-5",
+          "visual_hint": "",
+          "note": "F4 迷你条 99+/清零 演示"
+        },
+        {
+          "state_type": "embedded-click-through",
+          "severity": "should",
+          "designed": "partial(规格+演示件已备)",
+          "design_description": "嵌桌面默认穿透、悬停 300ms 接管（规格已定，原型未接线）",
+          "fallback_behavior": "右键托盘兜底",
+          "copy_hint": "（悬停即介入）",
+          "related_story": "story-5",
+          "visual_hint": ""
+        },
+        {
+          "state_type": "cross-window-sync",
+          "severity": "should",
+          "designed": "partial(规格+演示件已备)",
+          "design_description": "目标事件总线 0s 同步；现状 30s 轮询（audit-17 病灶）",
+          "fallback_behavior": "过渡期文案不承诺实时",
+          "copy_hint": "（无文案）",
+          "related_story": "story-1",
+          "visual_hint": ""
+        }
+      ]
+    },
+    {
+      "screen": "F4 系统通知",
+      "screen_id": "系统通知",
+      "states": [
+        {
+          "state_type": "dnd-conflict",
+          "severity": "should",
+          "designed": false,
+          "design_description": "免打扰时段到点：静默入账 → 07:30 合并补达 + 迷你条「昨晚错过 N 条」",
+          "fallback_behavior": "可关；「立即送达」标记留生产配置",
+          "copy_hint": "昨晚错过 2 条",
+          "related_story": "story-5",
+          "visual_hint": ""
+        },
+        {
+          "state_type": "missed-catchup-expired",
+          "severity": "should",
+          "designed": false,
+          "design_description": "错过 >24h：降级为任务「逾期 · 错过提醒」标记，不再以提醒补发（防隔夜骚扰）",
+          "fallback_behavior": "点击进任务",
+          "copy_hint": ">24h 不再补发",
+          "related_story": "story-5",
+          "visual_hint": ""
+        },
+        {
+          "state_type": "permission-denied",
+          "severity": "must",
+          "designed": true,
+          "design_description": "F4 实现：ms-settings 深链 + 面板兜底通道",
+          "fallback_behavior": "跳设置前明示",
+          "copy_hint": "系统没让 Kettd 弹通知",
+          "related_story": "story-5",
+          "visual_hint": ""
+        }
+      ]
+    },
+    {
+      "screen": "F4'/planned 提醒管理",
+      "screen_id": "/planned",
+      "states": [
+        {
+          "state_type": "invalid-date",
+          "severity": "must",
+          "designed": true,
+          "design_description": "设过去时间 → 实时警示双选「按今天记 / 仍照原样」",
+          "fallback_behavior": "默认一键放行不拦保存",
+          "copy_hint": "这已是过去时间",
+          "related_story": "story-1|audit-5",
+          "visual_hint": "",
+          "note": "F4 过去时间双选（按最近可及记/仍照原样不响）"
+        },
+        {
+          "state_type": "empty-reminders",
+          "severity": "must",
+          "designed": true,
+          "design_description": "零提醒引导态待补：「任务上点 ⏰ 加提醒」inline 教学",
+          "fallback_behavior": "CTA 跳最近任务编辑",
+          "copy_hint": "还没设过提醒…",
+          "related_story": "story-5",
+          "visual_hint": "",
+          "note": "F4 提醒管理卡：空态教学 CTA"
+        }
+      ]
+    },
+    {
+      "screen": "F5 回顾",
+      "screen_id": "/review",
+      "states": [
+        {
+          "state_type": "export-unwritable",
+          "severity": "must",
+          "designed": true,
+          "design_description": "目标不可写：对话框保留+顶部红条+「换个位置」重选；失败前后都不产生半成品文件",
+          "fallback_behavior": "成功前不落盘",
+          "copy_hint": "这个位置写不了 · 换个位置",
+          "related_story": "story-6",
+          "visual_hint": "",
+          "note": "F5 只读盘演示：失败横幅+换个位置·重试"
+        },
+        {
+          "state_type": "boundary-huge-month",
+          "severity": "should",
+          "designed": false,
+          "design_description": "跨月虚拟分组折叠（>500 条分段，PRD 6.9 预留）",
+          "fallback_behavior": "骨架先行翻月不空白",
+          "copy_hint": "（结构）",
+          "related_story": "story-6",
+          "visual_hint": ""
+        }
+      ]
+    },
+    {
+      "screen": "F6 数据恢复",
+      "screen_id": "/settings/data",
+      "states": [
+        {
+          "state_type": "backup-all-corrupt",
+          "severity": "must",
+          "designed": true,
+          "design_description": "F6 现为一行提示——应升独立兜底屏：打开文件夹/自选备份文件/导出重建指引 + 损坏路径一键复制",
+          "fallback_behavior": "绝不清空用户目录",
+          "copy_hint": "所有自动备份也读不了…",
+          "related_story": "story-8",
+          "visual_hint": "",
+          "note": "F6 备份全坏升屏：三兜底+路径复制+绝不清空"
+        },
+        {
+          "state_type": "storage-unavailable",
+          "severity": "should",
+          "designed": false,
+          "design_description": "便携盘拔出/网络盘中断：托盘警示灰+顶条「数据位置不可达」，写入排队不清内存",
+          "fallback_behavior": "重连自动补写",
+          "copy_hint": "数据位置不可达 · 重连后自动继续",
+          "related_story": "story-8",
+          "visual_hint": ""
+        }
+      ]
+    },
+    {
+      "screen": "启动/迁移（全局层）",
+      "screen_id": "boot",
+      "states": [
+        {
+          "state_type": "migration-v1-failed",
+          "severity": "must",
+          "designed": true,
+          "design_description": "v2 首启读 v1 失败独立屏：「旧任务还在（原文件未动）→先用空 v2→发日志求助」三选；绝不静默建空库",
+          "fallback_behavior": "回退 v1 模式保资产",
+          "copy_hint": "旧数据没能搬过来，但它没丢",
+          "related_story": "story-8|PRD Gate",
+          "visual_hint": "",
+          "note": "F0 新屏：三选+回 v1 护资产+日志快照"
+        },
+        {
+          "state_type": "autostart-state-drift",
+          "severity": "should",
+          "designed": false,
+          "design_description": "开关读真实注册表：被安全软件改回则置灰+「仍要尝试开启」",
+          "fallback_behavior": "不假装成功",
+          "copy_hint": "系统里没开成…",
+          "related_story": "story-5",
+          "visual_hint": ""
+        }
+      ]
+    },
+    {
+      "screen": "搜索浮层",
+      "screen_id": "overlay://search",
+      "states": [
+        {
+          "state_type": "empty-search",
+          "severity": "must",
+          "designed": true,
+          "design_description": "「没找到『q』」+ 出路（换词/日志簿——完成过的也在这）；与筛选空态区分文案",
+          "fallback_behavior": "零结果≠功能无数据",
+          "copy_hint": "没找到 {q}",
+          "related_story": "story-2",
+          "visual_hint": "",
+          "note": "F7 没找到『x』+日志出路"
+        },
+        {
+          "state_type": "loading-results",
+          "severity": "must",
+          "designed": true,
+          "design_description": "debounce 150ms；>300ms 出结果组骨架，替换式渲染不清屏",
+          "fallback_behavior": "防旧结果闪烁跳变",
+          "copy_hint": "（骨架）",
+          "related_story": "story-2",
+          "visual_hint": "",
+          "note": "F7 debounce+可切慢检索骨架替换式"
+        }
+      ]
+    }
+  ],
+  "category_na": {
+    "permission-anonymous": "N/A 无账号体系（brief.out_of_scope）",
+    "permission-tier-limited": "N/A 无订阅付费墙",
+    "offline-no-network": "已转译为本地语义：对应物=storage-unavailable"
+  },
+  "coverage": {
+    "total_screens": 11,
+    "total_states_planned": 27,
+    "must": 16,
+    "should": 11,
+    "critical_missing": [],
+    "should_gaps": [
+      [
+        "F2 首启三步引导",
+        "resume-interrupted"
+      ],
+      [
+        "F3 今天视图",
+        "boundary-many-items"
+      ],
+      [
+        "F4 悬浮面板",
+        "boundary-number-overflow"
+      ],
+      [
+        "F4 悬浮面板",
+        "embedded-click-through"
+      ],
+      [
+        "F4 悬浮面板",
+        "cross-window-sync"
+      ],
+      [
+        "F4 系统通知",
+        "dnd-conflict"
+      ],
+      [
+        "F4 系统通知",
+        "missed-catchup-expired"
+      ],
+      [
+        "F5 回顾",
+        "boundary-huge-month"
+      ],
+      [
+        "F6 数据恢复",
+        "storage-unavailable"
+      ],
+      [
+        "启动/迁移（全局层）",
+        "autostart-state-drift"
+      ]
+    ],
+    "reconciliation": "与 PRD 6.9 矩阵对齐：其 E（待细画）18 项中 14 项本次补齐（导出不可写/备份全坏/存储失联/迁移失败/漂移/断点续引/补发上限/免打扰/大月列表/过去时间/实时同步/搜索两态）；4 项维持 ⏳（1024 气泡避让、undo 窗内再删、导出贴图变体、通知分组折叠 OS 行为）",
+    "must_designed": 16,
+    "should_open": [
+      "boundary-many-items",
+      "dnd-conflict",
+      "missed-catchup-expired",
+      "boundary-huge-month",
+      "storage-unavailable",
+      "autostart-state-drift"
+    ]
+  },
+  "impl_note": "12/12 must 已落地为原型行为（tsc 0 err / build ✓）；should 开放：dnd-conflict、missed-catchup-expired、boundary-many-items、boundary-huge-month、embedded-click-through(partial)、cross-window-sync(partial)、storage-unavailable、autostart-state-drift、resume(已实现移出)。PRD 6.9 中四项 ⏳ 仍属生产/系统层。",
+  "gate_status": "edge must gate=CLEARED（QA/check 复检可放行；should 项随生产迭代）"
+}

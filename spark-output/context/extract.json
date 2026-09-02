@@ -1,0 +1,325 @@
+{
+  "skill": "extract",
+  "generated_at": "2026-09-02T14:10:00+08:00",
+  "project_name": "Kettd v2 · 个人待办记录汇总",
+  "mode": "internal",
+  "mode_resolved_by": "path-input",
+  "source": {
+    "type": "internal",
+    "uri": "kettd/prototype (Fitd14/Kettd@v2)",
+    "framework": "react-ts + shadcn/ui + Tailwind v3",
+    "css_in_js_engine": "none"
+  },
+  "meta": {
+    "internal_scan": {
+      "config_layers_found": [
+        "tailwind.config.js",
+        "components.json(shadcn)",
+        "src/index.css :root/.dark"
+      ],
+      "files_scanned": 26,
+      "ui_component_files": 23
+    },
+    "ask_answers": {
+      "deliverable_choice": "B",
+      "confirmed_at": "2026-09-02T14:02:00+08:00"
+    },
+    "figma_scan": null,
+    "sparkdesign_context": "absent"
+  },
+  "tokens": {
+    "color": [
+      {
+        "name": "background",
+        "light": "#fcfaf8",
+        "dark": "#18181b",
+        "role": "页面纸白底",
+        "family": "warm-neutral",
+        "usage": 7
+      },
+      {
+        "name": "foreground",
+        "light": "#18181b",
+        "dark": "#fcfaf8",
+        "role": "主文字",
+        "family": "warm-neutral",
+        "usage": 7
+      },
+      {
+        "name": "card",
+        "light": "#ffffff",
+        "dark": "#1f1f23",
+        "role": "卡面",
+        "family": "surface",
+        "usage": 1
+      },
+      {
+        "name": "card-foreground",
+        "light": "#18181b",
+        "dark": "#fcfaf8",
+        "role": "卡文字",
+        "family": "warm-neutral",
+        "usage": 2
+      },
+      {
+        "name": "popover",
+        "light": "#ffffff",
+        "dark": "#1f1f23",
+        "role": "浮层",
+        "family": "surface",
+        "usage": 1
+      },
+      {
+        "name": "popover-foreground",
+        "light": "#18181b",
+        "dark": "#fcfaf8",
+        "role": "浮层文字",
+        "family": "warm-neutral",
+        "usage": 2
+      },
+      {
+        "name": "primary",
+        "light": "#18181b",
+        "dark": "#fcfaf8",
+        "role": "主按钮墨",
+        "family": "brand",
+        "usage": 10
+      },
+      {
+        "name": "primary-foreground",
+        "light": "#fcfaf8",
+        "dark": "#18181b",
+        "role": "按钮文字",
+        "family": "brand",
+        "usage": 4
+      },
+      {
+        "name": "secondary",
+        "light": "#f3f1ed",
+        "dark": "#2c2c30",
+        "role": "次级纸面",
+        "family": "warm-neutral",
+        "usage": 1
+      },
+      {
+        "name": "secondary-foreground",
+        "light": "#26262b",
+        "dark": "#fcfaf8",
+        "role": "次级文字",
+        "family": "warm-neutral",
+        "usage": 1
+      },
+      {
+        "name": "muted",
+        "light": "#f0eeea",
+        "dark": "#27272a",
+        "role": "静音底",
+        "family": "warm-neutral",
+        "usage": 4
+      },
+      {
+        "name": "muted-foreground",
+        "light": "#71717a",
+        "dark": "#9a9aa2",
+        "role": "辅助文字",
+        "family": "neutral-v1-inherited",
+        "usage": 10
+      },
+      {
+        "name": "accent",
+        "light": "#fff5e5",
+        "dark": "#313135",
+        "role": "纸黄高亮",
+        "family": "semantic-highlight",
+        "usage": 9
+      },
+      {
+        "name": "accent-foreground",
+        "light": "#73400d",
+        "dark": "#fcfaf8",
+        "role": "高亮文字",
+        "family": "semantic-highlight",
+        "usage": 1
+      },
+      {
+        "name": "destructive",
+        "light": "#c52020",
+        "dark": "#a52727",
+        "role": "危险/逾期",
+        "family": "semantic",
+        "usage": 6
+      },
+      {
+        "name": "destructive-foreground",
+        "light": "#fafafa",
+        "dark": "#fafafa",
+        "role": "危险文字",
+        "family": "semantic",
+        "usage": 2
+      },
+      {
+        "name": "border",
+        "light": "#e5e2dc",
+        "dark": "#313135",
+        "role": "描边",
+        "family": "warm-neutral",
+        "usage": 41
+      },
+      {
+        "name": "input",
+        "light": "#e1ddd6",
+        "dark": "#36363a",
+        "role": "输入描边",
+        "family": "warm-neutral",
+        "usage": 4
+      },
+      {
+        "name": "ring",
+        "light": "#18181b",
+        "dark": "#fcfaf8",
+        "role": "焦点环",
+        "family": "a11y",
+        "usage": 4
+      },
+      {
+        "name": "radius",
+        "light": "0.75rem",
+        "dark": "0.75rem",
+        "role": "基准圆角(shape)",
+        "family": "shape",
+        "usage": 50
+      }
+    ],
+    "typography": {
+      "family": "Segoe UI / Microsoft YaHei / system-ui（零 webfont）",
+      "scale_used": [
+        "11px×5",
+        "14px×22 主",
+        "16px×2",
+        "18px×3",
+        "20-22px 标题"
+      ],
+      "weights": [
+        "semibold×8",
+        "medium×5"
+      ],
+      "tracking": [
+        "tight×2"
+      ]
+    },
+    "spacing": {
+      "anchor": "4px",
+      "observed": [
+        4,
+        6,
+        8,
+        12,
+        16,
+        24,
+        32,
+        48,
+        64
+      ],
+      "control_height": "36px(h-9)"
+    },
+    "radius": {
+      "base": "12px",
+      "derived": {
+        "sm": 6,
+        "md": 10,
+        "lg": 12,
+        "full": 9999
+      },
+      "hot": "md×17"
+    },
+    "shadow": {
+      "levels": 3,
+      "map": {
+        "sm": "input",
+        "md": "card",
+        "lg": "dialog"
+      },
+      "color": "纯黑低透明"
+    },
+    "motion": {
+      "durations": [
+        "150ms",
+        "200ms"
+      ],
+      "easing": "ease-out",
+      "policy": "仅反馈、无位移循环"
+    },
+    "breakpoint": {
+      "set": "tailwind 默认5档",
+      "target": "min1024 / 验收1366 / 侧栏<1280折叠（PRD 约束，实现待）"
+    },
+    "z_index": {
+      "overlay": 50,
+      "policy": "单层"
+    },
+    "icon_set": {
+      "lib": "lucide-react",
+      "size": "16px",
+      "custom": 0
+    },
+    "gradient": [],
+    "state": {
+      "hover": 21,
+      "focus_visible": 25,
+      "disabled": "opacity-50×18",
+      "active_pressed": 0,
+      "finding": "active 按压缩缺失→待补"
+    }
+  },
+  "conflicts": {
+    "v1_legacy_colors": 12,
+    "v1_inherited": 5,
+    "v1_to_clear": 7,
+    "detail": "design.md §Conflicts"
+  },
+  "sparkdesign_diff": {
+    "match_method": "naming-only(降级)",
+    "matched": 0,
+    "semantic_match": [],
+    "project_specific": [
+      {
+        "name": "warm-40° neutral 全系",
+        "reason": "diverge 纸张品牌视觉，勿上收"
+      },
+      {
+        "name": "accent 纸黄策略",
+        "reason": "唯一高亮语义"
+      },
+      {
+        "name": "destructive 单极彩",
+        "reason": "语义色克制"
+      }
+    ],
+    "proposed_increment": [
+      {
+        "name": "theme.paper-warm-neutral(preset)",
+        "risk": "medium",
+        "rationale": "主题级提案触默认预设兼容",
+        "usage_count": 72
+      },
+      {
+        "name": "radius 12px 基准档",
+        "risk": "medium",
+        "rationale": "主题级选择非通用",
+        "usage_count": 28
+      }
+    ]
+  },
+  "artifacts": {
+    "design_md": "spark-output/extract/kettd-v2-prototype/kettd-v2-prototype-design-language.md",
+    "tokens_w3c": "spark-output/extract/kettd-v2-prototype/tokens/kettd-v2-prototype-design-tokens.json",
+    "shadcn_css": "spark-output/extract/kettd-v2-prototype/kettd-v2-prototype-shadcn-theme.css",
+    "css_vars": "spark-output/extract/kettd-v2-prototype/kettd-v2-prototype-variables.css",
+    "tailwind": "spark-output/extract/kettd-v2-prototype/kettd-v2-prototype-tailwind.config.js",
+    "preview": "spark-output/extract/kettd-v2-prototype/kettd-v2-prototype-preview.html"
+  },
+  "fallback_applied": [
+    "no-sparkdesign-baseline"
+  ],
+  "handoff_hint": "设计上下文基线见 spark-output/extract/kettd-v2-prototype/；规则：禁裸 hex 仅语义类；浮层单层 z-50；图标 16px；动效≤200ms 仅反馈；active 态待补；v1 色「收编5/灭7」。（完整可粘贴版在 design.md 尾部）"
+}
