@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="cap">
+<head>
+  <meta charset="UTF-8" />
+  <title>快速记录</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="cap">
+  <div class="cap-frame" id="frame">
+    <div class="cap-row" id="inputRow">
+      <span class="cap-hint" aria-hidden style="margin:0;color:hsl(var(--muted-foreground))">✎</span>
+      <input class="input" id="capIn" placeholder="记一条… 明天下午3点找导师 #学习 !高 · 回车落库" maxlength="200" autofocus />
+      <button class="btn xs" id="capBtn" title="记下（Enter）">记下</button>
+      <button class="btn ghost xs" id="capX" title="关闭（Esc）" aria-label="关闭">✕</button>
+    </div>
+    <div class="cap-chips" id="chips"></div>
+    <div class="inline-err" id="err" hidden></div>
+    <div class="cap-receipt" id="receipt" hidden>
+      <span class="text-foreground" id="rTitle">已记下</span>
+      <button class="btn xs outline" id="rPlan">加入今天?</button>
+      <span class="tiny text-muted" id="rSec">2s 后自动收起</span>
+    </div>
+  </div>
+
+  <script type="module">
+import * as api from './api.js';
+
+const $ = (id) => document.getElementById(id);
+const today = () => api.localToday();
+const S = { text: '', savedId: null, receiptTimer: null, closing: false };
+
+async function closeOverlay() {
+  if (S.closing) return;
+  S.closing = true;
+  await api.closeCaptureOverlay();
+  setTimeout(() => { S.closing = false; reset(); }, 80);
+}
+function reset() {
+  S.text = ''; S.savedId = null;
+  $('capIn').value = '';
+  $('chips').innerHTML = '';
+  $('err').hidden = true;
+  $('receipt').hidden = true;
+  $('inputRow').hidden = false;
+}
+function renderChips() {
+  const p = S.text.trim() ? api.parseCapture(S.text, today()) : null;
+  $('chips').innerHTML = p && p.chips.length
+    ? p.chips.map((c) => `<span class="chip" data-raw="${api.esc(c.raw)}">${api.esc(c.value)}<span class="x">×</span></span>`).join('')
+      + (p.autoRemind ? '<span class="badge">将随截止自动提醒</span>' : '')
+    : (S.text.trim() && p && p.fellBack ? '<span class="badge">纯文本 · 落收件箱</span>' : '');
+}
+function showErr(msg) {
+  const e = $('err');
+  e.hidden = false;
+  e.textContent = msg + ' · 输入已保留，改完再按回车';
+  $('capIn').classList.add('invalid');
+}
+async function commit() {
+  const raw = S.text.trim();
+  if (!raw) { showErr('标题不能为空'); return; }
+  const parsed = api.parseCapture(raw, today());
+  const args = { title: parsed.title, source: 'capture', category: parsed.category || '生活', priority: parsed.priority || 'med' };
+  if (parsed.dueAt) { args.dueAt = parsed.dueAt; args.remindAt = parsed.autoRemind ? parsed.dueAt : null; }
+  const r = await api.addTask(args);
+  if (r.err) { showErr(r.err); return; }
+  S.savedId = r.data.id;
+  $('capIn').classList.remove('invalid');
+  $('err').hidden = true;
+  $('chips').innerHTML = '';
+  $('inputRow').hidden = true;
+  $('receipt').hidden = false;
+  $('rTitle').textContent = `已记下 ·「${r.data.title}」`;
+  $('rSec').textContent = '2s 后自动收起';
+  if (S.receiptTimer) clearTimeout(S.receiptTimer);
+  S.receiptTimer = setTimeout(closeOverlay, 2000);
+}
+$('capIn').addEventListener('input', (e) => { S.text = e.target.value; $('err').hidden = true; e.target.classList.remove('invalid'); renderChips(); });
+$('capIn').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); if (S.savedId) { closeOverlay(); return; } commit(); }
+  if (e.key === 'Escape') { e.preventDefault(); closeOverlay(); }
+});
+$('capBtn').addEventListener('click', () => { if (!S.savedId) commit(); });
+$('capX').addEventListener('click', closeOverlay);
+$('rPlan').addEventListener('click', async () => {
+  if (!S.savedId) { closeOverlay(); return; }
+  const r = await api.updateTask(S.savedId, { plannedDate: today() });
+  if (r.err) { $('rSec').textContent = r.err; return; }
+  $('rSec').textContent = '已加入今天 ✓';
+  if (S.receiptTimer) clearTimeout(S.receiptTimer);
+  S.receiptTimer = setTimeout(closeOverlay, 900);
+});
+$('chips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip || !chip.dataset.raw) return;
+  S.text = S.text.replace(chip.dataset.raw, ' ').replace(/\s+/g, ' ').trim();
+  $('capIn').value = S.text;
+  renderChips();
+  $('capIn').focus();
+});
+window.addEventListener('blur', () => { if (!S.savedId) closeOverlay(); });
+
+api.onEvent('capture-opened', () => {
+  if (S.receiptTimer) clearTimeout(S.receiptTimer);
+  reset();
+  setTimeout(() => { try { $('capIn').focus(); } catch (_) { /* 拒焦则忽略 */ } }, 30);
+});
+api.onEvent('theme-changed', (t) => api.applyTheme(t));
+api.onEvent('store-changed', () => { /* 落库后主窗自刷新；此处保持输入不被打断 */ });
+
+(async () => {
+  const s = await api.getSettings();
+  if (!s.err && s.data) api.applyTheme(s.data.theme);
+  setTimeout(() => { try { $('capIn').focus(); } catch (_) { /* 窗口未显示时忽略 */ } }, 60);
+})();
+  </script>
+</body>
+</html>
