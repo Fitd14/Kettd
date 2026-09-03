@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kettd v2.1 · 发版收口路线图</title>
+<style>
+/* 令牌直接取自产品自身的 src/styles.css :root（纸白 + 石墨 + 桌面文具感），组件层禁裸 hex */
+:root{
+  --background:40 33% 98%; --foreground:240 6% 10%; --card:0 0% 100%;
+  --secondary:40 20% 94%; --muted:40 18% 93%; --muted-foreground:240 4% 46%;
+  --accent:36 100% 95%; --accent-foreground:30 80% 25%;
+  --destructive:0 72% 45%; --border:40 15% 88%; --input:40 15% 86%;
+  --cat-life:214 55% 42%; --cat-study:158 45% 30%; --pri-med:32 85% 38%;
+  --r-lg:12px; --r-md:10px; --r-sm:6px; --r-pill:9999px;
+  --shadow-md:0 4px 14px hsl(var(--foreground) / 0.07), 0 1px 3px hsl(var(--foreground) / 0.05);
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-6:24px; --sp-8:32px;
+}
+*{box-sizing:border-box}
+body{margin:0; background:hsl(var(--background)); color:hsl(var(--foreground));
+  font:14px/1.55 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+  padding:var(--sp-8) var(--sp-6) var(--sp-8);}
+.wrap{max-width:1320px;margin:0 auto}
+h1{font-size:26px;letter-spacing:-0.01em;margin:0 0 var(--sp-1)}
+h2{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+   color:hsl(var(--muted-foreground));margin:0 0 var(--sp-3)}
+.sub{color:hsl(var(--muted-foreground));font-size:12.5px}
+section{margin-top:var(--sp-8)}
+.bet{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--r-lg);
+  padding:var(--sp-6);box-shadow:var(--shadow-md);border-left:4px solid hsl(var(--foreground))}
+.bet p{font-size:17px;line-height:1.62;margin:0}
+.bet .cnt{color:hsl(var(--muted-foreground));font-size:12.5px;margin-top:var(--sp-3)}
+.grid{display:grid;gap:var(--sp-3)}
+.g4{grid-template-columns:repeat(4,1fr)} .g3{grid-template-columns:repeat(3,1fr)}
+.card{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--r-md);padding:var(--sp-4)}
+.card .k{font-size:11px;color:hsl(var(--muted-foreground));letter-spacing:.04em;text-transform:uppercase}
+.card .v{font-size:15px;font-weight:650;margin:2px 0 4px}
+.card .e{font-size:11.5px;color:hsl(var(--muted-foreground));font-family:ui-monospace,Consolas,monospace}
+.evi{background:hsl(var(--accent));border-color:hsl(var(--accent-foreground) / .18)}
+.evi .v{color:hsl(var(--accent-foreground))}
+table{width:100%;border-collapse:collapse;background:hsl(var(--card));
+  border:1px solid hsl(var(--border));border-radius:var(--r-md);overflow:hidden;font-size:12.5px}
+th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:hsl(var(--muted-foreground));
+   padding:9px var(--sp-3);border-bottom:1px solid hsl(var(--border));background:hsl(var(--secondary));white-space:nowrap}
+td{padding:9px var(--sp-3);border-bottom:1px solid hsl(var(--border));vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.id{font-family:ui-monospace,Consolas,monospace;font-weight:700;white-space:nowrap}
+td.ev{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:hsl(var(--muted-foreground))}
+td.hr{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tag{display:inline-block;padding:1px 8px;border-radius:var(--r-pill);font-size:10.5px;font-weight:700;
+  letter-spacing:.03em;white-space:nowrap}
+.must{background:hsl(var(--destructive) / .12);color:hsl(var(--destructive))}
+.should{background:hsl(var(--pri-med) / .16);color:hsl(var(--pri-med))}
+.wont{background:hsl(var(--muted));color:hsl(var(--muted-foreground))}
+.axis{background:hsl(var(--cat-life) / .12);color:hsl(var(--cat-life))}
+/* 排期条 */
+.days{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--sp-3)}
+.day{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4)}
+.day .d{font-size:11px;font-weight:700;letter-spacing:.06em;color:hsl(var(--muted-foreground))}
+.day .t{font-size:13px;font-weight:650;margin:3px 0 2px}
+.day .m{font-size:11.5px;color:hsl(var(--muted-foreground));line-height:1.45}
+.day.hot{border-color:hsl(var(--destructive) / .4);background:hsl(var(--destructive) / .05)}
+/* 2x2 矩阵 */
+.mx{display:grid;grid-template-columns:120px 1fr 1fr;grid-template-rows:auto 1fr 1fr;gap:var(--sp-2);font-size:12px}
+.mx .hd{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:hsl(var(--muted-foreground));
+  display:flex;align-items:center;justify-content:center;text-align:center;padding:var(--sp-2)}
+.mx .cell{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--r-md);padding:var(--sp-3)}
+.mx .cell b{display:block;font-size:11px;color:hsl(var(--muted-foreground));margin-bottom:4px;font-weight:700}
+.mx .cell span{display:inline-block;margin:1px 4px 1px 0;padding:1px 7px;border-radius:var(--r-pill);
+  background:hsl(var(--muted));font-family:ui-monospace,Consolas,monospace;font-size:11px}
+.mx .cell.go span{background:hsl(var(--cat-study) / .14)}
+/* Asks */
+.asks{display:grid;gap:var(--sp-3)}
+.ask{background:hsl(var(--card));border:1px solid hsl(var(--border));border-left:3px solid hsl(var(--pri-high,0 72% 45%));
+  border-left-color:hsl(var(--destructive));border-radius:var(--r-md);padding:var(--sp-4)}
+.ask .q{font-size:14px;font-weight:700;margin-bottom:var(--sp-2)}
+.ask .f{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-3);font-size:11.5px}
+.ask .f div span{display:block;color:hsl(var(--muted-foreground));font-size:10px;letter-spacing:.05em;text-transform:uppercase}
+.opt{margin-top:var(--sp-2);font-size:11.5px;color:hsl(var(--muted-foreground));font-family:ui-monospace,Consolas,monospace}
+.opt b{color:hsl(var(--cat-study))}
+footer{margin-top:var(--sp-8);padding-top:var(--sp-4);border-top:1px solid hsl(var(--border));
+  font-size:11.5px;color:hsl(var(--muted-foreground));line-height:1.6}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.94em;background:hsl(var(--muted));padding:0 4px;border-radius:var(--r-sm)}
+.bar{height:8px;border-radius:var(--r-pill);background:hsl(var(--muted));overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:hsl(var(--foreground))}
+@media print{body{padding:0} .wrap{max-width:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="bet">
+  <div class="sub">Kettd v2.1 · 发版收口（Release Close-out） · 听众=需求方本人 · 1 周窗口 · 生成 2026-09-03 22:20</div>
+  <h1>这周不做任何新功能：把 v2 从「代码全绿」推到「装得出去、回得来、契约可证伪」</h1>
+  <p style="margin-top:12px"><b>The Bet</b> —— 5 个工作日内完成 <b>钉基线 → 换发布物 → 真机点一遍 → 保住旧数据 → 用单测把契约变成可证伪</b>。成功判据只有两条：干净环境装上 v2.1 后那 8 项精简调整肉眼可见；<code>cargo test</code> ≥5 例绿兜住 v1 迁移与时间语义。</p>
+  <div class="cnt">反过来说：如果这周又写了新功能而没收口，本路线图判负。Must ≈ 11.75h ＋ Should ≈ 3.75h ＝ 15.5h，摊到 5 天每天 3.1h，留 70% 窗口给运行时验证暴露的意外。</div>
+</header>
+
+<section>
+  <h2>Why now · 四条本机实测证据（不是推测）</h2>
+  <div class="grid g4">
+    <div class="card evi"><div class="k">① 能装出去的包是过期的</div><div class="v">bundle 21:03 &lt; 源码 22:11</div><div class="e">release exe 21:00:47 · msi/nsis 21:03<br/>8 项调整改于 21:34–21:46 + runtime.rs 22:11:35<br/>⇒ 当前 2.0.0 安装物不含它们</div></div>
+    <div class="card evi"><div class="k">② 那 8 项一行都没提交</div><div class="v">15 文件 modified · v2 无 upstream</div><div class="e">git show HEAD:src/float.html 仍是「悬浮面板 · 待办列表」+ 文字按钮<br/>⇒ 源码只活在 F 盘单机，没有回滚点</div></div>
+    <div class="card evi"><div class="k">③ 契约文档在说谎</div><div class="v">cargo check 0.95s 绿</div><div class="e">V2-API.md §10 写「未做 cargo check / 无 webkit2gtk」<br/>实测：0 error + 7 条 dead-code warning；工具链齐（rustc 1.96.1 / WebView2 152）</div></div>
+    <div class="card evi"><div class="k">④ 验证窗口只有这台机器</div><div class="v">capture 16/17，reminders 0</div><div class="e">真库 %APPDATA%\todo-list\data.json：17 任务 · 13 doneAt · 5 软删 · fired 4 条今日去重键<br/>⇒ 捕获链在真跑，计划页提醒从未被真实用过</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>一周排期 · D1 就把不确定性打掉（Gate：D1 结束前若出 Blocker，当场砍 T8/T9/T10）</h2>
+  <div class="days">
+    <div class="day hot"><div class="d">D1 · 周一</div><div class="t">T0 → T1 → T2</div><div class="m">提交推远端 / 重打包 / 真机点 4 项。<b>暴露问题最多的一天</b>，故意放最前。</div></div>
+    <div class="day"><div class="d">D2 · 周二</div><div class="t">T3 + T4</div><div class="m">多时刻防静默降级（唯一改数据的偏差）＋ 热键失败可见化。</div></div>
+    <div class="day"><div class="d">D3 · 周三</div><div class="t">T5 + T7 + T8</div><div class="m">文案对齐 / 版本 bump + §10 纠偏 / 死代码·死 CSS·dist 清理。</div></div>
+    <div class="day"><div class="d">D4 · 周四</div><div class="t">T6（主战场）</div><div class="m">migrate_v1 + 时间解析单测 ≥5 例，顺带加 KETTD_DATA_DIR 使能项。</div></div>
+    <div class="day"><div class="d">D5 · 周五</div><div class="t">冻结 → 复验</div><div class="m">重打最终包 / T10 干净环境首启走通 / 发版说明归档 / 删过期 bundle。</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>工单表 · MoSCoW（每项带证据位置与验收判据，无一条凭感觉）</h2>
+  <table>
+    <thead><tr><th>ID</th><th>工单</th><th>层</th><th>价值/成本</th><th>证据（file:line / 实测）</th><th>验收判据</th><th>估时</th></tr></thead>
+    <tbody>
+      <tr><td class="id">T0</td><td>提交 8 项调整 + 推 <code>v2</code> 到 origin，建回滚基线</td><td><span class="tag must">Must</span></td><td>高/极低</td><td class="ev">git status 15 M；git branch v2 无 upstream；HEAD:float.html ≠ 工作区</td><td>git log -1 含调整；git ls-remote origin v2 有 ref</td><td class="hr">0.25h</td></tr>
+      <tr><td class="id">T1</td><td>重打 release + bundle，确认二进制与源码同代</td><td><span class="tag must">Must</span></td><td>高/低</td><td class="ev">bundle 21:03 &lt; 源码 21:34–22:11；runtime.rs 与 exe 仅差 6s，同代存疑</td><td>新包 mtime &gt; 全部源码；净环境 8 项逐条可见</td><td class="hr">1h</td></tr>
+      <tr><td class="id">T2</td><td>真机运行时验证 4 项（透明记录条 / Alt+Shift+O / 面板标题+图标 / 选择器落库到点响）</td><td><span class="tag must">Must</span></td><td>高/高</td><td class="ev">QA 报告「待运行时确认清单」；真库 reminders=0 → 需自造数据</td><td>4 项打勾 + 截图，失败项进 Blocker 队列</td><td class="hr">2h</td></tr>
+      <tr><td class="id">T3</td><td>qa-3 多时刻防静默降级 —— <b>4 项偏差里唯一会改用户数据的</b></td><td><span class="tag must">Must</span></td><td>高/中</td><td class="ev">index.html:654-673 else 分支把 date/time 双置空 → :674 保存覆盖 HH:MM/HH:MM</td><td>不改值直接保存后仍为多时刻；或改前显式确认</td><td class="hr">2h</td></tr>
+      <tr><td class="id">T4</td><td>qa-1 热键注册失败可见化</td><td><span class="tag must">Must</span></td><td>中/低</td><td class="ev">main.rs:110 <code>let _ =</code> 丢弃结果 vs :101-108 捕获热键重试 4 次</td><td>冲突时设置页标「未生效」+ 托盘提示一次</td><td class="hr">1.5h</td></tr>
+      <tr><td class="id">T5</td><td>qa-2 兜底文案对齐选择器语义</td><td><span class="tag must">Must</span></td><td>中/极低</td><td class="ev">api.js:325/329；index.html:653 仍在教手输 HH:MM</td><td>改「请选一个未来时刻」类短句，格式教学不外露</td><td class="hr">0.5h</td></tr>
+      <tr><td class="id">T6</td><td>契约单测（migrate_v1 + 时间解析）+ <code>KETTD_DATA_DIR</code> 使能</td><td><span class="tag must">Must</span></td><td>高/高</td><td class="ev">全仓 #[test] = 0；store.rs:447、models.rs:596/626/674/684 皆纯函数；store.rs:34 目录硬编码</td><td>cargo test ≥5 例绿（覆盖 §7 十规则抽样）</td><td class="hr">4h</td></tr>
+      <tr><td class="id">T7</td><td>版本 bump 2.1.0 + V2-API §10 纠偏</td><td><span class="tag must">Must</span></td><td>高/极低</td><td class="ev">tauri.conf.json:11 = 2.0.0；§10 称未做 check，实测 0.95s 绿</td><td>三处版本号一致；§10 改真机结论 + 未验清单</td><td class="hr">0.5h</td></tr>
+      <tr><td class="id">T8</td><td>死代码 / 死 CSS / <code>dist/</code> 遗留清理</td><td><span class="tag should">Should</span></td><td>中/低</td><td class="ev">7 条 warning（models.rs:21/187/243/385/573/748、store.rs:688）；styles.css:246 .kbdhint html 用 0 次；dist/ 是 7-13 遗留（distDir=../src）</td><td>cargo check 0 warning；kbdhint 0 命中；dist/ 入回收站</td><td class="hr">1.5h</td></tr>
+      <tr><td class="id">T9</td><td>关闭 check-5 对比度 open 项</td><td><span class="tag should">Should</span></td><td>中/极低</td><td class="ev">本轮实算：亮 4.68 / 4.86:1，暗 6.36 / 5.87:1，全 ≥4.5:1（token 计算，非截图）</td><td>数值写回 check.json 与走查报告并标 closed</td><td class="hr">0.25h</td></tr>
+      <tr><td class="id">T10</td><td>干净环境首启复验 + 发版说明归档</td><td><span class="tag should">Should</span></td><td>中/中</td><td class="ev">现无 release notes，包只躺在 target/</td><td>新环境走完 引导→记→提醒→导出</td><td class="hr">2h</td></tr>
+      <tr><td class="id">Won't</td><td>度量埋点体系 / 周汇总 mini-probe / Wave-3 扩展 / 动效视觉 / 全量 WCAG</td><td><span class="tag wont">推 v2.2</span></td><td>—</td><td class="ev">「补 Wave-3」经核实是伪需求：周汇总 tab index.html:718-780、打字即搜浮层 1103-1149、api.js:62 export_weekly 均已在生产层</td><td>本周不碰，避免与收口抢窗口</td><td class="hr">—</td></tr>
+    </tbody>
+  </table>
+  <div class="sub" style="margin-top:8px">工时账：Must 11.75h ＋ Should 3.75h ＝ 15.5h ／ 5 天。<div class="bar"><i style="width:30%"></i></div>只占一周窗口的约 30%，其余是留给 T2 未知问题的预算。</div>
+</section>
+
+<section>
+  <h2>价值 / 成本矩阵 · 为什么是这个顺序</h2>
+  <div class="mx">
+    <div class="hd"></div><div class="hd">成本 低</div><div class="hd">成本 高</div>
+    <div class="hd">价值<br>高</div>
+    <div class="cell go"><b>快赢 · D1 全清</b><span>T0 提交推远端</span><span>T1 重打包</span><span>T5 文案</span><span>T7 版本+文档纠偏</span></div>
+    <div class="cell go"><b>主战场 · 本周就为它花钱</b><span>T2 真机验证</span><span>T3 数据保护</span><span>T6 契约单测</span></div>
+    <div class="hd">价值<br>中/低</div>
+    <div class="cell"><b>补票 · 顺手</b><span>T4 热键可见</span><span>T8 清理</span><span>T9 关单</span></div>
+    <div class="cell"><b>明确不做（v2.1）</b><span>埋点体系</span><span>mini-probe</span><span>动效打磨</span><span>Wave-3「补」</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Asks · 需要你拍的 5 件事（每个都是 yes/no 或选 A/B/C）</h2>
+  <div class="asks">
+    <div class="ask"><div class="q">Ask 1 · 计划页时间语义保留哪种？（qa-4 至今未确认）</div>
+      <div class="f"><div><span>为什么要决定</span>qa-3 的「多时刻」修法口径取决于多时刻归哪一类，不定则包无法冻结</div><div><span>决定时间</span>9/4（周五）前</div><div><span>不决定的影响</span>T3 悬空 → T1/T10 顺延，v2.1 冻结不了</div></div>
+      <div class="opt">A <b>保留日期+时刻双组件（留空=每天循环），行内加一句语义说明 ← 推荐</b> · B 只留纯时刻，删日期组件（放弃一次性提醒入口） · C 拆成显式「每天/单次」开关</div></div>
+
+    <div class="ask"><div class="q">Ask 2 · 运行时验证要不要重启你正在跑的实例（PID 12196 / debug 22:11:41）？</div>
+      <div class="f"><div><span>为什么要决定</span>T2 里两项（透明窗观感、Alt+Shift+O 实际呼出）静态无法证伪；且 runtime.rs 与 exe 差 6s，不能确认二进制含最后一次编辑</div><div><span>决定时间</span>即刻（T2 前置）</div><div><span>不决定的影响</span>收口只剩代码层，「装得出去」不成立</div></div>
+      <div class="opt">A 直接重启现有实例 · <b>B 先加 KETTD_DATA_DIR，用独立数据目录起第二实例 ← 推荐（多 30min，不打断 dogfood、不脏真库）</b> · C 今天不验证</div></div>
+
+    <div class="ask"><div class="q">Ask 3 · v1 迁移回归拿什么数据当样本？</div>
+      <div class="f"><div><span>为什么要决定</span>%APPDATA%\todo-list 下没有 data.v1.json（真库已是 v2 态），「零丢失」这条硬约束目前无处验证</div><div><span>决定时间</span>9/4 前</div><div><span>不决定的影响</span>brief 目标「存量数据丢失率 0」不可证伪，只能带风险声明发版</div></div>
+      <div class="opt">A 你手上有 v1 的 data.json → 给我路径 · <b>B 没有 → 按 V2-API §7 十规则手写 fixture 做单测 ← 推荐</b> · C 不做，发版说明标「未验证」</div></div>
+
+    <div class="ask"><div class="q">Ask 4 · 发布物与版本号：nsis 单包 + 2.1.0，还是 msi/nsis 双出？</div>
+      <div class="f"><div><span>为什么要决定</span>bundle 目录同时躺着过期的 msi 与 nsis，两个可分发来源都有「装了个旧的」误装风险</div><div><span>决定时间</span>9/5 前</div><div><span>不决定的影响</span>D5 还在纠结打包，且过期包持续可被误装</div></div>
+      <div class="opt"><b>A 只留 nsis + bump 2.1.0 + 删旧 bundle ← 推荐（8 项调整属功能级变更，不是补丁）</b> · B 双出 · C 按 2.0.1 走</div></div>
+
+    <div class="ask"><div class="q">Ask 5 · 同意把「度量埋点 + 周汇总刚需验证」明确推到 v2.2 吗？</div>
+      <div class="f"><div><span>为什么要决定</span>retro 认定它是最大单点风险（5 星假设零证据、PRD 5 个成功指标目前<b>全不可测</b>），但它跟收口抢同一周窗口</div><div><span>决定时间</span>9/4 前</div><div><span>不决定的影响</span>一周被功能扩展吃掉，v2.1 与 v2.2 同时半途而废</div></div>
+      <div class="opt"><b>A 同意推 v2.2 ← 推荐</b> · B v2.1 先做埋点最小集（则 Must 层砍 T8/T9/T10 换工时）</div></div>
+  </div>
+  <div class="sub" style="margin-top:8px">rev.1 的 4 个 Asks 核账：<b>Ask2「推 v2 分支到远端」至今未拍板也未执行</b> → 已升级为本轮 T0；Beta 承诺题与单选题题原样挂账到 v2.2；「托盘常驻 vs 计划任务」已被 V2-API §4 实装取代。</div>
+</section>
+
+<footer>
+  <b>口径与诚实声明</b>（写这份路线图时我没干的事）：未运行 <code>tauri dev</code>、未重启你正在跑的实例、未执行 <code>cargo build --release</code>、未改动 <code>src/</code> 与 <code>src-tauri/</code> 任何一行 —— 全部结论来自静态核查 + 命令实测 + token 实算。
+  对比度是 styles.css HSL 令牌计算值（非截图取样），<code>.text-muted</code> 覆盖类较多，最差口径按卡片底 4.86:1 计；「Wave-3 已在生产层」只说明代码存在，不等于真机验证通过（那正是 T2 的活）；<code>runtime.rs</code>(22:11:35) 与 debug exe(22:11:41) 仅差 6 秒，最后一次编辑是否已进入运行中的二进制<b>无法判定</b>。
+  <br><br>
+  数据源：<code>spark-output/context/{brief,check,qa,retro,prd}.json</code> · 本机 <code>cargo check</code>/时间戳/<code>git</code>/<code>data.json</code> 实测（2026-09-03 22:11–22:15 +08:00）。
+  正文：<code>spark-output/pitch/kettd-v2.1-release-closeout.md</code> · 链路上下文：<code>spark-output/context/pitch.json</code>(rev.2)
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,104 +1,167 @@
 {
   "skill": "pitch",
-  "generated_at": "2026-09-02T17:40:00+08:00",
+  "generated_at": "2026-09-03T22:20:00+08:00",
   "project_name": "Kettd v2 · 个人待办记录汇总",
   "audience": "stakeholder(owner)",
-  "format": "doc",
-  "pitch_file": "spark-output/pitch/kettd-v2.md",
+  "format": "one-pager-html + doc",
+  "pitch_file": "spark-output/pitch/kettd-v2.1-release-closeout.md",
+  "roadmap_file": "spark-output/pitch/kettd-v2.1-roadmap.html",
+  "revision": 2,
+  "supersedes": "2026-09-02T17:40:00+08:00",
+  "revision_notes": "rev.2：主题从『上线前方向对齐』切到『v2.1 发版收口』。全部论点重挂本机 22:11-22:15 实测证据（bundle 时间戳 / git 未提交且 v2 无 upstream / cargo check 0.95s 绿 / 真库 data.json 统计 / token 对比度实算）。rev.1 的 Ask2（推 v2 到远端）核账发现至今未执行 → 升级为 rev.2 的 T0 + Ask。rev.1 关于 Beta 与周汇总的 3 个 Ask 原样挂账（见 rev1_asks），不阻塞 v2.1。",
   "sections": {
     "the_bet": {
-      "one_liner": "押『离线轻量的个人记录-汇总工具』竞品空位：4 周推 Wave-1 Beta（10-20 人）",
-      "success_metric": "P50 捕获 ≤3s 且周汇总打开/导出≥40%（未达=假设错回炉，不加功能）"
+      "one_liner": "押『v2.1 只做完发版收口、不上任何新功能』：5 个工作日内把 v2 从代码全绿但没人真跑过，推到装得出去、回得来、契约可证伪",
+      "success_metric": "干净环境装 v2.1 后 8 项调整肉眼可见 + migrate_v1 等 4 类契约有 cargo test 兜住（≥5 例绿）；反证条件=本周又写了新功能"
     },
-    "why_now": "订阅疲劳（139-168元/年差评原话）+ 三家头部全留『完成即蒸发/重规划轻总结』空位 + Tauri 栈 3h 已落地原型的低成本窗口；晚进则被任意头部顺手填掉",
+    "why_now": "①能打出去的安装包已过期：release exe 21:00:47 / msi+nsis 21:03，而 8 项调整源码改在 21:34-22:11 → 当前 2.0.0 安装物不含它们；②那 8 项一行未提交（15 文件 modified，git show HEAD:src/float.html 仍是旧标题+文字按钮），且 v2 分支无 upstream → 源码只活在 F 盘单机，无回滚点；③V2-API §10 声称未做 cargo check，本机实测 0.95s 通过（仅 7 条 dead-code warning），过期文档会误导下一次会话；④验证窗口只有这台机器且它正在被真实使用：真库 17 任务里 16 条 source=capture、fired 有 4 条今日去重键，但 reminders=0 → 计划页提醒路径从未被真实用过",
     "user_jtbd": {
       "persona_name": "小柯",
-      "persona_description": "Windows 笔电学生/上班族，怕忘事、反感云账号与订阅、周末写周报",
-      "jtbd": "当脑中有事冒出，比备忘录更快乐库，到点被真提醒，周末一眼看完成果"
+      "persona_description": "Windows 笔电学生/上班族，怕忘事、反感云账号与订阅费、周末回看完成汇总",
+      "jtbd": "当手头正忙脑中冒出一件事，想 3 秒内记下来然后再也不看它，到点被系统级真提醒，从而『记下来就安全』"
     },
     "direction": {
-      "chosen": "A 记录-提醒-汇总闭环（本地）",
+      "chosen": "A 发版收口：钉基线 → 重打包 → 真机运行时验证 → 数据保护修复 → 契约单测可证伪",
       "chosen_id": "A",
       "alternatives_considered": [
-        "B 云同步轻量版→与『永不收费』矛盾，毁定位",
-        "C 习惯/番茄全象→功能广度正是竞品差评源",
-        "D $49.99 买断→无品牌资产，只能打开源免费信任牌"
+        "B 度量埋点 + 周汇总 5 星假设验证 → 价值最高但不产出可交付版本，且本地单机埋点要先设计统计口径；推 v2.2 第一交付",
+        "C 补 Wave-3（周汇总/搜索）→ 实测是伪需求：index.html:718-780 周汇总草稿 tab、1103-1149 打字即搜浮层、api.js:62 export_weekly 已在生产层",
+        "D 体验/动效打磨 → QA 9 维度 7 维无 deviation，此刻收益远低于换掉过期安装包"
       ],
-      "why_this_one": "三屏赢进门+两屏赢留存，全部能力可本地零成本兑现",
-      "key_risk": "B4 周汇总真实需求 = 零一手证据，100% 靠 Beta Gate",
-      "critical_assumption": "「每周自动汇总+导出」是高频刚需"
+      "why_this_one": "8 项调整只有装进包、被别人装上才对别人存在；且 brief 硬约束『v1 迁移零丢失』目前既未证实也未证伪，收口是把它变可证伪的唯一路径",
+      "key_risk": "T2 运行时验证里静态无法证伪的两项（capture 窗透明观感、Alt+Shift+O 实际呼出）若真不出效果，一周窗口不够 → 止损：T2 排 D1，暴露 Blocker 当场砍 Should 层",
+      "critical_assumption": "『这版只要重打包 + 真机点一遍就达到可发版』；证伪条件 = T2 四项中出现任何无法当日修复的缺陷"
     },
     "design_decisions": [
       {
-        "decision": "信任底座先于功能（坏消息永远显式）",
-        "rationale": "audit 三 blocker 的反例设计",
-        "evidence": "F0/F6 + edge gate 最高优先",
-        "related_screen": "F0 迁移兜底/F6 恢复"
+        "decision": "先钉 git 基线、再换发布物、最后才改代码（顺序本身是决策）",
+        "rationale": "包是 21:00 旧产物时，任何『改了没生效』的体感都不可归因；工作区未提交 + v2 无 upstream 时，任何改动都没有回滚点",
+        "evidence": "bundle 21:03 vs 源码 22:11；git status 15 M；git branch 显示 v2 无 upstream；runtime.rs 22:11:35 与 debug exe 22:11:41 仅差 6s，不能断言同代",
+        "related_screen": "发布链（非 UI 屏）"
       },
       {
-        "decision": "捕获是唯一货币（交互预算全给它）",
-        "rationale": "S3 moment-of-truth",
-        "evidence": "bench takeaway-1 + F1 ≤2 键",
-        "related_screen": "F1"
+        "decision": "4 项 QA 偏差中只有 qa-3 会静默改写用户数据，故排在 qa-1/qa-2 之前",
+        "rationale": "数据完整性优先于文案与状态显示；它违反 brief 约束#2 与 V2-API §时间约定，不是外观问题",
+        "evidence": "src/index.html:654-673 rem-edit 对 HH:MM/HH:MM 走 else 分支把 date/time 双置空 → :674 rem-edit-save 直接覆盖为单值",
+        "related_screen": "F3 今日计划 / 提醒行内编辑"
       },
       {
-        "decision": "今天=计划非日历",
-        "rationale": "承诺『今天可做完』",
-        "evidence": "To Do 区第一好评 + audit-11/12 销账",
-        "related_screen": "F3"
+        "decision": "迁移与时间契约用 cargo 单测证明，不用手点；并为此加 KETTD_DATA_DIR 覆盖",
+        "rationale": "data_dir() 硬编码 %APPDATA%/todo-list → 手点回归必然污染真库（唯一 dogfood 样本）；migrate_v1 与时间解析全是纯函数，天生可测。该环境变量不是功能，是使能项",
+        "evidence": "全仓 #[test] 计数 0；store.rs:447 migrate_v1(&Value)、models.rs:596/626/674/684 纯函数；store.rs:34 data_dir()",
+        "related_screen": "F0 迁移兜底 / F6 恢复"
       },
       {
-        "decision": "克制做进机制不做海报",
-        "rationale": "anti-metrics 落地",
-        "evidence": "edge dnd/≤3 次/小时/24h 降级",
-        "related_screen": "F4+通知策略"
+        "decision": "热键注册失败必须可见化——同一类系统资源不允许两套处理标准",
+        "rationale": "brief 定性标准『控件皆有实行为』；设置页显示的绑定必须等于真实绑定",
+        "evidence": "main.rs:101-108 捕获热键重试 4 次 vs main.rs:110 `let _ = register_main_hotkey(...)` 丢弃结果；runtime.rs:232 返回 Result 但无人消费",
+        "related_screen": "F7 设置页热键卡"
+      },
+      {
+        "decision": "文档纠偏与代码同批提交，并用实算关掉 check-5 对比度 open 项",
+        "rationale": "过期的『未验证』声明比 bug 更贵——它会把下一次会话的推断整体带偏；未决 open 项持续占用决策带宽",
+        "evidence": "V2-API.md §10 vs 本机 cargo check 0.95s 通过；styles.css token 实算 muted/bg 4.68:1、muted/card 4.86:1（亮）与 6.36/5.87:1（暗），全 ≥4.5:1",
+        "related_screen": "V2-API.md / check.json"
       }
     ],
     "asks": [
       {
-        "ask": "批准『Beta 前不对外承诺周汇总；Gate 不过降级为纯日志簿』",
-        "why_needed": "全案唯一零证据押注需预设退路",
-        "decision_needed_by": "≤2026-09-09（Wave-2 前）",
-        "impact_if_no_decision": "招募文案无法定稿，营销全停"
+        "ask": "计划页时间语义保留哪种：A 保留日期+时刻双组件（留空日期=每天循环）并加一句行内说明 / B 只留纯时刻删掉日期组件 / C 拆成显式『每天·单次』开关？",
+        "why_needed": "qa-4 的范围增益未被需求方确认，且 qa-3 多时刻修复口径取决于多时刻归哪一类，不定则包无法冻结",
+        "decision_needed_by": "2026-09-04 前",
+        "impact_if_no_decision": "T3 修法定不下来 → 发版包无法冻结，T1/T10 顺延"
       },
       {
-        "ask": "批准推送本地 v2 分支至远端（新建 v2，不动 master）",
-        "why_needed": "产物只活在沙箱，无远端无 Beta 源",
-        "decision_needed_by": "本周五前",
-        "impact_if_no_decision": "Beta 无法版本发放，链产物悬空"
+        "ask": "运行时验证是否允许重启你正在跑的实例（PID 12196 / debug 22:11:41）：A 直接重启 / B 先加 KETTD_DATA_DIR 起独立数据目录第二实例 / C 今天不验证？",
+        "why_needed": "T2 四项含两项静态无法证伪项，必须真机看点；且 runtime.rs 与 exe 仅差 6s，不能确认当前二进制含最后一次编辑",
+        "decision_needed_by": "即刻（T2 前置）",
+        "impact_if_no_decision": "收口只剩代码层，『装得出去』这条不成立"
       },
       {
-        "ask": "提醒机制默认=托盘常驻 vs 计划任务，接受 0.5d spike 后凭数据选",
-        "why_needed": "『关了也响』双分叉锁排期",
-        "decision_needed_by": "Wave-2 spike 出数后 3 日",
-        "impact_if_no_decision": "Wave-3 排期锁不住"
+        "ask": "v1 迁移回归的数据源：A 你有 v1 data.json 给我路径 / B 没有，我按 V2-API §7 十规则手写 fixture 做单测 / C 不做并在发版说明标未验证？",
+        "why_needed": "%APPDATA%/todo-list 下无 data.v1.json（真库已是 v2 态），『零丢失』硬约束目前无处验证",
+        "decision_needed_by": "2026-09-04 前",
+        "impact_if_no_decision": "brief 目标『存量数据丢失率 0』不可证伪，只能以风险声明形式发版"
       },
       {
-        "ask": "Beta 同意加 1 道单选题（『你之前用什么记』）",
-        "why_needed": "补 workaround 一手证据（PRD thin#2）",
-        "decision_needed_by": "Beta 问卷定稿前（Ask2 后一周内）",
-        "impact_if_no_decision": "Retro rev.2 的产品级验证永远缺项"
+        "ask": "发布物与版本号：只保留 nsis 单包 + bump 到 2.1.0 并删除过期 2.0.0 bundle 产物，还是 msi/nsis 双出、或按 2.0.1 补丁号走？",
+        "why_needed": "target/release/bundle 同时躺着过期 msi 与 nsis，两个可分发来源都存在『改了没生效』的误装风险",
+        "decision_needed_by": "2026-09-05 前",
+        "impact_if_no_decision": "最后一天仍在纠结打包，且过期包有误装风险"
+      },
+      {
+        "ask": "是否同意把『度量埋点体系 + 周汇总刚需 mini-probe』明确推到 v2.2，本周不碰？",
+        "why_needed": "retro 认定其为最大单点风险（5 星假设零证据、PRD 5 个成功指标目前全不可测），但它与发版收口抢同一周窗口",
+        "decision_needed_by": "2026-09-04 前",
+        "impact_if_no_decision": "一周窗口被功能扩展吃掉，v2.1 与 v2.2 同时半途而废"
       }
+    ],
+    "uncertainties": [
+      "未运行 tauri dev、未重启用户实例、未执行 cargo build --release：全部结论为静态核查与实算，运行时行为仍属未证",
+      "runtime.rs 22:11:35 与 debug exe 22:11:41 差 6s，最后一次编辑是否已进入运行中的二进制无法判定",
+      "对比度为 token 计算值（非截图取样），.text-muted 覆盖类较多，最差口径按卡片底 4.86:1 计",
+      "『Wave-3 已在生产层』依据前端代码存在，不等于真机验证通过",
+      "distDir 指向 ../src 依据 tauri.conf.json:4-6，未跑 tauri build 验证资源内嵌路径"
+    ],
+    "plan": {
+      "window": "1 周 / v2.1 小版本 / 单人",
+      "must_hours": 11.75,
+      "should_hours": 3.75,
+      "total_hours": 15.5,
+      "daily_burn": "5 天 × ≈3.1h，留约 70% 窗口给 T2 暴露的意外",
+      "gate": "D1 结束前若 T2 出 Blocker，当场砍 T8/T9/T10，Must 层不动",
+      "schedule": "D1 T0→T1→T2（验证前置，暴露问题最多的一天）· D2 T3+T4 · D3 T5+T7+T8 · D4 T6 单测主战场 · D5 冻结→重打最终包→T10 复验→归档",
+      "tickets": [
+        { "id": "T0", "title": "提交 8 项调整 + 推 v2 到 origin 建回滚基线", "moscow": "must", "value_cost": "高/极低", "evidence": "git status 15 文件 M；git branch v2 无 upstream；HEAD:src/float.html ≠ 工作区", "accept": "git log -1 含 8 项调整；git ls-remote origin v2 有 ref", "hours": 0.25 },
+        { "id": "T1", "title": "重打 release + bundle，确认二进制与源码同代", "moscow": "must", "value_cost": "高/低", "evidence": "bundle 21:03 < 源码 21:34-22:11", "accept": "新包 mtime > 全部源码 mtime；干净环境 8 项逐条可见", "hours": 1.0 },
+        { "id": "T2", "title": "真机运行时验证 4 项（透明记录条 / Alt+Shift+O / 面板标题+图标按钮 / 计划页选择器落库到点响）", "moscow": "must", "value_cost": "高/高", "evidence": "QA 报告待运行时确认清单；真库 reminders=0 需自造数据", "accept": "4 项打勾 + 截图，失败项进 Blocker 队列", "hours": 2.0 },
+        { "id": "T3", "title": "qa-3 多时刻防静默降级", "moscow": "must", "value_cost": "高/中", "evidence": "index.html:654-673 else 置空 → :674 覆盖", "accept": "多时刻不改值保存后仍为 HH:MM/HH:MM，或改前显式确认", "hours": 2.0 },
+        { "id": "T4", "title": "qa-1 热键注册失败可见化", "moscow": "must", "value_cost": "中/低", "evidence": "main.rs:110 let _ = vs :101-108 4 次重试", "accept": "冲突时设置页标『未生效』+ 托盘提示一次", "hours": 1.5 },
+        { "id": "T5", "title": "qa-2 兜底文案对齐选择器语义", "moscow": "must", "value_cost": "中/极低", "evidence": "api.js:325/329；index.html:653", "accept": "改『请选一个未来时刻』类短句，格式教学不再外露", "hours": 0.5 },
+        { "id": "T6", "title": "契约单测（migrate_v1 + 时间解析）+ KETTD_DATA_DIR 使能", "moscow": "must", "value_cost": "高/高", "evidence": "全仓 #[test]=0；store.rs:447；models.rs:596/626/674/684；store.rs:34", "accept": "cargo test ≥5 例绿", "hours": 4.0 },
+        { "id": "T7", "title": "版本 bump 2.1.0 + V2-API §10 纠偏", "moscow": "must", "value_cost": "高/极低", "evidence": "tauri.conf.json:11 = 2.0.0；§10 称未做 cargo check，实测 0.95s 绿", "accept": "三处版本号一致；§10 写真机结论 + 未验清单", "hours": 0.5 },
+        { "id": "T8", "title": "死代码 / 死 CSS / dist 遗留清理", "moscow": "should", "value_cost": "中/低", "evidence": "7 条 dead-code warning；styles.css:246 .kbdhint html 用 0 次；dist/ 为 7-13 遗留", "accept": "cargo check 0 warning；kbdhint 0 命中；dist/ 入回收站", "hours": 1.5 },
+        { "id": "T9", "title": "关闭 check-5 对比度 open 项", "moscow": "should", "value_cost": "中/极低", "evidence": "实算 4.68/4.86（亮）、6.36/5.87（暗）≥4.5:1", "accept": "数值写回 check.json 与走查报告并标 closed", "hours": 0.25 },
+        { "id": "T10", "title": "干净环境首启复验 + 发版说明归档", "moscow": "should", "value_cost": "中/中", "evidence": "无 release notes，包只在 target/", "accept": "新环境走完 引导→记→提醒→导出", "hours": 2.0 }
+      ],
+      "wont_v2_1": [
+        "度量埋点体系（→ v2.2 第一交付）",
+        "周汇总刚需 mini-probe（→ v2.2）",
+        "Wave-3 新功能扩展（实测已在生产层，伪需求）",
+        "动效 / 视觉升级",
+        "全量 WCAG 审计（对比度已实算通过，余 3 principle 未做）"
+      ]
+    },
+    "risks": [
+      { "risk": "T2 暴露透明窗或热键真实缺陷，一周不够", "mitigation": "T2 排 D1；当场砍 Should 层，Must 不动", "owner": "owner" },
+      { "risk": "重打包后仍有『改了没生效』体感，归因不清", "mitigation": "T0 先建基线 + T1 用 mtime 校验同代（含 runtime.rs 6 秒疑点）", "owner": "owner" },
+      { "risk": "手点迁移回归污染真库（唯一 dogfood 样本）", "mitigation": "只做 migrate_v1 单测，或先加 KETTD_DATA_DIR 再跑", "owner": "owner" },
+      { "risk": "过期 2.0.0 包被误装", "mitigation": "Ask4 拍板后删除旧 bundle 产物，单一分发来源", "owner": "owner" }
     ]
   },
+  "rev1_asks": [
+    { "ask": "批准『Beta 前不对外承诺周汇总；Gate 不过降级为纯日志簿』", "decision_needed_by": "≤2026-09-09", "status": "open-carried-to-v2.2" },
+    { "ask": "批准推送本地 v2 分支至远端（新建 v2，不动 master）", "decision_needed_by": "本周五前", "status": "STILL-UNEXECUTED → 升级为 rev.2 T0 + Ask" },
+    { "ask": "提醒默认=托盘常驻 vs 计划任务，0.5d spike 后凭数据选", "decision_needed_by": "Wave-2 spike 出数后 3 日", "status": "superseded-已按托盘常驻实装（V2-API §4）" },
+    { "ask": "Beta 同意加 1 道单选题（你之前用什么记）", "decision_needed_by": "Beta 问卷定稿前", "status": "open-carried-to-v2.2" }
+  ],
   "source_skills": {
-    "bench": true,
-    "audit": true,
-    "brief": true,
-    "journey": true,
-    "stories": true,
-    "sitemap": true,
-    "flow_web": true,
-    "check": true,
-    "edge": true,
-    "prd": true,
-    "extract": true,
-    "retro": true,
-    "qa": false,
-    "metric": false,
-    "access": false
+    "brief": true, "audit": true, "bench": true, "stories": true, "sitemap": true,
+    "journey": true, "prd": true, "flow_web": true, "edge": true, "check": true,
+    "extract": true, "retro": true, "qa": true, "metric": false, "access": false
   },
   "thin_sections": [
-    "无一手用户数据（全文数字=目标非成果，文首/文尾双声明）"
-  ]
+    "运行时行为仍零实测（未跑 tauri dev / 未重启实例 / 未 build release），透明窗与热键两项依旧未证",
+    "无任何一手用户信号（Probe/Signal 全链 0 次），rev.1 的 B4 关键假设本轮未被推进——已显式推给 v2.2 而非假装解决"
+  ],
+  "evidence_snapshot": {
+    "cargo_check": "Finished dev profile in 0.95s，7 warnings（全部 dead-code），0 error",
+    "toolchain": "cargo 1.96.1 / rustc 1.96.1 / node v22.12.0 / WebView2 Edge 152.0.4191.53",
+    "artifacts": "release exe 21:00:47；bundle msi+nsis 21:03；debug exe 22:11:41",
+    "src_mtime": "float/styles 21:34 · index.html 21:44 · store/models/main 21:36-21:39 · commands 21:46 · runtime.rs 22:11:35",
+    "git": "15 文件 modified 未提交；branch v2 无 upstream；origin=github.com/Fitd14/Kettd（master、v1 有跟踪）",
+    "running": "PID 12196 target/debug/待办列表.exe 起于 22:15:30（未打扰、未重启）",
+    "live_data": "tasks 17（capture 16 / manual 1）· done 13 带 doneAt · 软删 5 · reminders 0 · fired 4 条 t|…|2026-09-03 · settings mainHotkey=Alt+Shift+O captureHotkey=Alt+Shift+A floatForm=desktop onboarded=true · 无 data.v1.json",
+    "contrast": "亮 muted/bg 4.68:1 · muted/card 4.86:1；暗 6.36:1 · 5.87:1（token 实算，非截图取样）"
+  }
 }

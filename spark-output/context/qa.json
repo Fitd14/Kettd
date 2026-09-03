@@ -1,0 +1,62 @@
+{
+  "skill": "qa",
+  "generated_at": "2026-09-03T21:56:03+08:00",
+  "project_name": "Kettd v2 · 个人待办记录汇总",
+  "target": "8 项发版前调整（悬浮面板精简×4 / 快速记录窗口 / 打开主界面全局热键 / 计划页时间组件 / 主窗口文案精简），覆盖 src/float.html、capture.html、index.html、styles.css、api.js 与 src-tauri 侧 models/store/runtime/commands/main/tauri.conf.json",
+  "review_mode": "auto",
+  "deviations": [
+    {
+      "id": "qa-1",
+      "dimension": "interaction-states",
+      "severity": "minor",
+      "design_source": "brief.qualitative「控件皆有实行为」；设置页『当前绑定』应与真实绑定一致",
+      "implementation": "main.rs setup 线程启动注册失败（组合键被占用）时静默放弃，设置页仍显示 settings.mainHotkey 默认值，界面与实际绑定可能不符",
+      "delta": "显示『当前绑定：Alt+Shift+O』 vs 实际未注册（仅在占用冲突时发生）",
+      "suggestion": "启动注册失败时经事件通知前端在设置页标注『上次绑定未生效』，或托盘气泡提示一次",
+      "location": "src-tauri/src/main.rs setup 热键线程；src/index.html viewSettings 热键卡",
+      "relates_to_check_finding": null
+    },
+    {
+      "id": "qa-2",
+      "dimension": "state-coverage",
+      "severity": "minor",
+      "design_source": "需求 7：计划页时间应『选择』而非手输",
+      "implementation": "时间已改为 date+time 选择组件，但错误文案仍保留手输格式说明『提醒时间格式不对，用 HH:MM 或 YYYY-MM-DDTHH:mm』（validateReminderTime 与 rem-fix-raw 兜底路径）",
+      "delta": "交互已是选择器，错误态文案仍教学手输格式",
+      "suggestion": "兜底文案改为『请选一个未来时刻』类短句，与选择器交互对齐",
+      "location": "src/api.js validateReminderTime；src/index.html ACTS['rem-fix-raw']",
+      "relates_to_check_finding": null
+    },
+    {
+      "id": "qa-3",
+      "dimension": "state-coverage",
+      "severity": "minor",
+      "design_source": "v1 兼容契约：Reminder.time 支持多时刻 HH:MM/HH:MM（V2-API.md §时间约定）",
+      "implementation": "旧版多时刻提醒进入行内编辑时 date/time 选择器均置空（组件无法表达多值），用户直接保存会以单一时刻覆盖原多时刻值",
+      "delta": "HH:MM/HH:MM → 编辑保存后变为单个 HH:MM",
+      "suggestion": "rem-edit 检测到多值时先 toast 说明『多时刻将改为单时刻』，或该行禁用组件改用原文本框",
+      "location": "src/index.html ACTS['rem-edit'] / ACTS['rem-edit-save']",
+      "relates_to_check_finding": null
+    },
+    {
+      "id": "qa-4",
+      "dimension": "interaction-states",
+      "severity": "minor",
+      "design_source": "需求 7 原文：『计划中时间需要改为时间组件 进行选择』",
+      "implementation": "实现为『日期 + 时刻』双选择组件：日期留空 = 每天循环（HH:MM），选日期 = 一次性（YYYY-MM-DDTHH:mm）",
+      "delta": "范围增益：比字面需求多一个日期维度，用于保留原有循环/一次性双语义",
+      "suggestion": "请用户确认『留空日期=每天循环』语义可接受；若只要纯时刻可移除日期组件（会失去一次性提醒的选取入口）",
+      "location": "src/index.html viewPlanned 添加行与 rem-edit 行",
+      "relates_to_check_finding": null
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "blocker": 0,
+    "major": 0,
+    "minor": 4,
+    "pass_dimensions": ["spacing", "color", "typography", "radius-shadow", "assets", "responsive", "accessibility"],
+    "check_findings_resolved": 0,
+    "check_findings_unresolved": 0
+  }
+}
