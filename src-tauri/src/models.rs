@@ -496,6 +496,15 @@ pub struct DataHealthV2 {
   pub writable: bool,
 }
 
+/// 热键的**实际注册**快照（运行期事实，不落盘）：
+/// 前端拿它与 `settings.captureHotkey / mainHotkey` 比对，不一致即「未生效」（qa-1）
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HotkeyStatus {
+  pub capture: Option<String>,
+  pub main: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RestoreResult {

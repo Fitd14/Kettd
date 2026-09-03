@@ -4,7 +4,7 @@ use crate::export;
 use crate::models::{
   carry_days, clocks_of, fmt_dt, is_valid_choice, new_id, normalize_datetime, now_text,
   Bootstrap, CATEGORIES, DataHealthV2, DEFAULT_HOTKEY, FLOAT_FORMS,
-  MigrationReport, Note, NotePayload, PRIORITIES, REMINDER_CAP_DEFAULT, Reminder, ReminderPayload,
+  HotkeyStatus, MigrationReport, Note, NotePayload, PRIORITIES, REMINDER_CAP_DEFAULT, Reminder, ReminderPayload,
   RestoreResult, Settings, SettingsPayload, Source, StoreEvent, Subtask, Task, TaskPayload,
   TRASH_RETENTION_DAYS, today,
 };
@@ -86,6 +86,12 @@ pub fn get_reminders(state: State<'_, Shared>) -> Result<Vec<Reminder>, String> 
 pub fn get_data_health(state: State<'_, Shared>) -> Result<DataHealthV2, String> {
   let store = lock(&state);
   Ok(store.health_view())
+}
+
+/// 热键实际注册状态：设置页据此判断「当前绑定」是否真的生效（qa-1）
+#[tauri::command]
+pub fn get_hotkey_status(app: AppHandle) -> Result<HotkeyStatus, String> {
+  Ok(runtime::hotkey_status(&app))
 }
 
 #[tauri::command]

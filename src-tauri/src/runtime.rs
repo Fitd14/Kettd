@@ -227,11 +227,20 @@ pub fn capture_is_visible(app: &AppHandle) -> bool {
 
 /// 注册（或换绑）捕获热键；失败回滚旧键并返回可显示的中文提示
 pub fn register_capture_hotkey(app: &AppHandle, combo: &str) -> Result<(), String> {
-  register_global_hotkey(app, combo, HotkeyAction::Capture)
+  let result = register_global_hotkey(app, combo, HotkeyAction::Capture);
+  // 成败都广播：失败时该槽位仍是旧值/None，前端据此标「未生效」
+  publish_hotkey_state(app);
+  result
 }
 
 /// 注册 / 换绑 / 解绑「打开主界面」热键；None 或空串 = 解绑
 pub fn register_main_hotkey(app: &AppHandle, combo: &Option<String>) -> Result<(), String> {
+  let result = main_hotkey_inner(app, combo);
+  publish_hotkey_state(app);
+  result
+}
+
+fn main_hotkey_inner(app: &AppHandle, combo: &Option<String>) -> Result<(), String> {
   match combo.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
     Some(target) => register_global_hotkey(app, target, HotkeyAction::OpenMain),
     None => {
@@ -315,6 +324,21 @@ fn store_hotkey(app: &AppHandle, action: HotkeyAction, value: Option<String>) {
       Err(poisoned) => *slot_mut(&mut poisoned.into_inner(), action) = value,
     }
   }
+}
+
+/// 两个热键的**实际注册**快照（read_hotkey 是唯一事实来源，不另存一份判断）
+pub fn hotkey_status(app: &AppHandle) -> crate::models::HotkeyStatus {
+  crate::models::HotkeyStatus {
+    capture: read_hotkey(app, HotkeyAction::Capture),
+    main: read_hotkey(app, HotkeyAction::OpenMain),
+  }
+}
+
+/// 广播实际注册结果给前端（设置页据此标「未生效」）。
+/// 启动时主窗口是隐藏的，这条事件可能没人接收 —— 所以前端仍要在启动与进设置页时
+/// 主动 get_hotkey_status 兜一次，广播只是让已打开的页面即时更新。
+pub fn publish_hotkey_state(app: &AppHandle) {
+  let _ = app.emit_all("hotkey-state", hotkey_status(app));
 }
 
 fn slot(registry: &HotkeyRegistry, action: HotkeyAction) -> &Option<String> {

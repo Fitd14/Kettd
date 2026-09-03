@@ -33,6 +33,7 @@ const NAVS = [['today', '今天', '✓'], ['inbox', '收件箱', '▤'], ['plann
 
 const S = {
   tasks: [], reminders: [], settings: null, health: null, migration: null, hints: null,
+  hotkeys: null,
   route: 'today',
   loading: true, bootErr: '',
   drafts: { today: '', inbox: '', remTitle: '', remMode: 'daily', remTimes: [''], remDate: '', remEditMode: 'daily', remEditTimes: [''], remEditDate: '', sub: '', noteNew: '', hotkey: '', mainHotkey: '', dir: '', retry: '', dndFrom: '', dndTo: '', capHour: '' },
@@ -91,6 +92,8 @@ async function boot() {
   api.applyTheme(S.settings && S.settings.theme);
   const h = await api.getFormHints();
   if (!h.err) S.hints = h.data;
+  const hk = await api.getHotkeyStatus();
+  if (!hk.err) S.hotkeys = hk.data;
   if (S.settings && !S.settings.onboarded && S.health && S.health.health !== 'corrupt') {
     S.onb.step = clampStep(parseInt(localStorageGet('kettd.onb-step') || '0', 10));
   }
@@ -914,6 +917,10 @@ function viewSettings() {
   const cap = s.captureHotkey || 'Alt+Shift+A';
   const mainCap = s.mainHotkey || '';
   const dnd = s.dnd || { enabled: false, from: '23:00', to: '07:30' };
+  /* qa-1：界面上写的绑定必须是真的绑上了的键。与实际注册快照比对；
+     S.hotkeys 还没取到（null）时不做断言，避免把“未知”误报成“未生效”。 */
+  const deadTag = (want, slot) => (!want || !S.hotkeys || S.hotkeys[slot] === want)
+    ? '' : `<span class="tiny" style="color:hsl(var(--destructive))"> · 未生效（被占用，换一个或走托盘）</span>`;
   return `<h1 class="page">设置</h1>
     <div class="card">
       <div class="set-row"><span>主题</span>
@@ -930,13 +937,13 @@ function viewSettings() {
         <button class="btn ghost sm" data-act="float-hide">收起</button></span></div>
     </div>
     <div class="card">
-      <div class="set-row"><div>快速记录快捷键<div class="tiny text-muted mono">当前绑定：${esc(cap)}</div></div>
+      <div class="set-row"><div>快速记录快捷键<div class="tiny text-muted mono">当前绑定：${esc(cap)}${deadTag(cap, 'capture')}</div></div>
         <button class="btn outline sm" data-act="cap-test">试呼出</button></div>
       <div class="row-flex" style="gap:6px;margin-top:4px">
         <input class="input ${S.errs.hotkey ? 'invalid' : ''} mono" data-in="hotkey" data-enter="hotkey-apply" value="${esc(S.drafts.hotkey)}" placeholder="${esc(cap)}" style="max-width:220px">
         <button class="btn sm" data-act="hotkey-apply">绑定新快捷键</button></div>
       ${S.errs.hotkey ? `<div class="inline-err">${esc(S.errs.hotkey)}</div>` : ''}
-      <div class="set-row" style="margin-top:8px"><div>打开主界面快捷键<div class="tiny text-muted mono">当前绑定：${esc(mainCap || '未绑定')}</div></div>
+      <div class="set-row" style="margin-top:8px"><div>打开主界面快捷键<div class="tiny text-muted mono">当前绑定：${esc(mainCap || '未绑定')}${deadTag(mainCap, 'main')}</div></div>
         ${mainCap ? `<button class="btn ghost sm" data-act="mainhot-clear">解绑</button>` : ''}</div>
       <div class="row-flex" style="gap:6px;margin-top:4px">
         <input class="input ${S.errs.mainHotkey ? 'invalid' : ''} mono" data-in="mainHotkey" data-enter="mainhot-apply" value="${esc(S.drafts.mainHotkey)}" placeholder="${esc(mainCap || 'Alt+Shift+O')}" style="max-width:220px">
@@ -1482,6 +1489,11 @@ $('overlayRoot').addEventListener('input', (e) => {
 
 /* ---------------- 事件订阅 ---------------- */
 api.onEvent('store-changed', () => softRefresh());
+api.onEvent('hotkey-state', (p) => {
+  if (!p) return;
+  S.hotkeys = p;
+  if (S.route === 'settings') renderView();
+});
 api.onEvent('theme-changed', (theme) => {
   api.applyTheme(theme);
   if (S.settings) S.settings.theme = theme;

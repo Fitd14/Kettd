@@ -51,6 +51,8 @@ export async function openDataFolder() { return call('open_data_folder'); }
 export async function setFloatForm(form) { return call('set_float_form', { form }); }
 export async function registerCaptureHotkey(combo) { return call('register_capture_hotkey', { combo }); }
 export async function registerMainHotkey(combo) { return call('register_main_hotkey', { combo }); }
+/** 热键实际注册快照 { capture, main }（null = 未绑上/已解绑），设置页据此标「未生效 */
+export async function getHotkeyStatus() { return call('get_hotkey_status'); }
 export async function openCaptureOverlay() { return call('open_capture_overlay'); }
 export async function closeCaptureOverlay() { return call('close_capture_overlay'); }
 export async function exportWeekly(opts) {

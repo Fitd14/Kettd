@@ -46,6 +46,7 @@ fn main() {
       commands::get_settings,
       commands::get_reminders,
       commands::get_data_health,
+      commands::get_hotkey_status,
       commands::get_backups,
       commands::get_form_hints,
       commands::add_task,
@@ -100,14 +101,39 @@ fn main() {
       let hotkey_app = handle.clone();
       std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(400));
+        let mut cap_failed = false;
         for attempt in 0..4 {
-          if runtime::register_capture_hotkey(&hotkey_app, &combo.0).is_ok() {
-            break;
+          match runtime::register_capture_hotkey(&hotkey_app, &combo.0) {
+            Ok(()) => {
+              cap_failed = false;
+              break;
+            }
+            Err(_) => {
+              cap_failed = true;
+              std::thread::sleep(std::time::Duration::from_millis(400 * (attempt + 1)));
+            }
           }
-          std::thread::sleep(std::time::Duration::from_millis(400 * (attempt + 1)));
         }
         // 打开主界面热键：默认 Alt+Shift+O，用户解绑（None）则不注册
-        let _ = runtime::register_main_hotkey(&hotkey_app, &combo.1);
+        let main_failed = runtime::register_main_hotkey(&hotkey_app, &combo.1).is_err();
+        // qa-1：注册失败不再静默 —— 提示一次「哪个键没绑上」，再把实际注册快照广播给前端标「未生效」
+        if cap_failed || main_failed {
+          let mut dead: Vec<String> = Vec::new();
+          if cap_failed {
+            dead.push(format!("快速记录 {}", combo.0));
+          }
+          if main_failed {
+            if let Some(main) = &combo.1 {
+              dead.push(format!("打开主界面 {}", main));
+            }
+          }
+          runtime::notify_title(
+            &hotkey_app,
+            "快捷键没绑上",
+            &format!("{} 可能被其他程序占用了；可在设置里换一个，或先用托盘菜单", dead.join("、")),
+          );
+        }
+        runtime::publish_hotkey_state(&hotkey_app);
       });
       // 提醒调度线程（托盘常驻，A3 批复）
       scheduler::start(handle.clone());
