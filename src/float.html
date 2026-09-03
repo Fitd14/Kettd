@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <title>悬浮面板 · 待办列表</title>
+  <title>待办列表</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -16,8 +16,10 @@
     </header>
     <section class="float-body" id="body">
       <div class="row-flex" style="gap:6px">
-        <input class="input" id="quick" placeholder="记下… 明天 15:00 #学习 !高" maxlength="200" />
-        <button class="btn sm" id="quickAdd">记下</button>
+        <input class="input" id="quick" placeholder="记下…" maxlength="200" />
+        <button class="btn icon" id="quickAdd" title="记下（Enter）" aria-label="记下">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
       </div>
       <div class="cap-chips" id="chips" style="margin-top:2px"></div>
       <div class="inline-err" id="quickErr" hidden></div>
@@ -29,10 +31,6 @@
       <div id="list"></div>
       <div id="overdue"></div>
     </section>
-    <footer class="float-foot">
-      <span id="formHint">形态：置于顶层 · 托盘菜单可切</span>
-      <span><a href="#" id="openMain" style="color:inherit;text-decoration:none">打开主界面</a></span>
-    </footer>
   </div>
   <div class="ministrip" id="ministrip" title="点开主界面">
     <span class="l">今天剩 <b id="mRemain">0</b><span id="mUnit"> 件</span></span>
@@ -100,7 +98,6 @@ function render() {
   $('statCount').textContent = `做完 ${done} · 剩 ${pend.length} · 拖到今天 ${carry} · 逾期 ${ov.length}`;
   $('nextRem').textContent = `下一条 ${next}`;
   $('pendN').textContent = String(pend.length);
-  $('formHint').textContent = form === 'mini' ? '形态：迷你条 · 托盘菜单可切' : form === 'desktop' ? '形态：嵌入桌面 · 失焦自动收起' : '形态：置于顶层 · 托盘菜单可切';
   $('list').innerHTML = pend.length ? pend.slice(0, 7).map((t) => `
     <div class="trow" data-id="${api.esc(t.id)}" tabindex="0" role="button">
       <input type="checkbox" class="tcheck" data-t="${api.esc(t.id)}" aria-label="完成 ${api.esc(t.title)}">
@@ -164,7 +161,6 @@ $('quick').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preve
 $('quickAdd').addEventListener('click', commitQuick);
 $('btnManage').addEventListener('click', async () => { await api.openMainWindow(); api.emitNavigate('/planned'); });
 $('btnHide').addEventListener('click', () => api.hideFloat());
-$('openMain').addEventListener('click', async (e) => { e.preventDefault(); await api.openMainWindow(); });
 $('ministrip').addEventListener('click', async () => { await api.openMainWindow(); });
 
 api.onEvent('store-changed', api.debounce(lightRefresh, 200));

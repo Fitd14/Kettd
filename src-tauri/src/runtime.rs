@@ -15,7 +15,29 @@ pub const CAPTURE_LABEL: &str = "capture";
 pub const TRAY_ID: &str = "main";
 
 /// 当前注册成功的全局快捷键（换键时先解绑旧的）
-pub struct HotkeyLock(pub Mutex<Option<String>>);
+#[derive(Default)]
+pub struct HotkeyRegistry {
+  pub capture: Option<String>,
+  pub main: Option<String>,
+}
+
+pub struct HotkeyLock(pub Mutex<HotkeyRegistry>);
+
+/// 全局快捷键用途；同一组合键不允许绑两个动作
+#[derive(Clone, Copy, PartialEq)]
+pub enum HotkeyAction {
+  Capture,
+  OpenMain,
+}
+
+impl HotkeyAction {
+  fn other(self) -> Self {
+    match self {
+      HotkeyAction::Capture => HotkeyAction::OpenMain,
+      HotkeyAction::OpenMain => HotkeyAction::Capture,
+    }
+  }
+}
 
 // ---------------------------------------------------------------- 窗口
 
@@ -132,13 +154,13 @@ pub fn float_is_visible(app: &AppHandle) -> bool {
 fn create_capture_window(app: &AppHandle) -> Result<Window, String> {
   WindowBuilder::new(app, CAPTURE_LABEL, WindowUrl::App("capture.html".into()))
     .title("快速记录")
-    .inner_size(520.0, 72.0)
+    .inner_size(560.0, 112.0)
     .resizable(false)
     .maximizable(false)
     .minimizable(false)
     .closable(false)
     .decorations(false)
-    .transparent(true)
+    .transparent(false)
     .always_on_top(true)
     .skip_taskbar(true)
     .visible(false)
@@ -180,8 +202,8 @@ pub fn open_capture_overlay(app: &AppHandle) -> Result<(), String> {
 fn center_capture(window: &Window) {
   if let Ok(Some(monitor)) = window.current_monitor() {
     let scale = monitor.scale_factor();
-    let width = (520.0 * scale) as i32;
-    let height = (72.0 * scale) as i32;
+    let width = (560.0 * scale) as i32;
+    let height = (112.0 * scale) as i32;
     let x = monitor.position().x + (monitor.size().width as i32 - width) / 2;
     let y = monitor.position().y + ((monitor.size().height as i32 - height) * 28) / 100;
     let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
@@ -203,51 +225,107 @@ pub fn capture_is_visible(app: &AppHandle) -> bool {
 
 /// 注册（或换绑）捕获热键；失败回滚旧键并返回可显示的中文提示
 pub fn register_capture_hotkey(app: &AppHandle, combo: &str) -> Result<(), String> {
+  register_global_hotkey(app, combo, HotkeyAction::Capture)
+}
+
+/// 注册 / 换绑 / 解绑「打开主界面」热键；None 或空串 = 解绑
+pub fn register_main_hotkey(app: &AppHandle, combo: &Option<String>) -> Result<(), String> {
+  match combo.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+    Some(target) => register_global_hotkey(app, target, HotkeyAction::OpenMain),
+    None => {
+      if let Some(old) = read_hotkey(app, HotkeyAction::OpenMain) {
+        let _ = app.global_shortcut_manager().unregister(&old);
+      }
+      store_hotkey(app, HotkeyAction::OpenMain, None);
+      Ok(())
+    }
+  }
+}
+
+fn register_global_hotkey(app: &AppHandle, combo: &str, action: HotkeyAction) -> Result<(), String> {
   let target = combo.trim().to_string();
   if target.is_empty() {
     return Err("快捷键不能为空".to_string());
   }
-  let previous = read_hotkey(app);
+  let taken = read_hotkey(app, action.other());
+  if taken.as_deref() == Some(target.as_str()) {
+    return Err("这个快捷键已被快速记录或打开主界面占用，换一个组合".to_string());
+  }
+  let previous = read_hotkey(app, action);
   let mut manager = app.global_shortcut_manager();
   if let Some(old) = &previous {
     if old != &target {
       let _ = manager.unregister(old);
     }
   }
-  let handle = app.clone();
-  let registered = manager.register(&target, move || {
-    let _ = open_capture_overlay(&handle);
-  });
-  if registered.is_ok() {
-    store_hotkey(app, Some(target));
+  let registered = bind_global_hotkey(&mut manager, app, &target, action);
+  if registered {
+    store_hotkey(app, action, Some(target));
     return Ok(());
   }
   // 注册失败：把旧键还回去，保证用户还能用
   if let Some(old) = previous {
-    let restore = app.clone();
-    let _ = manager.register(&old, move || {
-      let _ = open_capture_overlay(&restore);
-    });
+    let _ = bind_global_hotkey(&mut manager, app, &old, action);
   }
   Err("快捷键被占用，请用备用入口".to_string())
 }
 
-fn read_hotkey(app: &AppHandle) -> Option<String> {
+fn bind_global_hotkey<M: GlobalShortcutManager>(
+  manager: &mut M,
+  app: &AppHandle,
+  combo: &str,
+  action: HotkeyAction,
+) -> bool {
+  match action {
+    HotkeyAction::Capture => {
+      let handle = app.clone();
+      manager
+        .register(combo, move || {
+          let _ = open_capture_overlay(&handle);
+        })
+        .is_ok()
+    }
+    HotkeyAction::OpenMain => {
+      let handle = app.clone();
+      manager
+        .register(combo, move || {
+          let _ = show_main(&handle, None);
+        })
+        .is_ok()
+    }
+  }
+}
+
+fn read_hotkey(app: &AppHandle, action: HotkeyAction) -> Option<String> {
   match app.try_state::<HotkeyLock>() {
     None => None,
     Some(state) => match state.0.lock() {
-      Ok(guard) => guard.clone(),
-      Err(poisoned) => poisoned.into_inner().clone(),
+      Ok(guard) => slot(&guard, action).clone(),
+      Err(poisoned) => slot(&poisoned.into_inner(), action).clone(),
     },
   }
 }
 
-fn store_hotkey(app: &AppHandle, value: Option<String>) {
+fn store_hotkey(app: &AppHandle, action: HotkeyAction, value: Option<String>) {
   if let Some(state) = app.try_state::<HotkeyLock>() {
     match state.0.lock() {
-      Ok(mut guard) => *guard = value,
-      Err(poisoned) => *poisoned.into_inner() = value,
+      Ok(mut guard) => *slot_mut(&mut guard, action) = value,
+      Err(poisoned) => *slot_mut(&mut poisoned.into_inner(), action) = value,
     }
+  }
+}
+
+fn slot(registry: &HotkeyRegistry, action: HotkeyAction) -> &Option<String> {
+  match action {
+    HotkeyAction::Capture => &registry.capture,
+    HotkeyAction::OpenMain => &registry.main,
+  }
+}
+
+fn slot_mut(registry: &mut HotkeyRegistry, action: HotkeyAction) -> &mut Option<String> {
+  match action {
+    HotkeyAction::Capture => &mut registry.capture,
+    HotkeyAction::OpenMain => &mut registry.main,
   }
 }
 
@@ -297,7 +375,7 @@ pub fn sync_tray_selection(app: &AppHandle, form: &str) {
       ("form_mini", form == "mini"),
     ];
     for (id, active) in pairs.iter() {
-      if let Some(item) = handle.try_get_item(id.as_str()) {
+      if let Some(item) = handle.try_get_item(*id) {
         let _ = item.set_selected(*active);
       }
     }

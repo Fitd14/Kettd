@@ -11,11 +11,7 @@
     <aside class="side">
       <div class="brand"><span class="brand-dot" aria-hidden></span><span class="brand-name">Kettd <span class="text-muted" style="font-weight:400">v2</span></span></div>
       <nav id="nav" aria-label="主导航"></nav>
-      <div class="side-note">
-        <div style="margin-bottom:6px"><span class="kbd">打字</span> / <span class="kbd">/</span> 搜索</div>
-        <div style="margin-bottom:6px"><span class="kbd">N</span> 新建 · <span class="kbd">T</span> 加入今天</div>
-        <div><span class="kbd">空格</span> 勾选焦点行</div>
-      </div>
+      <div class="side-note"><span class="kbd">N</span> 新建 · <span class="kbd">/</span> 搜索</div>
     </aside>
     <main class="main" id="main">
       <div id="banners"></div>
@@ -39,7 +35,7 @@ const S = {
   tasks: [], reminders: [], settings: null, health: null, migration: null, hints: null,
   route: 'today',
   loading: true, bootErr: '',
-  drafts: { today: '', inbox: '', remTitle: '', remTime: '', remEditTime: '', sub: '', noteNew: '', hotkey: '', dir: '', retry: '', dndFrom: '', dndTo: '', capHour: '' },
+  drafts: { today: '', inbox: '', remTitle: '', remTime: '', remDate: '', remEditDate: '', remEditTime: '', sub: '', noteNew: '', hotkey: '', mainHotkey: '', dir: '', retry: '', dndFrom: '', dndTo: '', capHour: '' },
   remEdit: null,
   errs: {}, newErr: '',
   failedId: null, overdueOpen: false, expandedId: null,
@@ -415,8 +411,10 @@ function progressEl() {
 function newBar(where) {
   return `<div class="row-flex" style="gap:8px">
     <input class="input ${S.newErr ? 'invalid' : ''}" id="new-${where}" data-in="${where}" data-enter="new-add-${where}" value="${esc(S.drafts[where])}"
-      placeholder="记一条，回车放进${where === 'today' ? '今天' : '收件箱'}（快捷键 N）" maxlength="200">
-    <button class="btn sm" data-act="new-add-${where}">新建</button>
+      placeholder="记一条，回车放进${where === 'today' ? '今天' : '收件箱'}" maxlength="200">
+    <button class="btn icon" data-act="new-add-${where}" title="新建（Enter）" aria-label="新建">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
   </div>${S.newErr ? `<div class="inline-err">${esc(S.newErr)}</div>` : ''}`;
 }
 function rowEl(t, opt) {
@@ -442,9 +440,8 @@ function detailEl(t) {
   const notes = (t.notes || []).map((n) => `<div class="listline">
       <span class="grow sm">${esc(n.content)}<span class="tiny text-muted"> · ${esc(n.author || '我')} ${esc(String(n.createdAt || '').slice(5, 16))}</span></span>
       <button class="btn ghost xs text-destructive" data-act="note-del" data-id="${esc(t.id)}" data-nid="${esc(n.id)}">删</button></div>`).join('');
-  const retention = (S.hints && S.hints.retentionDays) || 30;
   return `<div class="card" style="margin-top:2px">
-    <div class="sec" style="margin-top:0">详情 · 创建于 ${esc(String(t.createdAt || '').slice(0, 10))}${t.legacy ? ' · 旧版迁移项' : ''} · 误删保留 ${retention} 天</div>
+    <div class="sec">详情 · 创建于 ${esc(String(t.createdAt || '').slice(0, 10))}</div>
     <textarea class="input" data-in="noteEdit" data-id="${esc(t.id)}" placeholder="备注（失焦自动保存）">${esc(t.note || '')}</textarea>
     <div class="sec">子任务 · ${(t.subtasks || []).length}</div>
     ${subs || '<div class="tiny text-muted">还没有子任务</div>'}
@@ -518,25 +515,23 @@ function viewToday() {
   const allDone = p.total > 0 && pend.length === 0;
   const emptyToday = pend.length === 0 && todayDone().length === 0;
   const cap = (S.settings && S.settings.captureHotkey) || 'Alt+Shift+A';
-  let html = `<h1 class="page">今天 <span class="sm text-muted" style="font-weight:400">${p.done}/${p.total} · 侧栏 / 悬浮面板 / 此处计数同源</span></h1>
+  let html = `<h1 class="page">今天 <span class="sm text-muted" style="font-weight:400">${p.done}/${p.total}</span></h1>
     <div class="bar" role="progressbar" aria-valuenow="${p.pct}" aria-valuemin="0" aria-valuemax="100" style="margin-top:6px"><i style="width:${p.pct}%"></i></div>
     <div class="row-flex" style="margin-top:12px;gap:8px">
       <button class="btn outline sm" data-act="open-capture">快速记录（${esc(cap)}）</button>
-      <span class="tiny text-muted">悬浮面板里也能记</span>
     </div>
     <div style="margin-top:10px">${newBar('today')}</div>`;
   if (allDone) {
     html += `<div class="card card-acc" style="text-align:center;margin-top:14px;padding:24px">
-      <div style="font-size:24px" aria-hidden>✓</div><div class="text-foreground" style="font-weight:500;margin-top:4px">今天清空了。</div>
-      <div class="tiny text-muted" style="margin-top:4px">睡前想记的，随时按 ${esc(cap)}。</div></div>`;
+      <div style="font-size:24px" aria-hidden>✓</div><div class="text-foreground" style="font-weight:500;margin-top:4px">今天清空了。</div></div>`;
   } else if (emptyToday) {
-    html += `<div class="card" style="margin-top:14px"><p class="sm text-muted" style="margin:0">今天还是空的。从下面「可拉进今天」挑，或点上面的「快速记录」记一条新的事。</p></div>`;
+    html += `<div class="card" style="margin-top:14px"><p class="sm text-muted" style="margin:0">今天还是空的，从下面挑一条，或快速记录一条。</p></div>`;
   } else {
     if (fresh.length) html += `<div class="sec">今天要做的 · ${fresh.length}</div>` + fresh.map((t) => rowEl(t) + (S.expandedId === t.id ? detailEl(t) : '')).join('');
     if (carried.length) html += `<div class="sec">已拖到今天 · ${carried.length}</div>` + carried.map((t) => rowEl(t) + (S.expandedId === t.id ? detailEl(t) : '')).join('');
   }
   if (overdue.length) {
-    html += `<div style="margin-top:16px"><button class="btn ghost sm block" style="justify-content:flex-start;color:hsl(var(--destructive))" data-act="overdue-toggle" aria-expanded="${S.overdueOpen ? 'true' : 'false'}">${S.overdueOpen ? '▾' : '▸'} 已逾期 ${overdue.length} 项 —— ${S.overdueOpen ? '收起' : '逐条安排（移到今天 / 清截止 / 删除）'}</button></div>`;
+    html += `<div style="margin-top:16px"><button class="btn ghost sm block" style="justify-content:flex-start;color:hsl(var(--destructive))" data-act="overdue-toggle" aria-expanded="${S.overdueOpen ? 'true' : 'false'}">${S.overdueOpen ? '▾' : '▸'} 已逾期 ${overdue.length} 项</button></div>`;
     if (S.overdueOpen) html += overdue.map((t) => `<div class="trow sel" style="background:none">
         <span class="grow truncate sm">${esc(t.title)} <code class="tmeta mono ${api.formatDue(t.dueAt, today()).cls}">${esc(String(t.dueAt).slice(5, 10))}</code></span>
         <button class="btn outline xs" data-act="plan" data-id="${esc(t.id)}">移到今天</button>
@@ -548,7 +543,6 @@ function viewToday() {
     const pullItems = live().filter((t) => !t.done && !api.isPlannedToday(t, today()) && !api.isOverdue(t, today())).slice(0, 6);
     if (pullItems.length) html += `<div class="sec">可拉进今天（收件箱 · 计划）</div>` + pullItems.map((t) => rowEl(t, { plan: true })).join('');
   }
-  html += `<p class="kbdhint">↑↓ 走行 · 空格 勾选 · T 加入今天 · N 新建 · 列表里直接打字即搜</p>`;
   return html;
 }
 ACTS['overdue-toggle'] = () => { S.overdueOpen = !S.overdueOpen; renderView(); };
@@ -564,8 +558,7 @@ function viewInbox() {
     ${newBar('inbox')}
     <div class="sec">还没安排的事 · ${list.length}</div>
     ${list.length ? list.map((t) => rowEl(t, { plan: true }) + (S.expandedId === t.id ? detailEl(t) : '')).join('')
-      : `<div class="empty-hint">收件箱空了。想到什么就 <button class="btn ghost xs" data-act="open-capture" style="text-decoration:underline">快速记录</button> 一条，回头再挑进今天。</div>`}
-    <p class="kbdhint">点行展开详情 · T 把选中行拉进今天</p>`;
+      : `<div class="empty-hint">收件箱空了。想到什么就 <button class="btn ghost xs" data-act="open-capture" style="text-decoration:underline">快速记录</button> 一条，回头再挑进今天。</div>`}`;
 }
 
 /* ---------------- 计划：安排分组 + 提醒管理卡 ---------------- */
@@ -595,33 +588,35 @@ function viewPlanned() {
   } else if (S.errs.remTime) addErr = `<div class="inline-err">${esc(S.errs.remTime)}</div>`;
   else if (S.errs.remTitle) addErr = `<div class="inline-err">${esc(S.errs.remTitle)}</div>`;
   const list = S.reminders;
-  const capHour = (S.settings && S.settings.remindCapPerHour) != null ? S.settings.remindCapPerHour : 3;
   return `<h1 class="page">计划 <span class="sm text-muted" style="font-weight:400">安排 ${upList().length} · 提醒 ${list.length}</span></h1>
     ${groups.length ? groups.map(([date, ts]) => `<div class="sec">${esc(api.formatDue(date, today()).text)} · ${ts.length}</div>` + ts.map((t) => rowEl(t, { plan: true }) + (S.expandedId === t.id ? detailEl(t) : '')).join('')).join('')
       : `<div class="empty-hint" style="margin-top:12px">未来还没有安排。给任务设个截止日期，条目会自动出现在这里。</div>`}
     <div class="card" style="margin-top:20px">
       <div class="row-flex spread"><h2 class="page" style="font-size:15px;margin:0">提醒管理 · ${list.length} 条</h2>
-        <span class="tiny text-muted">到点走系统通知 · 每小时最多 ${esc(String(capHour))} 条 · 免打扰在设置里</span></div>
+        <span class="tiny text-muted">到点走系统通知</span></div>
       <div style="margin-top:8px">
       ${list.length ? list.map((r) => `<div class="listline">
           <label class="sw-wrap"><input type="checkbox" class="sw" ${r.enabled && !r.completed ? 'checked' : ''} data-row-act="rem-toggle" data-id="${esc(r.id)}" aria-label="启停提醒 ${esc(r.title)}"><span class="sw-track"></span></label>
           <span class="grow truncate sm ${r.completed ? 'text-muted' : ''}" title="${esc(r.title)}">${esc(r.title)} <span class="cat ${api.getCategoryColor(r.category)}">${esc(r.category)}</span></span>
           ${S.remEdit === r.id
-            ? `<span class="row-flex" style="gap:4px"><input class="input mono sm" style="width:170px" data-in="remEditTime" value="${esc(S.drafts.remEditTime)}" aria-label="改提醒时间"><button class="btn xs" data-act="rem-edit-save" data-id="${esc(r.id)}">存</button><button class="btn ghost xs" data-act="rem-edit-cancel">取消</button></span>`
+            ? `<span class="row-flex" style="gap:4px">
+                <input class="input mono sm" type="date" style="width:140px" data-in="remEditDate" value="${esc(S.drafts.remEditDate)}" aria-label="改提醒日期，留空 = 每天">
+                <input class="input mono sm" type="time" style="width:96px" data-in="remEditTime" value="${esc(S.drafts.remEditTime)}" aria-label="改提醒时刻">
+                <button class="btn xs" data-act="rem-edit-save" data-id="${esc(r.id)}">存</button><button class="btn ghost xs" data-act="rem-edit-cancel">取消</button></span>`
             : `<button class="btn ghost xs mono" data-act="rem-edit" data-id="${esc(r.id)}" title="改时间" style="border:1px solid hsl(var(--input))">${esc(r.time)} ✎</button>
                <span class="badge">${r.legacy ? '旧版迁移' : esc(remStatus(r))}</span>
                ${r.enabled && !r.completed ? `<button class="btn ghost xs" data-act="rem-snooze" data-id="${esc(r.id)}">稍后10分</button>` : ''}`}
           <button class="btn ghost xs text-destructive" data-act="rem-del" data-id="${esc(r.id)}">删除</button>
         </div>`).join('')
-        : `<div class="empty-hint">还没有提醒 —— 在任务详情里点「20 分钟后提醒」，或在下面直接加一条，到点会真的弹系统通知。</div>`}
+        : `<div class="empty-hint">还没有提醒，在下面直接加一条，到点会弹系统通知。</div>`}
       </div>
       <div class="row-flex" style="margin-top:10px;gap:6px;flex-wrap:wrap">
         <input class="input ${S.errs.remTitle ? 'invalid' : ''}" style="flex:1" data-in="remTitle" value="${esc(S.drafts.remTitle)}" placeholder="标题，如：取快递（回车也能添加）" maxlength="120">
-        <input class="input ${S.errs.remTime || S.errs.remPast ? 'invalid' : ''} mono" style="width:210px" data-in="remTime" value="${esc(S.drafts.remTime)}" placeholder="HH:MM 或 2026-09-04T18:00">
+        <input class="input mono ${S.errs.remTime || S.errs.remPast ? 'invalid' : ''}" type="date" style="width:150px" data-in="remDate" value="${esc(S.drafts.remDate)}" aria-label="提醒日期，留空 = 每天" title="留空 = 每天循环；选了日期 = 仅那一天">
+        <input class="input mono ${S.errs.remTime || S.errs.remPast ? 'invalid' : ''}" type="time" style="width:100px" data-in="remTime" value="${esc(S.drafts.remTime)}" aria-label="提醒时刻">
         <button class="btn sm" data-act="rem-add">添加</button>
       </div>${addErr}
-    </div>
-    <p class="kbdhint">快速记录里写「明天 18:00 取快递 #生活」这类话，会自动带截止与提醒</p>`;
+    </div>`;
 }
 async function addReminderNow(timeVal, titleVal) {
   const title = String(titleVal || '').trim();
@@ -630,15 +625,18 @@ async function addReminderNow(timeVal, titleVal) {
   const r = await api.addReminder({ title, time: timeVal, category: '生活', repeat, enabled: true });
   if (r.err) { S.errs.remTime = r.err; delete S.errs.remPast; renderView(); return; }
   S.reminders.push(r.data);
-  S.drafts.remTitle = ''; S.drafts.remTime = '';
+  S.drafts.remTitle = ''; S.drafts.remTime = ''; S.drafts.remDate = '';
   delete S.errs.remTitle; delete S.errs.remTime; delete S.errs.remPast;
   render();
   toast(`已添加提醒「${title}」· ${timeVal}`, { ms: 3000 });
 }
 ACTS['rem-add'] = () => {
   const t = (S.drafts.remTitle || '').trim();
-  const v = (S.drafts.remTime || '').trim();
+  const time = String(S.drafts.remTime || '').trim();
+  const date = String(S.drafts.remDate || '').trim();
   if (!t) { S.errs.remTitle = '标题不能为空'; S.errs.remTime = ''; S.errs.remPast = ''; renderView(); return; }
+  if (!time) { S.errs.remTime = '选一个提醒时刻'; S.errs.remPast = ''; renderView(); return; }
+  const v = date ? `${date}T${time}` : time;
   const msg = api.validateReminderTime(v);
   if (msg === '__past__') { S.errs.remPast = '1'; delete S.errs.remTime; delete S.errs.remTitle; renderView(); return; }
   if (msg) { S.errs.remTime = msg; S.errs.remPast = ''; renderView(); return; }
@@ -657,15 +655,28 @@ ACTS['rem-edit'] = (el) => {
   const r0 = S.reminders.find((x) => x.id === el.dataset.id);
   if (!r0) return;
   S.remEdit = r0.id;
-  S.drafts.remEditTime = r0.time;
+  const t0 = String(r0.time || '');
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(t0)) {
+    S.drafts.remEditDate = t0.slice(0, 10);
+    S.drafts.remEditTime = t0.slice(11, 16);
+  } else if (/^\d{2}:\d{2}$/.test(t0)) {
+    S.drafts.remEditDate = '';
+    S.drafts.remEditTime = t0;
+  } else {
+    S.drafts.remEditDate = '';
+    S.drafts.remEditTime = '';
+  }
   renderView();
   const i = document.querySelector('input[data-in="remEditTime"]');
-  if (i) { i.focus(); i.select(); }
+  if (i) i.focus();
 };
 ACTS['rem-edit-cancel'] = () => { S.remEdit = null; renderView(); };
 ACTS['rem-edit-save'] = async (el) => {
   const id = el.dataset.id;
-  const v = String(S.drafts.remEditTime || '').trim();
+  const time = String(S.drafts.remEditTime || '').trim();
+  const date = String(S.drafts.remEditDate || '').trim();
+  if (!time) { toast('先选一个提醒时刻', { kind: 'bad', ms: 3000 }); return; }
+  const v = date ? `${date}T${time}` : time;
   const msg = api.validateReminderTime(v);
   if (msg && msg !== '__past__') { toast(msg, { kind: 'bad', ms: 4000 }); return; }
   const past = msg === '__past__';
@@ -826,6 +837,7 @@ ACTS['export-retry'] = async () => {
 function viewSettings() {
   const s = S.settings || {};
   const cap = s.captureHotkey || 'Alt+Shift+A';
+  const mainCap = s.mainHotkey || '';
   const dnd = s.dnd || { enabled: false, from: '23:00', to: '07:30' };
   return `<h1 class="page">设置</h1>
     <div class="card">
@@ -848,8 +860,14 @@ function viewSettings() {
       <div class="row-flex" style="gap:6px;margin-top:4px">
         <input class="input ${S.errs.hotkey ? 'invalid' : ''} mono" data-in="hotkey" data-enter="hotkey-apply" value="${esc(S.drafts.hotkey)}" placeholder="${esc(cap)}" style="max-width:220px">
         <button class="btn sm" data-act="hotkey-apply">绑定新快捷键</button></div>
-      <div class="tiny text-muted" style="margin-top:4px">格式像 Alt+Shift+A、Ctrl+Alt+D；被占用会红字提示并保持旧值。</div>
       ${S.errs.hotkey ? `<div class="inline-err">${esc(S.errs.hotkey)}</div>` : ''}
+      <div class="set-row" style="margin-top:8px"><div>打开主界面快捷键<div class="tiny text-muted mono">当前绑定：${esc(mainCap || '未绑定')}</div></div>
+        ${mainCap ? `<button class="btn ghost sm" data-act="mainhot-clear">解绑</button>` : ''}</div>
+      <div class="row-flex" style="gap:6px;margin-top:4px">
+        <input class="input ${S.errs.mainHotkey ? 'invalid' : ''} mono" data-in="mainHotkey" data-enter="mainhot-apply" value="${esc(S.drafts.mainHotkey)}" placeholder="${esc(mainCap || 'Alt+Shift+O')}" style="max-width:220px">
+        <button class="btn sm" data-act="mainhot-apply">绑定新快捷键</button></div>
+      ${S.errs.mainHotkey ? `<div class="inline-err">${esc(S.errs.mainHotkey)}</div>` : ''}
+      <div class="tiny text-muted" style="margin-top:4px">格式像 Alt+Shift+A、Ctrl+Alt+D；被占用会红字提示并保持旧值。</div>
     </div>
     <div class="card">
       <div class="set-row"><div>免打扰<div class="tiny text-muted">时段内提醒静默入账，结束后合并成一条</div></div>
@@ -916,6 +934,20 @@ ACTS['hotkey-apply'] = async () => {
   if (r.err) { S.errs.hotkey = r.err; renderView(); return; }
   S.errs.hotkey = ''; S.settings = r.data; S.drafts.hotkey = '';
   renderView(); toast(`已绑定 ${combo}`, { ms: 3000 });
+};
+ACTS['mainhot-apply'] = async () => {
+  const combo = String(S.drafts.mainHotkey || '').trim();
+  if (!combo || !/^[A-Za-z0-9+]+$/.test(combo)) { S.errs.mainHotkey = '格式像 Alt+Shift+A 这样，中间不要有空格'; renderView(); return; }
+  const r = await api.registerMainHotkey(combo);
+  if (r.err) { S.errs.mainHotkey = r.err; renderView(); return; }
+  S.errs.mainHotkey = ''; S.settings = r.data; S.drafts.mainHotkey = '';
+  renderView(); toast(`已绑定 ${combo}`, { ms: 3000 });
+};
+ACTS['mainhot-clear'] = async () => {
+  const r = await api.registerMainHotkey('');
+  if (r.err) { S.errs.mainHotkey = r.err; renderView(); return; }
+  S.errs.mainHotkey = ''; S.settings = r.data;
+  renderView(); toast('已解绑打开主界面快捷键', { ms: 2500 });
 };
 ACTS['dnd-toggle'] = async (el) => {
   const dnd = Object.assign({ enabled: false, from: '23:00', to: '07:30' }, S.settings.dnd || {}, { enabled: !!el.checked });
@@ -1313,6 +1345,7 @@ document.addEventListener('keydown', (e) => {
       if (a === 'new-add-today') { S.drafts.today = e.target.value; addFromInput('today'); }
       else if (a === 'new-add-inbox') { S.drafts.inbox = e.target.value; addFromInput('inbox'); }
       else if (a === 'hotkey-apply') { S.drafts.hotkey = e.target.value; ACTS['hotkey-apply'](); }
+      else if (a === 'mainhot-apply') { S.drafts.mainHotkey = e.target.value; ACTS['mainhot-apply'](); }
       else if (a === 'dir-save') { S.drafts.dir = e.target.value; ACTS['dir-save'](); }
       else if (a === 'export-retry') { S.drafts.retry = e.target.value; ACTS['export-retry'](); }
       else e.target.blur();

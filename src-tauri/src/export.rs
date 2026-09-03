@@ -81,7 +81,7 @@ fn bucket(tasks: &[Task], monday: &NaiveDate, sunday: &NaiveDate) -> Buckets {
   let overdue: Vec<Task> = undone
     .iter()
     .filter(|task| match &task.due_at {
-      Some(text) => text.len() >= 10 && text[..10] < from,
+      Some(text) => text.get(..10).is_some_and(|date| date < from.as_str()),
       None => false,
     })
     .cloned()

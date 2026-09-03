@@ -77,6 +77,7 @@ interface Settings {
   theme: string                    // 主题名（float / dark / light，前端解释）
   floatForm: FloatForm
   captureHotkey: string            // 默认 "Alt+Shift+A"
+  mainHotkey: string | null        // 打开主界面全局热键；null = 未绑定；默认 "Alt+Shift+O"
   dnd: Dnd
   remindCapPerHour: number         // 默认 3
   onboarded: boolean
@@ -158,7 +159,8 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `open_data_folder` | — | `void` | 在文件管理器里打开 `%APPDATA%/todo-list`；失败 Err「打不开这个位置，请手动前往」 |
 | `set_float_form` | `form` | `void` | `mini` → 无边框 + 300×56 + 禁止 resize + 贴主屏右下角；`topmost` → 置顶 + 回 380×520；`desktop` → 取消置顶且失焦自动收起；结果写回 `settings.floatForm` |
 | `register_capture_hotkey` | `combo` | `Settings` | 例 `Alt+Shift+A`；注册失败 → Err「快捷键被占用，请用备用入口」（保持旧值） |
-| `open_capture_overlay` | — | `void` | label `capture`：520×72、无边框、居中、置顶、显示后 emit `capture-opened` 让前端聚焦输入框；失焦自动收起 |
+| `register_main_hotkey` | `combo` | `Settings` | 打开主界面全局热键；`combo` 空串 = 解绑（`mainHotkey` → `null`）；与 `register_capture_hotkey` 同一约束：组合键互斥、失败保持旧值 |
+| `open_capture_overlay` | — | `void` | label `capture`：560×112、无边框**不透明纸片卡**（背景跟随主题 `--card`，不依赖 WebView2 透明）、屏幕上部 28% 居中、置顶，显示后 emit `capture-opened` 让前端聚焦输入框；失焦自动收起 |
 | `close_capture_overlay` | — | `void` | |
 | `export_weekly` | `week?: string`, `format?: 'md' \| 'csv'`, `dir?: string` | `string`（完整路径） | `week` = `current`（默认）/ `last` / `YYYY-Www`；文件名含 ISO 周（如 `周汇总-2026-W36.md`）；二次导出不覆盖（自动 `-2`/`-3`）；目标不可写 → Err「这个位置写不了，换个位置」 |
 | `get_backups` | — | `BackupInfo[]` | 含不可读备份（`readable:false` + 中文 error） |
@@ -203,7 +205,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 
 ## 5. 托盘与窗口（配置侧）
 
-- `tauri.conf.json`：`productName: "待办列表"`；三窗 `main`(1100×720, min 1024×640, visible:false) / `float`(380×520, resizable:false, alwaysOnTop:true, skipTaskbar:false) / `capture`(520×72, decorations:false, transparent:true, alwaysOnTop:true, skipTaskbar:true, visible:false)；`allowlist` 沿用 v1 的 `api-all`。
+- `tauri.conf.json`：`productName: "待办列表"`；三窗 `main`(1100×720, min 1024×640, visible:false) / `float`(380×520, resizable:false, alwaysOnTop:true, skipTaskbar:false) / `capture`(560×112, decorations:false, transparent:false, alwaysOnTop:true, skipTaskbar:true, visible:false)；`allowlist` 沿用 v1 的 `api-all`。
 - 托盘在代码里创建，`id = "main"`（v1 的 `tauri.systemTray` 配置项只吃 `iconPath`，没有 `id` 字段，v1 运行时的托盘菜单必须由代码构建）。
 - 托盘菜单（术语表：悬浮面板 / 提醒 / 周汇总）：
   `打开主界面` · `快速记录`（等同 `open_capture_overlay`，前端也可监听 `capture-opened`）· 分隔 · `显示悬浮面板` / `隐藏悬浮面板` · 子菜单 `悬浮形态`(置于顶层 / 嵌入桌面 / 迷你条，当前形态带勾选) · 分隔 · `管理提醒` / `本周汇总导出` / `打开数据文件夹` · 分隔 · `退出`。
@@ -249,7 +251,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 
 1. `Cargo.toml`：新增 `chrono = { features = ["clock","std"] }`；同时必须给 `tauri` 追加 `system-tray` feature —— `tauri` 1.0/1.8 的 `api-all` **不包含** system-tray（`Builder::system_tray`、`SystemTrayMenu`、`tray_handle_by_id` 都在该 feature 后面），不加则托盘代码无法编译。依赖版本 `tauri = "1.0.0"` 未动。
 2. 托盘 id 用代码里的 `SystemTray::new().with_id("main")`，因为 v1.8 的 `tauri-utils` 配置结构 `SystemTrayConfig` 是 `deny_unknown_fields` 且只有 `iconPath`/`iconAsTemplate`/`menuOnLeftClick`/`title`（没有 `id`，也没有 `trayIcon` 键）。故 `tauri.conf.json` 不写托盘配置，写 `trayIcon` 会让构建期配置解析直接失败。
-3. 捕获条资源：前端目录只有 `index.html` / `float.html` / `scheduled.html`（本次不允许改前端），所以 `capture` 窗在 `tauri.conf.json` 里按契约声明（520×72 / 无边框 / 透明 / 置顶 / skipTaskbar / visible:false / `capture.html`），但后端在窗口缺失或资源未就绪时不硬创建，走上面的 `open-capture` 降级事件；等前端补上 `capture.html` 后无需改后端即自动生效。
+3. 捕获条资源：前端目录只有 `index.html` / `float.html` / `capture.html`（本次不允许改前端），所以 `capture` 窗在 `tauri.conf.json` 里按契约声明（560×112 / 无边框 / **不透明纸片卡**：原透明设计在部分 WebView2 上被合成黑边，v2.0.0 改为整窗 `--card` 底色 / 置顶 / skipTaskbar / visible:false / `capture.html`），但后端在窗口缺失或资源未就绪时不硬创建，走上面的 `open-capture` 降级事件；等前端补上 `capture.html` 后无需改后端即自动生效。
 4. 提醒落库去重新增一个内部字段 `AppData.fired: string[]`（稳定键，上限 400 条）——不加它就无法区分「应用没运行期间错过的」和「已经响过的」，会出现开机重复轰炸。前端只读不写。
 5. `Reminder.legacy`/`Task.legacy` 落盘为 `true` 时写出、`false` 时省略（`skip_serializing_if`），所以 `types.ts` 里的 `legacy?: boolean` 仍成立。
 6. `set_settings` 改 `captureHotkey` 失败时整次回滚（主题/形态一起回），保持「界面显示的热键 = 真实绑定的热键」。
@@ -258,7 +260,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 ## 10. 验证状态（如实声明）
 
 - 语法闸：`rustfmt 1.8.0 --edition 2021 --emit stdout` 对 7 个源文件 **stderr 零 error**（rustfmt 用真 rustc 解析器，即语法合法）。
-- 自查：命令清单与本文档表格 37↔37 一致；无 `unwrap_or_default()` 式空库回退（解析失败一律 corrupt）；无 `toISOString` / `Utc` / `to_utc` / `naive_utc` 混入；`tauri.conf.json` 通过 `json.load`。
+- 自查：命令清单与本文档表格 38↔38 一致；无 `unwrap_or_default()` 式空库回退（解析失败一律 corrupt）；无 `toISOString` / `Utc` / `to_utc` / `naive_utc` 混入；`tauri.conf.json` 通过 `json.load`。
 - **未做**：`cargo build` / `cargo check` / `clippy` / `tauri dev`。本沙箱无 webkit2gtk-4.0 系统库（Debian trixie 只提供 4.1，tauri v1 的 `-sys` 构建脚本必定失败），因此类型检查/链接需在 Windows 实机（或装有 webkit2gtk-4.0-dev 的 Linux）执行；本文档中的 API 名与签名是逐条对照本机 `tauri-1.8.3`/`tauri-runtime-0.14.6`/`tauri-utils-1.6.2` 源码核验的，但仍可能有编译期才能暴露的问题。
 
 > 工程规格：docs/PRD-v2.md（§6 AC / §6.9 状态矩阵 / §8 三波发布与 dogfood Gate）

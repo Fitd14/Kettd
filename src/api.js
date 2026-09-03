@@ -50,6 +50,7 @@ export async function hideFloat() { return call('hide_float'); }
 export async function openDataFolder() { return call('open_data_folder'); }
 export async function setFloatForm(form) { return call('set_float_form', { form }); }
 export async function registerCaptureHotkey(combo) { return call('register_capture_hotkey', { combo }); }
+export async function registerMainHotkey(combo) { return call('register_main_hotkey', { combo }); }
 export async function openCaptureOverlay() { return call('open_capture_overlay'); }
 export async function closeCaptureOverlay() { return call('close_capture_overlay'); }
 export async function exportWeekly(opts) {

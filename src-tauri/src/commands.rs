@@ -482,13 +482,26 @@ pub fn set_settings(
   let old_theme = store.data.settings.theme.clone();
   let old_form = store.data.settings.float_form.clone();
   let old_hotkey = store.data.settings.capture_hotkey.clone();
+  let old_main_hotkey = store.data.settings.main_hotkey.clone();
   store.apply_settings_patch(&patch)?;
   let next_hotkey = store.data.settings.capture_hotkey.clone();
   if next_hotkey != old_hotkey && runtime::register_capture_hotkey(&app, &next_hotkey).is_err() {
     // 注册失败：整次回滚，避免界面热键与实际绑定不一致
     store.data.settings.capture_hotkey = old_hotkey;
+    store.data.settings.main_hotkey = old_main_hotkey;
     store.data.settings.float_form = old_form;
     store.data.settings.theme = old_theme;
+    return Err("快捷键被占用，请用备用入口".to_string());
+  }
+  let next_main_hotkey = store.data.settings.main_hotkey.clone();
+  if next_main_hotkey != old_main_hotkey
+    && runtime::register_main_hotkey(&app, &next_main_hotkey).is_err()
+  {
+    store.data.settings.capture_hotkey = old_hotkey.clone();
+    store.data.settings.main_hotkey = old_main_hotkey;
+    store.data.settings.float_form = old_form;
+    store.data.settings.theme = old_theme;
+    let _ = runtime::register_capture_hotkey(&app, &old_hotkey);
     return Err("快捷键被占用，请用备用入口".to_string());
   }
   let next_form = store.data.settings.float_form.clone();
@@ -582,6 +595,36 @@ pub fn register_capture_hotkey(
   Ok(store.data.settings.clone())
 }
 
+/// 换绑/解绑「打开主界面」热键；空串 = 解绑；失败保持旧值
+#[tauri::command]
+pub fn register_main_hotkey(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  combo: String,
+) -> Result<Settings, String> {
+  let trimmed = combo.trim().to_string();
+  let next = if trimmed.is_empty() {
+    None
+  } else {
+    Some(trimmed)
+  };
+  let mut store = lock(&state);
+  let previous = store.data.settings.main_hotkey.clone();
+  runtime::register_main_hotkey(&app, &next)?;
+  if previous == next {
+    return Ok(store.data.settings.clone());
+  }
+  store.ensure_writable()?;
+  store.data.settings.main_hotkey = next.clone();
+  if let Err(error) = store.save() {
+    store.data.settings.main_hotkey = previous.clone();
+    let _ = runtime::register_main_hotkey(&app, &previous);
+    return Err(error);
+  }
+  emit(&app, StoreEvent::changed("settings"));
+  Ok(store.data.settings.clone())
+}
+
 #[tauri::command]
 pub fn open_data_folder() -> Result<(), String> {
   runtime::open_in_folder(&crate::store::data_dir())
@@ -599,8 +642,10 @@ pub fn restore_backup(
   let restored = store.restore_backup(&slot)?;
   let health = store.health_view();
   let hotkey = store.data.settings.capture_hotkey.clone();
+  let main_hotkey = store.data.settings.main_hotkey.clone();
   drop(store);
   let _ = runtime::register_capture_hotkey(&app, &hotkey);
+  let _ = runtime::register_main_hotkey(&app, &main_hotkey);
   emit(&app, StoreEvent::changed("data"));
   Ok(RestoreResult { restored, health })
 }

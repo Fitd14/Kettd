@@ -33,6 +33,12 @@ fn main() {
   let form = boot.data.settings.float_form.clone();
 
   let app = tauri::Builder::default()
+    // 状态必须在窗口创建前注册：float 窗口随 build() 立即加载页面并 invoke，
+    // 而 setup 在窗口创建后才执行，在 setup 里 manage 会撞上启动竞态直接 panic
+    .manage(Mutex::new(boot))
+    .manage(runtime::HotkeyLock(Mutex::new(
+      runtime::HotkeyRegistry::default(),
+    )))
     .invoke_handler(tauri::generate_handler![
       commands::get_bootstrap,
       commands::get_tasks,
@@ -67,21 +73,27 @@ fn main() {
       commands::open_capture_overlay,
       commands::close_capture_overlay,
       commands::register_capture_hotkey,
+      commands::register_main_hotkey,
       commands::open_data_folder,
       commands::restore_backup,
       commands::clear_migration_report,
       commands::export_weekly
     ])
     .system_tray(runtime::build_tray(&form))
-    .setup(move |app| {
+    .setup(|app| {
       let handle = app.handle().clone();
-      app.manage(boot);
-      app.manage(runtime::HotkeyLock(Mutex::new(None)));
-      let combo = {
-        let state = app.state::<Mutex<store::Store>>();
-        match state.lock() {
-          Ok(guard) => guard.data.settings.capture_hotkey.clone(),
-          Err(poisoned) => poisoned.into_inner().data.settings.capture_hotkey.clone(),
+      let state = app.state::<Mutex<store::Store>>();
+      let combo = match state.lock() {
+        Ok(guard) => (
+          guard.data.settings.capture_hotkey.clone(),
+          guard.data.settings.main_hotkey.clone(),
+        ),
+        Err(poisoned) => {
+          let guard = poisoned.into_inner();
+          (
+            guard.data.settings.capture_hotkey.clone(),
+            guard.data.settings.main_hotkey.clone(),
+          )
         }
       };
       // 捕获热键：窗口全部就绪后注册一次；失败重试 3 次（失败时前端可仍用悬浮面板输入框）
@@ -89,21 +101,21 @@ fn main() {
       std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(400));
         for attempt in 0..4 {
-          if runtime::register_capture_hotkey(&hotkey_app, &combo).is_ok() {
+          if runtime::register_capture_hotkey(&hotkey_app, &combo.0).is_ok() {
             break;
           }
           std::thread::sleep(std::time::Duration::from_millis(400 * (attempt + 1)));
         }
+        // 打开主界面热键：默认 Alt+Shift+O，用户解绑（None）则不注册
+        let _ = runtime::register_main_hotkey(&hotkey_app, &combo.1);
       });
       // 提醒调度线程（托盘常驻，A3 批复）
       scheduler::start(handle.clone());
       // 形态跟随设置
-      let want = {
-        let state = handle.state::<Mutex<store::Store>>();
-        match state.lock() {
-          Ok(guard) => guard.data.settings.float_form.clone(),
-          Err(poisoned) => poisoned.into_inner().data.settings.float_form.clone(),
-        }
+      let state = handle.state::<Mutex<store::Store>>();
+      let want = match state.lock() {
+        Ok(guard) => guard.data.settings.float_form.clone(),
+        Err(poisoned) => poisoned.into_inner().data.settings.float_form.clone(),
       };
       let _ = runtime::set_float_form(&handle, &want);
       if let Some(tray) = handle.tray_handle_by_id(runtime::TRAY_ID) {
@@ -113,7 +125,7 @@ fn main() {
     })
     .on_system_tray_event(|app, event| match event {
       tauri::SystemTrayEvent::MenuItemClick { id, .. } => {
-        if runtime::handle_tray_click(app, id) {
+        if runtime::handle_tray_click(app, &id) {
           app.exit(0);
         }
       }

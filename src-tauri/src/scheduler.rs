@@ -15,7 +15,7 @@ use crate::models::{
 };
 use crate::runtime;
 use crate::store::{reminder_key, task_key, Store};
-use chrono::{DateTime, Duration, Local, NaiveDateTime, Timelike};
+use chrono::{DateTime, Duration, Local, NaiveDateTime};
 use std::collections::VecDeque;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};

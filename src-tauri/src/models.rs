@@ -13,6 +13,7 @@ pub const CATEGORIES: [&str; 3] = ["工作", "学习", "生活"];
 pub const PRIORITIES: [&str; 3] = ["high", "med", "low"];
 pub const FLOAT_FORMS: [&str; 3] = ["topmost", "desktop", "mini"];
 pub const DEFAULT_HOTKEY: &str = "Alt+Shift+A";
+pub const DEFAULT_MAIN_HOTKEY: &str = "Alt+Shift+O";
 pub const DEFAULT_DND_FROM: &str = "23:00";
 pub const DEFAULT_DND_TO: &str = "07:30";
 pub const REMINDER_CAP_DEFAULT: u32 = 3;
@@ -276,6 +277,8 @@ pub struct Settings {
   /// topmost | desktop | mini
   pub float_form: String,
   pub capture_hotkey: String,
+  /// None = 未绑定全局快捷键
+  pub main_hotkey: Option<String>,
   pub dnd: Dnd,
   pub remind_cap_per_hour: u32,
   pub onboarded: bool,
@@ -289,6 +292,7 @@ impl Default for Settings {
       theme: "float".to_string(),
       float_form: "topmost".to_string(),
       capture_hotkey: DEFAULT_HOTKEY.to_string(),
+      main_hotkey: Some(DEFAULT_MAIN_HOTKEY.to_string()),
       dnd: Dnd::default(),
       remind_cap_per_hour: REMINDER_CAP_DEFAULT,
       onboarded: false,
@@ -308,6 +312,11 @@ impl Settings {
     }
     if self.capture_hotkey.trim().is_empty() {
       self.capture_hotkey = DEFAULT_HOTKEY.to_string();
+    }
+    if let Some(value) = self.main_hotkey.as_deref() {
+      if value.trim().is_empty() {
+        self.main_hotkey = None;
+      }
     }
     if self.remind_cap_per_hour == 0 || self.remind_cap_per_hour > 60 {
       self.remind_cap_per_hour = REMINDER_CAP_DEFAULT;
@@ -412,6 +421,7 @@ pub struct SettingsPayload {
   pub theme: Option<String>,
   pub float_form: Option<String>,
   pub capture_hotkey: Option<String>,
+  pub main_hotkey: Option<String>,
   pub dnd: Option<DndPayload>,
   pub remind_cap_per_hour: Option<u32>,
   pub onboarded: Option<bool>,
@@ -450,7 +460,7 @@ pub struct BackupInfo {
   pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MigrationIssue {
   pub collection: String,
@@ -460,7 +470,7 @@ pub struct MigrationIssue {
   pub action: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MigrationReport {
   pub task_count: u32,

@@ -50,11 +50,17 @@
       "windows": {
         "certificateThumbprint": null,
         "digestAlgorithm": "sha256",
-        "timestampUrl": ""
+        "timestampUrl": "",
+        "wix": {
+          "language": "zh-CN"
+        }
       }
     },
     "security": {
       "csp": null
+    },
+    "systemTray": {
+      "iconPath": "icons/32x32.png"
     },
     "updater": {
       "active": false
@@ -76,7 +82,7 @@
       },
       {
         "label": "float",
-        "title": "待办列表 - 悬浮面板",
+        "title": "待办列表",
         "width": 380,
         "height": 520,
         "resizable": false,
@@ -90,15 +96,15 @@
       {
         "label": "capture",
         "title": "快速记录",
-        "width": 520,
-        "height": 72,
+        "width": 560,
+        "height": 112,
         "resizable": false,
         "maximizable": false,
         "minimizable": false,
         "closable": false,
         "fullscreen": false,
         "decorations": false,
-        "transparent": true,
+        "transparent": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "visible": false,

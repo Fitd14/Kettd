@@ -1191,6 +1191,14 @@ impl Store {
         }
         settings.capture_hotkey = trimmed.to_string();
       }
+      if let Some(value) = &patch.main_hotkey {
+        let trimmed = value.trim();
+        settings.main_hotkey = if trimmed.is_empty() {
+          None
+        } else {
+          Some(trimmed.to_string())
+        };
+      }
       if let Some(value) = patch.remind_cap_per_hour {
         if value == 0 || value > 60 {
           return Err("每小时提醒上限要在 1 到 60 之间".to_string());
@@ -1295,7 +1303,7 @@ fn io_kind_text(error: &std::io::Error) -> &'static str {
   match error.kind() {
     std::io::ErrorKind::PermissionDenied => "没有写入权限",
     std::io::ErrorKind::NotFound => "找不到文件",
-    std::io::ErrorKind::ReadOnly => "目录是只读的",
+    std::io::ErrorKind::ReadOnlyFilesystem => "目录是只读的",
     _ => "磁盘或路径不可用",
   }
 }
