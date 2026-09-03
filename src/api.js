@@ -322,11 +322,11 @@ export function parseCapture(raw, today) {
 /* 提醒时间校验：HH:MM（多时刻 / 分隔，循环语义，永不“过期”）或 YYYY-MM-DDTHH:mm（对齐 V2-API 时间语义） */
 export function validateReminderTime(s) {
   const v = String(s || '').trim();
-  if (!v) return '提醒时间格式不对，用 HH:MM 或 YYYY-MM-DDTHH:mm';
+  if (!v) return '先选一个提醒时刻';
   const okHH = /^([01]\d|2[0-3]):[0-5]\d(\/([01]\d|2[0-3]):[0-5]\d)*$/.test(v);
   if (okHH) return null;
   const okFull = /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/.test(v);
-  if (!okFull) return '提醒时间格式不对，用 HH:MM 或 YYYY-MM-DDTHH:mm';
+  if (!okFull) return '时间还没选好，请重新选一次';
   return v < `${localToday()}T${localNowHHMM()}` ? '__past__' : null;
 }
 

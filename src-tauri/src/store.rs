@@ -1141,7 +1141,7 @@ impl Store {
       if trimmed.is_empty() {
         reminder.time = String::new();
       } else if normalize_datetime(trimmed).is_none() && clocks_of(trimmed).is_empty() {
-        return Err("提醒时间格式不对，用 HH:MM 或 YYYY-MM-DDTHH:mm".to_string());
+        return Err("提醒时间没设好，请重新选一次时间".to_string());
       } else {
         reminder.time = trimmed.to_string();
       }

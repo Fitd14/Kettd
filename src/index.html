@@ -35,8 +35,9 @@ const S = {
   tasks: [], reminders: [], settings: null, health: null, migration: null, hints: null,
   route: 'today',
   loading: true, bootErr: '',
-  drafts: { today: '', inbox: '', remTitle: '', remTime: '', remDate: '', remEditDate: '', remEditTime: '', sub: '', noteNew: '', hotkey: '', mainHotkey: '', dir: '', retry: '', dndFrom: '', dndTo: '', capHour: '' },
+  drafts: { today: '', inbox: '', remTitle: '', remMode: 'daily', remTimes: [''], remDate: '', remEditMode: 'daily', remEditTimes: [''], remEditDate: '', sub: '', noteNew: '', hotkey: '', mainHotkey: '', dir: '', retry: '', dndFrom: '', dndTo: '', capHour: '' },
   remEdit: null,
+  pastValue: '',
   errs: {}, newErr: '',
   failedId: null, overdueOpen: false, expandedId: null,
   focusRow: null,
@@ -577,6 +578,50 @@ function remStatus(r) {
   if (r.snoozedUntil && String(r.snoozedUntil) >= `${today()}T${api.localNowHHMM()}`) return `延后至 ${String(r.snoozedUntil).slice(5, 16)}`;
   return '待触发';
 }
+/* ---- 提醒时刻编辑器（添加行与行内编辑同构）----
+   显式「每天/单次」开关；每天模式可增删多个时刻。落库契约不变（V2-API §时间约定）：
+   每天 = HH:MM[/HH:MM...]（循环，永不“过期”），单次 = YYYY-MM-DDTHH:mm。
+   只复用既有 .seg/.input/.btn/.row-flex 类，不新增任何样式与色值。 */
+function remTimeEditor(pfx, compact) {
+  const mode = S.drafts[pfx + 'Mode'] === 'once' ? 'once' : 'daily';
+  const times = (S.drafts[pfx + 'Times'] || []).length ? S.drafts[pfx + 'Times'] : [''];
+  const bad = S.errs.remTime || S.errs.remPast ? ' invalid' : '';
+  const sz = compact ? ' sm' : '';
+  const slots = times.map((v, i) => `<span class="row-flex" style="gap:2px">
+      <input class="input mono${bad}${sz}" type="time" style="width:${compact ? 96 : 100}px" data-in="${pfx}Times" data-idx="${i}" value="${esc(v)}" aria-label="提醒时刻 ${i + 1}">
+      ${mode === 'daily' && times.length > 1 ? `<button class="btn ghost xs" data-act="${pfx}-time-del" data-idx="${i}" aria-label="删掉第 ${i + 1} 个时刻">✕</button>` : ''}
+    </span>`).join('');
+  return `<span class="seg" role="group" aria-label="提醒方式">
+      <button class="btn sm${mode === 'daily' ? ' on' : ''}" data-act="${pfx}-mode" data-arg="daily" aria-pressed="${mode === 'daily'}">每天</button>
+      <button class="btn sm${mode === 'once' ? ' on' : ''}" data-act="${pfx}-mode" data-arg="once" aria-pressed="${mode === 'once'}">单次</button>
+    </span>
+    ${mode === 'once' ? `<input class="input mono${bad}${sz}" type="date" style="width:${compact ? 140 : 150}px" data-in="${pfx}Date" value="${esc(S.drafts[pfx + 'Date'] || '')}" aria-label="提醒日期">` : ''}
+    ${slots}
+    ${mode === 'daily' ? `<button class="btn ghost xs${sz}" data-act="${pfx}-time-add" aria-label="再加一个提醒时刻">+ 时刻</button>` : ''}`;
+}
+
+/* 编辑器状态 → 契约串；返回 { value } 或 { err }（文案只讲下一步动作，不教手输格式） */
+function remCompose(pfx) {
+  const mode = S.drafts[pfx + 'Mode'] === 'once' ? 'once' : 'daily';
+  const times = (S.drafts[pfx + 'Times'] || []).map((x) => String(x || '').trim()).filter(Boolean);
+  if (!times.length) return { err: '先选一个提醒时刻' };
+  if (mode === 'daily') return { value: times.join('/') };
+  const date = String(S.drafts[pfx + 'Date'] || '').trim();
+  if (!date) return { err: '单次提醒要选日期；想每天提醒请切到「每天」' };
+  if (times.length > 1) return { err: '单次提醒只能一个时刻，先删掉多余的' };
+  return { value: `${date}T${times[0]}` };
+}
+
+/* 切模式时收敛时刻数组：进单次只留第一个已选时刻，避免带着多时刻进单次语义 */
+function setRemMode(pfx, arg) {
+  const mode = arg === 'once' ? 'once' : 'daily';
+  const picked = (S.drafts[pfx + 'Times'] || []).map((t) => String(t || '').trim()).filter(Boolean);
+  S.drafts[pfx + 'Mode'] = mode;
+  S.drafts[pfx + 'Times'] = mode === 'once' ? [picked[0] || ''] : (picked.length ? picked : ['']);
+  S.errs.remTime = ''; S.errs.remPast = '';
+  renderView();
+}
+
 function viewPlanned() {
   const groups = groupUpcoming();
   let addErr = '';
@@ -599,11 +644,9 @@ function viewPlanned() {
           <label class="sw-wrap"><input type="checkbox" class="sw" ${r.enabled && !r.completed ? 'checked' : ''} data-row-act="rem-toggle" data-id="${esc(r.id)}" aria-label="启停提醒 ${esc(r.title)}"><span class="sw-track"></span></label>
           <span class="grow truncate sm ${r.completed ? 'text-muted' : ''}" title="${esc(r.title)}">${esc(r.title)} <span class="cat ${api.getCategoryColor(r.category)}">${esc(r.category)}</span></span>
           ${S.remEdit === r.id
-            ? `<span class="row-flex" style="gap:4px">
-                <input class="input mono sm" type="date" style="width:140px" data-in="remEditDate" value="${esc(S.drafts.remEditDate)}" aria-label="改提醒日期，留空 = 每天">
-                <input class="input mono sm" type="time" style="width:96px" data-in="remEditTime" value="${esc(S.drafts.remEditTime)}" aria-label="改提醒时刻">
+            ? `<span class="row-flex" style="gap:4px;flex-wrap:wrap">${remTimeEditor('remEdit', true)}
                 <button class="btn xs" data-act="rem-edit-save" data-id="${esc(r.id)}">存</button><button class="btn ghost xs" data-act="rem-edit-cancel">取消</button></span>`
-            : `<button class="btn ghost xs mono" data-act="rem-edit" data-id="${esc(r.id)}" title="改时间" style="border:1px solid hsl(var(--input))">${esc(r.time)} ✎</button>
+            : `<button class="btn ghost xs mono" data-act="rem-edit" data-id="${esc(r.id)}" title="改时间" style="border:1px solid hsl(var(--input))">${esc(r.time)}${r.time.includes('/') ? ` · ${r.time.split('/').length} 个时刻` : ''} ✎</button>
                <span class="badge">${r.legacy ? '旧版迁移' : esc(remStatus(r))}</span>
                ${r.enabled && !r.completed ? `<button class="btn ghost xs" data-act="rem-snooze" data-id="${esc(r.id)}">稍后10分</button>` : ''}`}
           <button class="btn ghost xs text-destructive" data-act="rem-del" data-id="${esc(r.id)}">删除</button>
@@ -612,37 +655,68 @@ function viewPlanned() {
       </div>
       <div class="row-flex" style="margin-top:10px;gap:6px;flex-wrap:wrap">
         <input class="input ${S.errs.remTitle ? 'invalid' : ''}" style="flex:1" data-in="remTitle" value="${esc(S.drafts.remTitle)}" placeholder="标题，如：取快递（回车也能添加）" maxlength="120">
-        <input class="input mono ${S.errs.remTime || S.errs.remPast ? 'invalid' : ''}" type="date" style="width:150px" data-in="remDate" value="${esc(S.drafts.remDate)}" aria-label="提醒日期，留空 = 每天" title="留空 = 每天循环；选了日期 = 仅那一天">
-        <input class="input mono ${S.errs.remTime || S.errs.remPast ? 'invalid' : ''}" type="time" style="width:100px" data-in="remTime" value="${esc(S.drafts.remTime)}" aria-label="提醒时刻">
+        ${remTimeEditor('rem')}
         <button class="btn sm" data-act="rem-add">添加</button>
       </div>${addErr}
     </div>`;
 }
+function remDraftClear(pfx) {
+  S.drafts[pfx + 'Mode'] = 'daily';
+  S.drafts[pfx + 'Times'] = [''];
+  S.drafts[pfx + 'Date'] = '';
+}
 async function addReminderNow(timeVal, titleVal) {
   const title = String(titleVal || '').trim();
   if (!title) { S.errs.remTitle = '标题不能为空'; renderView(); return; }
-  const repeat = /^\d/.test(timeVal) && timeVal.length <= 5 ? 'daily' : (timeVal.includes('/') ? 'daily' : 'none');
+  const repeat = timeVal.includes('T') ? 'none' : 'daily';
   const r = await api.addReminder({ title, time: timeVal, category: '生活', repeat, enabled: true });
   if (r.err) { S.errs.remTime = r.err; delete S.errs.remPast; renderView(); return; }
   S.reminders.push(r.data);
-  S.drafts.remTitle = ''; S.drafts.remTime = ''; S.drafts.remDate = '';
+  S.drafts.remTitle = ''; remDraftClear('rem'); S.pastValue = '';
   delete S.errs.remTitle; delete S.errs.remTime; delete S.errs.remPast;
   render();
-  toast(`已添加提醒「${title}」· ${timeVal}`, { ms: 3000 });
+  toast(`已添加提醒「${title}」· ${remPretty(timeVal)}`, { ms: 3000 });
+}
+/* 时刻串的人话版：多时刻说个数，单次只说时刻不念日期前缀 */
+function remPretty(v) {
+  const s = String(v || '');
+  if (s.includes('/')) return `${s.split('/').length} 个时刻`;
+  return s.includes('T') ? s.slice(11, 16) : s;
 }
 ACTS['rem-add'] = () => {
   const t = (S.drafts.remTitle || '').trim();
-  const time = String(S.drafts.remTime || '').trim();
-  const date = String(S.drafts.remDate || '').trim();
   if (!t) { S.errs.remTitle = '标题不能为空'; S.errs.remTime = ''; S.errs.remPast = ''; renderView(); return; }
-  if (!time) { S.errs.remTime = '选一个提醒时刻'; S.errs.remPast = ''; renderView(); return; }
-  const v = date ? `${date}T${time}` : time;
-  const msg = api.validateReminderTime(v);
-  if (msg === '__past__') { S.errs.remPast = '1'; delete S.errs.remTime; delete S.errs.remTitle; renderView(); return; }
+  const c = remCompose('rem');
+  if (c.err) { S.errs.remTime = c.err; S.errs.remPast = ''; renderView(); return; }
+  const msg = api.validateReminderTime(c.value);
+  if (msg === '__past__') { S.errs.remPast = '1'; S.pastValue = c.value; delete S.errs.remTime; delete S.errs.remTitle; renderView(); return; }
   if (msg) { S.errs.remTime = msg; S.errs.remPast = ''; renderView(); return; }
   S.errs.remPast = ''; S.errs.remTime = '';
-  addReminderNow(v, t);
+  addReminderNow(c.value, t);
 };
+/* ---- 编辑器操作：每天/单次切换、加时刻、删时刻（添加行与行内编辑共用）---- */
+ACTS['rem-mode'] = (el) => setRemMode('rem', el.dataset.arg);
+ACTS['remEdit-mode'] = (el) => setRemMode('remEdit', el.dataset.arg);
+function remPushTime(pfx) {
+  if (!Array.isArray(S.drafts[pfx + 'Times'])) S.drafts[pfx + 'Times'] = [''];
+  S.drafts[pfx + 'Times'].push('');
+  renderView();
+  const all = document.querySelectorAll(`input[data-in="${pfx}Times"]`);
+  const last = all[all.length - 1];
+  if (last) last.focus();
+}
+function remDelTime(pfx, idx) {
+  const arr = S.drafts[pfx + 'Times'];
+  if (!Array.isArray(arr)) return;
+  arr.splice(Number(idx) || 0, 1);
+  if (!arr.length) arr.push('');
+  S.errs.remTime = ''; S.errs.remPast = '';
+  renderView();
+}
+ACTS['rem-time-add'] = () => remPushTime('rem');
+ACTS['remEdit-time-add'] = () => remPushTime('remEdit');
+ACTS['rem-time-del'] = (el) => remDelTime('rem', el.dataset.idx);
+ACTS['remEdit-time-del'] = (el) => remDelTime('remEdit', el.dataset.idx);
 ACTS['rem-fix-recent'] = () => {
   const d = new Date();
   d.setMinutes(d.getMinutes() + 5);
@@ -650,43 +724,44 @@ ACTS['rem-fix-recent'] = () => {
   const title = ((S.drafts.remTitle || '提醒').trim()) + ' · 刚刚+5min';
   addReminderNow(stamp, title);
 };
-ACTS['rem-fix-raw'] = () => { const v = (S.drafts.remTime || '').trim(); if (!v) { S.errs.remTime = '提醒时间格式不对，用 HH:MM 或 YYYY-MM-DDTHH:mm'; renderView(); return; } addReminderNow(v, S.drafts.remTitle || '原样提醒'); };
+ACTS['rem-fix-raw'] = () => { const v = S.pastValue || remCompose('rem').value || ''; if (!v) { S.errs.remTime = '先选一个提醒时刻'; renderView(); return; } addReminderNow(v, S.drafts.remTitle || '原样提醒'); };
 ACTS['rem-edit'] = (el) => {
   const r0 = S.reminders.find((x) => x.id === el.dataset.id);
   if (!r0) return;
   S.remEdit = r0.id;
   const t0 = String(r0.time || '');
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(t0)) {
+  if (t0.includes('T')) {
+    S.drafts.remEditMode = 'once';
     S.drafts.remEditDate = t0.slice(0, 10);
-    S.drafts.remEditTime = t0.slice(11, 16);
-  } else if (/^\d{2}:\d{2}$/.test(t0)) {
-    S.drafts.remEditDate = '';
-    S.drafts.remEditTime = t0;
+    S.drafts.remEditTimes = [t0.slice(11, 16)];
   } else {
+    /* 循环语义：HH:MM 或 v1 遗留多时刻 HH:MM/HH:MM —— 全量回填成多个槽位，
+       保存时原样写回，修掉旧版「进编辑即置空、保存即降级为单时刻」的静默改写（qa-3） */
+    S.drafts.remEditMode = 'daily';
     S.drafts.remEditDate = '';
-    S.drafts.remEditTime = '';
+    const ts = t0.split('/').map((s) => s.trim().slice(0, 5)).filter(Boolean);
+    S.drafts.remEditTimes = ts.length ? ts : [''];
   }
+  S.errs.remTime = ''; S.errs.remPast = '';
   renderView();
-  const i = document.querySelector('input[data-in="remEditTime"]');
+  const i = document.querySelector('input[data-in="remEditTimes"]');
   if (i) i.focus();
 };
-ACTS['rem-edit-cancel'] = () => { S.remEdit = null; renderView(); };
+ACTS['rem-edit-cancel'] = () => { S.remEdit = null; remDraftClear('remEdit'); renderView(); };
 ACTS['rem-edit-save'] = async (el) => {
   const id = el.dataset.id;
-  const time = String(S.drafts.remEditTime || '').trim();
-  const date = String(S.drafts.remEditDate || '').trim();
-  if (!time) { toast('先选一个提醒时刻', { kind: 'bad', ms: 3000 }); return; }
-  const v = date ? `${date}T${time}` : time;
-  const msg = api.validateReminderTime(v);
+  const c = remCompose('remEdit');
+  if (c.err) { toast(c.err, { kind: 'bad', ms: 4000 }); return; }
+  const msg = api.validateReminderTime(c.value);
   if (msg && msg !== '__past__') { toast(msg, { kind: 'bad', ms: 4000 }); return; }
   const past = msg === '__past__';
-  const r = await api.updateReminder(id, { time: v });
+  const r = await api.updateReminder(id, { time: c.value, repeat: c.value.includes('T') ? 'none' : 'daily' });
   if (r.err) { toast(r.err, { kind: 'bad', ms: 5000 }); return; }
   const i = S.reminders.findIndex((x) => x.id === id);
   if (i >= 0) S.reminders[i] = r.data;
-  S.remEdit = null;
+  S.remEdit = null; remDraftClear('remEdit');
   renderView();
-  toast(past ? '已改到过去时间 —— 到点会按「错过」处理，不会响' : `时间已改为 ${v}`, { ms: 3500 });
+  toast(past ? '已改到过去时间 —— 到点会按「错过」处理，不会响' : `时间已改为 ${remPretty(c.value)}`, { ms: 3500 });
 };
 ACTS['rem-toggle'] = async (el) => {
   const r = await api.toggleReminder(el.dataset.id);
@@ -1259,10 +1334,17 @@ document.addEventListener('input', (e) => {
   if (k === 'reviewWeek') { S.review.week = el.value; S.review.excl = new Set(); renderView(); return; }
   if (k === 'onbItem') { S.onb.item = el.value; if (S.errs.onb) { delete S.errs.onb; el.classList.remove('invalid'); } return; }
   if (k === 'capText') { if (S.capFallback) { S.capFallback.text = el.value; S.capFallback.parsed = api.parseCapture(el.value, today()); S.capFallback.err = ''; const box = document.querySelector('#capFallback .cap-chips'); if (box) box.innerHTML = chipsHTML(S.capFallback.parsed); } return; }
+  if (k === 'remTimes' || k === 'remEditTimes') {
+    const arr = S.drafts[k];
+    const i = Number(el.dataset.idx || 0);
+    if (Array.isArray(arr)) arr[i] = el.value;
+    el.classList.remove('invalid');
+    S.errs.remTime = ''; S.errs.remPast = '';
+    return;
+  }
   if (Object.prototype.hasOwnProperty.call(S.drafts, k)) S.drafts[k] = el.value;
   if (k === 'dir') S.dirTouched = true;
   if (k === 'today' || k === 'inbox') { el.classList.remove('invalid'); if (S.newErr) { S.newErr = ''; const row = el.closest('.row-flex'); if (row && row.nextElementSibling && row.nextElementSibling.classList.contains('inline-err')) row.nextElementSibling.remove(); } }
-  if (k === 'remTime') { el.classList.remove('invalid'); S.errs.remTime = ''; S.errs.remPast = ''; }
   if (k === 'remTitle') { el.classList.remove('invalid'); S.errs.remTitle = ''; }
   if (k === 'retry') el.classList.remove('invalid');
   if (k === 'sub') el.classList.remove('invalid');
@@ -1355,10 +1437,10 @@ document.addEventListener('keydown', (e) => {
     } else if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'noteNew') {
       const btn = document.querySelector('[data-act="note-add"]');
       if (btn) { e.stopPropagation(); btn.click(); }
-    } else if (e.key === 'Enter' && e.target.dataset && ['remTime', 'remTitle'].includes(e.target.dataset.in)) {
+    } else if (e.key === 'Enter' && e.target.dataset && ['remTimes', 'remTitle', 'remDate'].includes(e.target.dataset.in)) {
       const btn = document.querySelector('[data-act="rem-add"]');
       if (btn) btn.click();
-    } else if (e.key === 'Enter' && e.target.dataset && e.target.dataset.in === 'remEditTime') {
+    } else if (e.key === 'Enter' && e.target.dataset && ['remEditTimes', 'remEditDate'].includes(e.target.dataset.in)) {
       const btn = document.querySelector('[data-act="rem-edit-save"]');
       if (btn) btn.click();
     }

@@ -361,7 +361,7 @@ pub fn add_reminder(
   }
   let raw_time = reminder.time.clone().unwrap_or_default();
   if normalize_datetime(&raw_time).is_none() && clocks_of(&raw_time).is_empty() {
-    return Err("提醒时间格式不对，用 HH:MM 或 YYYY-MM-DDTHH:mm".to_string());
+    return Err("提醒时间没设好，请重新选一次时间".to_string());
   }
   let mut store = lock(&state);
   store.ensure_writable()?;
