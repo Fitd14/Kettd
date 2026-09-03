@@ -166,6 +166,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `get_backups` | — | `BackupInfo[]` | 含不可读备份（`readable:false` + 中文 error） |
 | `restore_backup` | `slot`（`"1".."5"`，也吃 `data.json.bak-3` 这种整名） | `RestoreResult` | 成功即解除 corrupt 封锁；损坏原件已留存为 `data.corrupt.*`，`data.v1.json` 永不删 |
 | `get_data_health` | — | `DataHealthV2` | 损坏恢复页数据源 |
+| `get_hotkey_status` | — | `HotkeyStatus` | 两个全局热键的**实际注册**快照 `{capture, main}`（未绑上/已解绑为 `null`）；设置页与 `settings.captureHotkey / mainHotkey` 比对，不一致即标「未生效」（qa-1）。运行期状态，不落盘 |
 | `clear_migration_report` | — | `MigrationReport \| null` | 前端展示完迁移报告后清账，避免每次启动重复提示 |
 | `get_form_hints` | — | `{ categories, priorities, floatForms, sources, repeat, defaultHotkey, defaultCap, retentionDays, today }` | 表单常量，避免前端硬编码 |
 
@@ -185,6 +186,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `store-changed` | `{ id: string, kind: 'changed' \| 'fired' \| 'missed' }` | 任何写库成功后（id = 受影响实体 id；`settings` / `data` 表示全局）；提醒触发 `fired`；免打扰静默入账、超 24h 失效、启动补发清账为 `missed` |
 | `capture-opened` | `null` | `open_capture_overlay` 显示捕获条后，前端收到即聚焦输入框 |
 | `theme-changed` | `string`（主题名） | `set_settings` 改 `theme` 成功后跨窗同步 |
+| `hotkey-state` | `HotkeyStatus` `{ capture, main }` | 每次热键注册尝试之后（启动线程 + 换绑/解绑），成败都发。注意：启动时主窗口是隐藏的，这条可能没人接收 —— 前端仍要在启动与进设置页时主动 `get_hotkey_status` 兜一次，广播只负责让已打开的页面即时更新 |
 | `navigate` | `string`（前端路由，如 `/planned/reminders`） | 托盘「管理提醒」「本周汇总导出」打开主窗后要求跳转 |
 | `open-capture` | `null` | 降级路径：`capture.html` 资源不存在时，`open_capture_overlay`（含全局热键）改为全局广播该事件并唤起主窗，由前端自挂的快捷输入条接管；同时返回 Err「快速记录条没就绪，请用悬浮面板输入框」 |
 
@@ -205,7 +207,9 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 
 ## 5. 托盘与窗口（配置侧）
 
-- `tauri.conf.json`：`productName: "待办列表"`；三窗 `main`(1100×720, min 1024×640, visible:false) / `float`(380×520, resizable:false, alwaysOnTop:true, skipTaskbar:false) / `capture`(560×112, decorations:false, transparent:false, alwaysOnTop:true, skipTaskbar:true, visible:false)；`allowlist` 沿用 v1 的 `api-all`。
+- `tauri.conf.json`：`productName: "待办列表"`；三窗 `main`(1100×720, min 1024×640, visible:false) / `float`(380×520, resizable:false, alwaysOnTop:true, skipTaskbar:false) / `capture`(560×80, decorations:false, transparent:false, alwaysOnTop:true, skipTaskbar:true, visible:false)；`allowlist` 沿用 v1 的 `api-all`。
+  - capture 窗取向为「**窗口即纸片卡**」：整窗不透明、底色跟 `--card` 走，绕开 WebView2 透明窗在 Windows 上的黑边问题（需求 5「四周透出桌面」因此**未达成**，属已知取舍，见 §10）。
+  - 该窗实际由 `runtime::create_capture_window` 用 `WindowBuilder` 创建，`tauri.conf.json` 的声明必须与 `inner_size` 手工对齐；`center_capture` 已改为读窗口实际 `outer_size` 居中，不再重复写死尺寸常量。
 - 托盘在代码里创建，`id = "main"`（v1 的 `tauri.systemTray` 配置项只吃 `iconPath`，没有 `id` 字段，v1 运行时的托盘菜单必须由代码构建）。
 - 托盘菜单（术语表：悬浮面板 / 提醒 / 周汇总）：
   `打开主界面` · `快速记录`（等同 `open_capture_overlay`，前端也可监听 `capture-opened`）· 分隔 · `显示悬浮面板` / `隐藏悬浮面板` · 子菜单 `悬浮形态`(置于顶层 / 嵌入桌面 / 迷你条，当前形态带勾选) · 分隔 · `管理提醒` / `本周汇总导出` / `打开数据文件夹` · 分隔 · `退出`。
@@ -258,10 +262,36 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 6. `set_settings` 改 `captureHotkey` 失败时整次回滚（主题/形态一起回），保持「界面显示的热键 = 真实绑定的热键」。
 7. 系统通知 title 固定「待办提醒」，body 为 `<标题> · <YYYY-MM-DDTHH:mm>`；免打扰合并为「免打扰期间有 N 条提醒」，启动补发为「错过 N 条提醒」。深链 (`?open=`) 由前端在窗口内处理，通知不带 payload（契约允许省略）。
 
-## 10. 验证状态（如实声明）
+## 10. 验证状态（如实声明 · v2.1 更新于 2026-09-03 真机）
 
-- 语法闸：`rustfmt 1.8.0 --edition 2021 --emit stdout` 对 7 个源文件 **stderr 零 error**（rustfmt 用真 rustc 解析器，即语法合法）。
-- 自查：命令清单与本文档表格 38↔38 一致；无 `unwrap_or_default()` 式空库回退（解析失败一律 corrupt）；无 `toISOString` / `Utc` / `to_utc` / `naive_utc` 混入；`tauri.conf.json` 通过 `json.load`。
-- **未做**：`cargo build` / `cargo check` / `clippy` / `tauri dev`。本沙箱无 webkit2gtk-4.0 系统库（Debian trixie 只提供 4.1，tauri v1 的 `-sys` 构建脚本必定失败），因此类型检查/链接需在 Windows 实机（或装有 webkit2gtk-4.0-dev 的 Linux）执行；本文档中的 API 名与签名是逐条对照本机 `tauri-1.8.3`/`tauri-runtime-0.14.6`/`tauri-utils-1.6.2` 源码核验的，但仍可能有编译期才能暴露的问题。
+**工具链**：Windows 22621 · cargo/rustc 1.96.1 · WebView2 Runtime 152.0.4191.53 · node v22.12.0。
+（本节原先写的是「本沙箱无 webkit2gtk-4.0，`cargo check` / `build` 全部未做」——该声明已过期并被下面的真机结果取代；保留提醒：**过期的"未验证"声明会把后续会话的推断整体带偏**。）
+
+### 已证
+
+| 项 | 手段 | 结果 |
+| --- | --- | --- |
+| 类型检查与链接 | `cargo check` / `cargo build`（debug） | **0 error**；7 条 `dead_code` warning（`models.rs:21/187/243/385/573/748`、`store.rs:688`） |
+| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **39 ↔ 39 ↔ 39**（v2.1 新增 `get_hotkey_status`，表格已补） |
+| 存储安全自查 | 人工 | 无 `unwrap_or_default()` 式空库回退；无 `toISOString`/`Utc`/`naive_utc` 混入；`tauri.conf.json` JSON 合法 |
+| 提醒编辑器逻辑 | `node test/rem-editor.test.mjs`（从 `index.html` 抽真实函数源码断言，17 项） | 全绿：多时刻 round-trip 四形态、模式收敛、渲染契约、aria-label、文案不含手输格式 |
+| 打开主界面热键 | 真机注入 `Alt+Shift+O` | 主窗 1116×759 唤起，标题「待办列表」，侧栏 5 项 + 底部一行提示 |
+| 快速记录热键 | 真机注入 `Alt+Shift+A` | 记录条 560×80 居中唤起；`Esc` 收起生效 |
+| 计划页两种模式 | 真机目视 | 「每天」出 `+ 时刻`、「单次」出日期框；空时刻点「添加」被拦并显示「先选一个提醒时刻」 |
+| 二进制同代 | mtime + 体积比对 | 曾发现运行实例比源码旧一代（差 43KB），重编后对齐 |
+
+### 未证（不要当成已通过）
+
+1. **v1 → v2 迁移的「零丢失」**：真机数据目录里没有 `data.v1.json`（现库已是 v2 态），§7 十条规则**一条都没有真机样本验过**。计划由 `migrate_v1`（纯函数）的 cargo 单测用手工 fixture 覆盖，尚未写。
+2. **到点提醒真的响**：真库 `reminders: 0`，调度线程的 `fired` 键只有任务提醒的历史记录。
+3. **悬浮面板本体**：窗体标题与图标按钮已在同类控件上实证，面板本身需托盘「显示悬浮面板」目视一次。
+4. **`cargo clippy`**：未跑。
+5. **release 产物**：v2.1 冻结前统一重打（`nsis` 单包 + 版本号 2.1.0），过期 2.0.0 bundle 届时删除。
+6. **PRD 5 个成功指标**：目前**全不可测**（无埋点与统计口径），"达标"不可证伪。
+
+### 已知取舍
+
+- **capture 窗不透明**（§5）：需求 5 字面的「四周透出桌面」未达成。透明方案在 Windows 上出黑边（有截图证据），当前取向为「窗口即纸片卡」。翻回 `transparent:true` + 消黑边属独立 spike，未排期完成。
+- 历史语法闸：`rustfmt --edition 2021` 对 7 个源文件 stderr 零 error（沙箱期手段，现已被真机编译取代）。
 
 > 工程规格：docs/PRD-v2.md（§6 AC / §6.9 状态矩阵 / §8 三波发布与 dogfood Gate）

@@ -1,6 +1,6 @@
 [package]
 name = "todo-list-tauri"
-version = "2.0.0"
+version = "2.1.0"
 description = "待办列表 - 一款简洁高效的待办列表应用"
 authors = ["you"]
 license = ""
