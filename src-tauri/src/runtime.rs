@@ -154,7 +154,7 @@ pub fn float_is_visible(app: &AppHandle) -> bool {
 fn create_capture_window(app: &AppHandle) -> Result<Window, String> {
   WindowBuilder::new(app, CAPTURE_LABEL, WindowUrl::App("capture.html".into()))
     .title("快速记录")
-    .inner_size(560.0, 112.0)
+    .inner_size(560.0, 80.0)
     .resizable(false)
     .maximizable(false)
     .minimizable(false)
@@ -201,11 +201,13 @@ pub fn open_capture_overlay(app: &AppHandle) -> Result<(), String> {
 
 fn center_capture(window: &Window) {
   if let Ok(Some(monitor)) = window.current_monitor() {
-    let scale = monitor.scale_factor();
-    let width = (560.0 * scale) as i32;
-    let height = (112.0 * scale) as i32;
-    let x = monitor.position().x + (monitor.size().width as i32 - width) / 2;
-    let y = monitor.position().y + ((monitor.size().height as i32 - height) * 28) / 100;
+    // 用窗口实际尺寸居中，避免与 inner_size 的常量重复（改一处漏一处）
+    let (w, h) = window
+      .outer_size()
+      .map(|s| (s.width as i32, s.height as i32))
+      .unwrap_or((560, 80));
+    let x = monitor.position().x + (monitor.size().width as i32 - w) / 2;
+    let y = monitor.position().y + ((monitor.size().height as i32 - h) * 28) / 100;
     let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
   }
 }

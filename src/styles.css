@@ -76,6 +76,10 @@
 
 * { box-sizing: border-box; }
 
+/* hidden 属性必须赢过组件层的 display 规则（如 .cap-receipt{display:flex}），
+   否则带 hidden 的回执行/错误行会常驻显示占位文案。 */
+[hidden] { display: none !important; }
+
 html, body { margin: 0; padding: 0; }
 body {
   background: hsl(var(--background));
