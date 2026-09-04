@@ -1,6 +1,6 @@
 {
   "skill": "flow-web",
-  "generated_at": "2026-09-02T16:55:00+08:00",
+  "generated_at": "2026-09-04T13:40:00+08:00",
   "project_name": "Kettd v2 · 个人待办记录汇总",
   "scenario": "Productivity Tool（单人模式）",
   "component_library": "shadcn/ui",
@@ -63,6 +63,18 @@
       "story": "story-6"
     },
     {
+      "name": "Review Redesign · 回顾页重设计（年热力图+横向时间轴+点某天下钻）",
+      "status": "设计定稿·未开发",
+      "scenario": "Data Analytics / BI",
+      "screens": [
+        { "name": "S1 回顾总览（KPI+周期Tabs+年热力图53x7+横向时间轴默认内嵌）", "spec": "spark-output/design/review-redesign-spec.md" },
+        { "name": "S2 某天完成 Sheet（点格→右侧滑出·只列当天完成）", "spec": "spark-output/design/review-redesign-spec.md" },
+        { "name": "CompletionTimeline 组件（横向·done_at倒序·可滚动·Ant-Timeline兼容）", "spec": "spark-output/design/timeline-component-spec.md" }
+      ],
+      "story": "story-6",
+      "note": "并入 M3 迁移（回顾页=迁移第2视图）；时间轴用 shadcn token 自研 Ant-Timeline 兼容件，不引 antd；定稿去掉优先级/准点逾期，纯信息展示；主窗 resizable minWidth1024 响应式"
+    },
+    {
       "name": "Undo & Recovery · 撤销恢复",
       "screens": [
         {
@@ -106,7 +118,9 @@
     "src/flows/shared/types.ts",
     "src/flows/shared/mock-data.ts",
     "src/flows/flow-boot/flow-boot-migration.tsx",
-    "src/flows/flow-search/flow-search.tsx"
+    "src/flows/flow-search/flow-search.tsx",
+    "spark-output/design/review-redesign-spec.md",
+    "spark-output/design/timeline-component-spec.md"
   ],
   "build": "tsc 0 error · vite build ✓ 16.5s",
   "not_covered": [
