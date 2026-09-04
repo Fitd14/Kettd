@@ -271,9 +271,40 @@ pub fn save_capture_pos_window(window: &Window) {
 /// 桌面材质（Win11 acrylic 磨砂，异常退 blur）；非 Windows 空实现
 #[cfg(target_os = "windows")]
 fn apply_capture_material(window: &Window) {
+  apply_capture_rounding(window);
   unsafe {
     if window_vibrancy::apply_acrylic(window, None).is_err() {
-      let _ = window_vibrancy::apply_blur(window, Some((240, 240, 240, 200)));
+      let _ = window_vibrancy::apply_blur(window, Some((252, 250, 248, 214)));
+    }
+  }
+}
+
+#[cfg(target_os = "windows")]
+#[link(name = "dwmapi")]
+extern "system" {
+  fn DwmSetWindowAttribute(
+    hwnd: *mut core::ffi::c_void,
+    attribute: u32,
+    value: *const u32,
+    size: u32,
+  ) -> i32;
+}
+
+/// 让 DWM 圆这个窗口本身。无边框 WS_POPUP 在 Win11 默认**不**被圆角，出来是直角灰板；
+/// 而 CSS 自绘 border-radius 裁不动 OS 磨砂，会在圆角外露出一圈方形磨砂边 ——
+/// 所以圆角必须由 DWM 做（DWMWA_WINDOW_CORNER_PREFERENCE = 33，DWMWCP_ROUND = 2）。
+#[cfg(target_os = "windows")]
+fn apply_capture_rounding(window: &Window) {
+  const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
+  const DWMWCP_ROUND: u32 = 2;
+  if let Ok(hwnd) = window.hwnd() {
+    unsafe {
+      DwmSetWindowAttribute(
+        hwnd.0 as *mut core::ffi::c_void,
+        DWMWA_WINDOW_CORNER_PREFERENCE,
+        &DWMWCP_ROUND,
+        core::mem::size_of::<u32>() as u32,
+      );
     }
   }
 }
