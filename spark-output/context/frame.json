@@ -1,0 +1,21 @@
+{
+  "skill": "frame",
+  "generated_at": "2026-09-04T14:20:00+08:00",
+  "project_name": "Kettd v2 · 个人待办记录汇总",
+  "note": "本轮两次 frame：① 待办↔知识库可行性(记录·暂缓) ② 收件箱设计理念框定(理念不变)",
+  "topics": [
+    {
+      "name": "待办 ↔ 个人知识库（可关插件）",
+      "status": "记录·暂缓",
+      "verdict": "holds_with_conditions",
+      "critical_assumption": "用户做待办时是否真要就地调背景资料（未验证）",
+      "report": "spark-output/frame/kettd-knowledge-base-feasibility.md"
+    },
+    {
+      "name": "收件箱设计理念",
+      "status": "理念确认不变",
+      "finding": "GTD 捕获缓冲=捕获/整理解耦；命门是防'愧疚堆积'",
+      "report": "spark-output/design/inbox-ui-spec.md"
+    }
+  ]
+}
