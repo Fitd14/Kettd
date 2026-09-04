@@ -268,13 +268,21 @@ pub fn save_capture_pos_window(window: &Window) {
   }
 }
 
-/// 桌面材质（Win11 acrylic 磨砂，异常退 blur）；非 Windows 空实现
+/// 桌面材质：**主用 accent blur + 暖纸 tint，acrylic 退为兜底**。
+/// 主次对调的依据是真机像素实测：acrylic 板底 RGB 中位是中性灰 `224,224,224`，
+/// 而品牌纸白是 `252,250,248` —— `apply_acrylic` 在 Windows 上**不接受 tint**
+/// （那个 color 参数只在 macOS 生效），CSS 层的白 tint 救不回色相，于是"玻璃"
+/// 读成一块灰板。`apply_blur` 接受 RGBA tint，可以直接喂暖纸白。
+/// alpha 取 55/255 ≈ 0.22：**AA 由 CSS 层独立保证**（等效 α 0.62 时模型实算最差 5.11:1），
+/// OS 层再叠只会上加不透明度 —— 真机实测取 120 时总遮蔽高达 87%、透出率仅 13%，
+/// 已经退化成实心卡片而不是玻璃。降到 0.22 后总遮蔽约 71%、透出率回到约 30%。
 #[cfg(target_os = "windows")]
 fn apply_capture_material(window: &Window) {
   apply_capture_rounding(window);
+  const PAPER_TINT: (u8, u8, u8, u8) = (252, 250, 248, 55); // == --background 暖纸白
   unsafe {
-    if window_vibrancy::apply_acrylic(window, None).is_err() {
-      let _ = window_vibrancy::apply_blur(window, Some((252, 250, 248, 214)));
+    if window_vibrancy::apply_blur(window, Some(PAPER_TINT)).is_err() {
+      let _ = window_vibrancy::apply_acrylic(window, None);
     }
   }
 }

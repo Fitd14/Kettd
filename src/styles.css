@@ -41,6 +41,22 @@
   --pri-high: 0 72% 45%;
   --pri-med: 32 85% 38%;
   --pri-low: 240 4% 55%;
+
+  /* ---- 材质令牌：硫酸纸（capture 快速记录条专用，唯一真相源，组件层禁裸 hex）----
+     方向不是「iOS 玻璃」，是文具店里盖在笔记本上那张描图纸：物理透光、边缘反光、仍然是纸。
+     浓度不是拍的：亮色主题下按三种桌布（浅灰 / 深色 / 高饱和花壁纸）× 三个文本角色实算，
+     最差 5.11:1 才定档（等效 α 0.64）。tint 用 --background 暖纸白而非纯白 ——
+     真机实测 OS acrylic 板底是中性灰 224,224,224，纯白 tint 救不回品牌暖纸白 252,250,248。
+     描边用纯白：玻璃的边缘是「反光」不是「轮廓」，深色描边正是"框住一块灰板"的元凶。 */
+  --vellum-tint: var(--background);
+  --vellum-lit-a: 0.66;   /* 上缘受光 */
+  --vellum-tint-a: 0.62;  /* 中部 */
+  --vellum-dark-a: 0.58;  /* 下缘背光 —— 三段渐变做出纸的厚度 */
+  --vellum-hair: var(--card);
+  --vellum-hair-a: 0.55;
+  --vellum-edge-a: 0.62;   /* 上缘 1px 高光 */
+  --vellum-thick-a: 0.07;  /* 下缘内阴影，替代会被窗边界裁掉的外投影 */
+  --vellum-ink-a: 0.82;    /* placeholder 浓度 */
 }
 .dark {
   --background: 240 6% 10%;
@@ -72,6 +88,13 @@
   --pri-high: 0 75% 65%;
   --pri-med: 34 85% 62%;
   --pri-low: 240 4% 55%;
+
+  /* 硫酸纸 · 暗色覆盖。--vellum-tint 沿用 --background 会自动翻成石墨色，无需重述；
+     这里只改遮光浓度与反光强度：暗色要更厚（等效 α 0.78，实算最差 6.43:1），
+     而白色上缘高光在暗底上必须压到 0.16，否则看着像一道划痕。 */
+  --vellum-lit-a: 0.80; --vellum-tint-a: 0.76; --vellum-dark-a: 0.72;
+  --vellum-hair: var(--foreground); --vellum-hair-a: 0.30;
+  --vellum-edge-a: 0.16; --vellum-thick-a: 0.34; --vellum-ink-a: 0.84;
 }
 
 * { box-sizing: border-box; }
@@ -265,33 +288,64 @@ body.mini .ministrip:active { transform: scale(0.99); }
 .ministrip .r { font-size: 11px; color: hsl(var(--muted-foreground)); }
 .ministrip .r span { font-family: ui-monospace, Consolas, monospace; color: hsl(var(--foreground)); }
 
-/* ---- 捕获条（capture）：B 方向 · 单层真玻璃。
-   磨砂由 OS acrylic 提供（runtime::apply_capture_material），它画在**整个窗口矩形**上 ——
-   CSS 的 border-radius 裁不动 DWM 磨砂，自绘圆角会在圆角外露出一圈方形磨砂边
-   （四角那圈灰的第二个来源）。所以这里 margin 归零、不自绘圆角，圆角交给 DWM 窗口圆角；
-   也不再打外投影（阴影被窗口边界裁切就是最初「黑边」的物理原因，Win11 flyout 本身不打投影）。
-   CSS 只做三件事：极淡纸 tint、1px 玻璃描边 + 顶部内高光、把文字与按钮的可读性提上来。 ---- */
+/* ---- 捕获条（capture）：硫酸纸材质。
+   磨砂由 OS 材质层提供（runtime::apply_capture_material），它画在**整个窗口矩形**上 ——
+   CSS 自绘 border-radius 裁不动它，会在圆角外露出一圈方形磨砂边；外投影也会被窗口
+   边界裁切成暗晕（最初「黑边」的物理原因）。所以圆角交给 DWM，厚度感改由
+   上缘高光 + 下缘内阴影承担；CSS 也不写 backdrop-filter —— 二次模糊且白耗 GPU。 ---- */
 html.cap, html.cap body { background: transparent; color: hsl(var(--foreground)); overflow: hidden; }
 .cap-frame {
   margin: 0; min-height: 78px; box-sizing: border-box;
   padding: 12px 16px 11px; display: flex; flex-direction: column; justify-content: center;
-  background: hsl(var(--card) / 0.30);
-  border: 1px solid hsl(var(--foreground) / 0.12); border-radius: 0;
-  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.30);
+  border-radius: 0;
+  background: linear-gradient(180deg,
+      hsl(var(--vellum-tint) / var(--vellum-lit-a)) 0%,
+      hsl(var(--vellum-tint) / var(--vellum-tint-a)) 58%,
+      hsl(var(--vellum-tint) / var(--vellum-dark-a)) 100%);
+  border: 1px solid hsl(var(--vellum-hair) / var(--vellum-hair-a));
+  box-shadow:
+      inset 0 1px 0 hsl(var(--card) / var(--vellum-edge-a)),
+      inset 0 -1px 0 hsl(var(--foreground) / var(--vellum-thick-a));
 }
 .cap-row { display: flex; align-items: center; gap: 8px; }
+/* ✎ 既是拖拽把手，也用一条发丝分隔线被读成纸片的"握边" */
+.cap-hint { font-size: 11px; flex: none; padding-right: 8px; color: hsl(var(--foreground) / 0.62);
+  border-right: 1px solid hsl(var(--vellum-hair) / 0.28); }
 .cap-row .input { border: 0; background: transparent; padding: 2px 0; font-size: 14px; color: hsl(var(--foreground)); }
 .cap-row .input:focus { box-shadow: none; }
-/* 磨砂底上必须提对比度：全局 --muted-foreground（L46%）叠在玻璃上会化掉 */
-.cap-row .input::placeholder { color: hsl(var(--foreground) / 0.66); }
-.cap-hint { font-size: 11px; flex: none; color: hsl(var(--foreground) / 0.66); }
-/* 玻璃上的按钮不能是石墨实心块（视觉黑洞）：改半透白片 + 描边 */
-.cap-frame .btn.icon { background: hsl(var(--card) / 0.26); border: 1px solid hsl(var(--foreground) / 0.16); color: hsl(var(--foreground)); }
-.cap-frame .btn.icon:hover { background: hsl(var(--card) / 0.42); }
-.cap-frame .btn.ghost { color: hsl(var(--foreground) / 0.66); }
-.cap-frame .btn.ghost:hover { background: hsl(var(--card) / 0.22); color: hsl(var(--foreground)); }
-.cap-chips { display: flex; gap: 6px; flex-wrap: nowrap; overflow: hidden; margin-top: 4px; }
+/* 磨砂底亮度由壁纸决定，placeholder 浓度按实算定档，不用全局 --muted-foreground（会化掉） */
+.cap-row .input::placeholder { color: hsl(var(--foreground) / var(--vellum-ink-a)); opacity: 1; }
+/* 玻璃上的按钮不能是石墨实心块（视觉黑洞），但也不能靠"变白"分离 ——
+   亮色下 --card 与 --vellum-hair 都是白，白片压白板等于隐形（真机截图实测）。
+   改用 --foreground 派生：亮色下是浅灰压痕，暗色下自动翻成亮色浮片，两个主题都不失效。 */
+.cap-frame .btn.icon { background: hsl(var(--foreground) / 0.05); border: 1px solid hsl(var(--foreground) / 0.16); color: hsl(var(--foreground)); }
+.cap-frame .btn.icon:hover { background: hsl(var(--foreground) / 0.10); }
+.cap-frame .btn.icon:active { transform: scale(0.955); background: hsl(var(--foreground) / 0.14);
+  box-shadow: inset 0 1px 3px hsl(var(--foreground) / 0.18); }
+.cap-frame .btn.ghost { color: hsl(var(--foreground) / 0.62); }
+.cap-frame .btn.ghost:hover { background: hsl(var(--foreground) / 0.07); color: hsl(var(--foreground)); }
+.cap-chips { display: flex; gap: 6px; flex-wrap: nowrap; overflow: hidden; margin-top: 5px; }
+/* chips 承载解析出的日期/分类/优先级，看不见等于功能丢失 —— 同样靠压暗分离，不靠变白 */
+.cap-chips .chip { background: hsl(var(--foreground) / 0.07); border-color: hsl(var(--foreground) / 0.14);
+  color: hsl(var(--foreground)); }
 .cap-receipt { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+
+/* 降级：拿不到 OS 磨砂（acrylic 失败 / 老 WebView / 老系统）时，材质必须退回实心纸 ——
+   半透板压在深色桌面上会合成中间灰，石墨字必然掉到 AA 以下（实算 0.42 浓度仅 1.90:1）。 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .cap-frame {
+    --vellum-lit-a: 0.96; --vellum-tint-a: 0.94; --vellum-dark-a: 0.92;
+    --vellum-hair-a: 0.30; --vellum-edge-a: 0.30;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cap-frame .btn.icon, .cap-frame .btn.icon:active { transition: none; transform: none; }
+}
+@media (forced-colors: active) {
+  /* 高对比模式下材质让位系统色：可读性优先于观感 */
+  .cap-frame { background: Canvas; border-color: CanvasText; box-shadow: none; color: CanvasText; }
+  .cap-frame .btn.icon, .cap-chips .chip { background: Canvas; border: 1px solid CanvasText; color: CanvasText; }
+}
 
 /* ---- 设置行 ---- */
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: 10px 0; }
