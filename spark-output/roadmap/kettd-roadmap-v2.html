@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kettd 路线图 v2 · 桌面知识·待办网</title>
+<style>
+:root{
+  --background:40 33% 98%; --foreground:240 6% 10%; --card:0 0% 100%;
+  --secondary:40 20% 94%; --muted:40 18% 93%; --muted-foreground:240 4% 46%;
+  --accent:36 100% 95%; --accent-foreground:30 80% 25%;
+  --destructive:0 72% 45%; --border:40 15% 88%;
+  --cat-life:214 55% 42%; --cat-study:158 45% 30%; --pri-med:32 85% 38%;
+  --r-lg:12px; --r-md:10px; --r-sm:6px; --r-pill:9999px;
+  --shadow-md:0 4px 14px hsl(var(--foreground) / 0.07), 0 1px 3px hsl(var(--foreground) / 0.05);
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-6:24px; --sp-8:32px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:hsl(var(--background));color:hsl(var(--foreground));
+  font:14px/1.55 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;padding:var(--sp-8) var(--sp-6)}
+.wrap{max-width:1200px;margin:0 auto}
+h1{font-size:24px;letter-spacing:-0.01em;margin:0 0 var(--sp-1)}
+h2{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:hsl(var(--muted-foreground));margin:0 0 var(--sp-3)}
+.sub{color:hsl(var(--muted-foreground));font-size:12.5px}
+section{margin-top:var(--sp-8)}
+.bet{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--r-lg);padding:var(--sp-6);box-shadow:var(--shadow-md);border-left:4px solid hsl(var(--foreground))}
+.bet p{font-size:16px;line-height:1.6;margin:0}
+.bet .cnt{color:hsl(var(--muted-foreground));font-size:12.5px;margin-top:var(--sp-3)}
+.lanes{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-3)}
+.lane{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--r-md);padding:var(--sp-4)}
+.lane .h{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.lane.h0 .h{color:hsl(var(--destructive))} .lane.h1 .h{color:hsl(var(--pri-med))}
+.lane.h2 .h{color:hsl(var(--cat-study))} .lane.h3 .h{color:hsl(var(--cat-life))}
+.lane .t{font-size:14px;font-weight:700;margin:3px 0 8px}
+.lane ul{margin:0;padding-left:16px;font-size:12px;line-height:1.55;color:hsl(var(--foreground))}
+.lane li{margin-bottom:4px}
+.gate{margin-top:var(--sp-3);font-size:11px;color:hsl(var(--pri-med));background:hsl(var(--pri-med) / .12);border-radius:var(--r-sm);padding:4px 8px}
+table{width:100%;border-collapse:collapse;background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--r-md);overflow:hidden;font-size:12.5px}
+th{text-align:left;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:hsl(var(--muted-foreground));padding:9px var(--sp-3);border-bottom:1px solid hsl(var(--border));background:hsl(var(--secondary))}
+td{padding:9px var(--sp-3);border-bottom:1px solid hsl(var(--border));vertical-align:top}
+tr:last-child td{border-bottom:0}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-3)}
+.step{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--r-md);padding:var(--sp-4);font-size:12.5px}
+.step b{display:block;font-size:13px;margin-bottom:4px}
+.red{background:hsl(var(--accent));border-color:hsl(var(--accent-foreground) / .18)}
+.red b{color:hsl(var(--accent-foreground))}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.92em;background:hsl(var(--muted));padding:0 4px;border-radius:var(--r-sm)}
+footer{margin-top:var(--sp-8);padding-top:var(--sp-4);border-top:1px solid hsl(var(--border));font-size:11.5px;color:hsl(var(--muted-foreground));line-height:1.6}
+@media (max-width:820px){.lanes,.steps{grid-template-columns:1fr}body{padding:var(--sp-4) var(--sp-3)}}
+@media print{body{padding:0}.wrap{max-width:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="bet">
+  <div class="sub">Kettd 产品路线图 v2 · 愿景驱动重排 · 2026-09-04 · 规划中（不涉实现）</div>
+  <h1>北极星：桌面上的「个人知识 · 待办网」</h1>
+  <p style="margin-top:10px">待办与知识是一张互链的网，<b>桌面便签是你主动贴到手边的那一小撮</b>。产品内核从「待办 app + 可选便签」→「待办 + 知识 双主体，便签是统一界面层」；<b>知识库（KB）从"暂缓插件"转正为核心地基</b>。</p>
+  <div class="cnt">不变红线：离线 · 不出网 · 数据只在本机 · 反功能广度（不做平台/第三方组件、不做 Obsidian 式双链插件生态）。KB 定位 = "待办的上下文资料"，不是"第二大脑工程"。</div>
+</header>
+
+<section>
+  <h2>四个地平线</h2>
+  <div class="lanes">
+    <div class="lane h0">
+      <div class="h">H0 · Now（1–2 周）</div>
+      <div class="t">兑现 v2.1 承诺</div>
+      <ul>
+        <li>毛玻璃真机验收 + push 回滚点</li>
+        <li>埋点前端尾巴 + D5 定版</li>
+        <li>便签 v2.1 版：单张 · 固定/拖拽记位/移出淡化/纸色</li>
+      </ul>
+      <div class="gate">出口：v2.1 正式发布</div>
+    </div>
+    <div class="lane h1">
+      <div class="h">H1 · Next（3–5 周）</div>
+      <div class="t">React 地基 + 便签网雏形</div>
+      <ul>
+        <li>v3 迁移 M1–M5（含五视图重设计落地）</li>
+        <li>多张便签：待办 + 自由；收纳/淡出机制</li>
+        <li>KB 最小地基：片段 + 搜索（不做双链）</li>
+      </ul>
+      <div class="gate">🚦 验证门：多张便签 & "钉" 到底用不用 → 决定是否重投 KB</div>
+    </div>
+    <div class="lane h2">
+      <div class="h">H2 · Later（1–2 月）</div>
+      <div class="t">知识网成型</div>
+      <ul>
+        <li>知识便签：钉 KB 片段到桌面</li>
+        <li>任务 ↔ 知识 单向 link（验证后评估活引用）</li>
+        <li>KB 编辑/组织体验成熟化</li>
+      </ul>
+      <div class="gate">🚦 压在 H1 验证之后 · 命门：会不会"壁纸化"</div>
+    </div>
+    <div class="lane h3">
+      <div class="h">H3 · Horizon（不承诺）</div>
+      <div class="t">探索</div>
+      <ul>
+        <li>回顾页数据洞察（热力图/时间轴已有雏形）</li>
+        <li>活引用 / 跨便签关系可视化</li>
+        <li>可选外接 Obsidian（当桥不当核心）</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>排序逻辑（为什么这个顺序）</h2>
+  <div class="steps">
+    <div class="step"><b>1 先兑现</b>信任是资产，追新前先结 v2.1 承诺。</div>
+    <div class="step"><b>2 再换地基</b>React 是所有新 UI 的载体，先迁避免在 vanilla 做要扔的活。</div>
+    <div class="step"><b>3 低成本探针</b>多张便签 + 钉，先证"钉到桌面"是不是真需求。</div>
+    <div class="step"><b>4 验证后才重投</b>KB 压在验证之后——最贵的错误是自嗨建库。</div>
+  </div>
+</section>
+
+<section>
+  <h2>关键假设（每条标最便宜的验证）</h2>
+  <table>
+    <tr><th>假设</th><th>风险</th><th>最便宜验证</th></tr>
+    <tr><td>用户会把资料钉桌面常驻（非壁纸化）</td><td>Value</td><td>H1 自由便签先上，看"钉了还看不看/多久清"</td></tr>
+    <tr><td>待办需要挂上下文资料</td><td>Value</td><td>先做任务单向 link，看使用率</td></tr>
+    <tr><td>多张便签比单张有用</td><td>Usability/Value</td><td>H1 直接给多张，观察创建数</td></tr>
+    <tr><td>React 迁移不拖垮 v2.x 迭代</td><td>Feasibility</td><td>M1 capture 试点先跑通</td></tr>
+    <tr><td>单人离线工具靠"工作台化"提粘性</td><td>留存</td><td>埋点(已实现)看 4 周留存与功能触达</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>对已产出物的影响</h2>
+  <div class="bet red" style="border-left-color:hsl(var(--pri-med))">
+    <p style="font-size:13.5px">五视图 UI 设计增量（已定稿）→ 归入 <b>H1 的 M3</b> 落地。便签规格拆两半：<b>H0</b>（Rust+CSS 单张）+ <b>H1</b>（多张/多类型）。知识库可行性 → 从"暂缓"升级为 <b>H2 核心</b>，但投入时机受 H1 验证门约束。回顾页热力图/时间轴 → H1 迁移时落地，数据洞察深化留 H3。</p>
+  </div>
+</section>
+
+<footer>
+  <b>一句话</b>：近期先兑现、中期换地基并验证"钉"的行为、远期才把知识网做实——用最小成本先证明愿景成立，再重投。<br>
+  配套：<code>spark-output/roadmap/kettd-roadmap-v2.md</code>（全文）· 五视图设计增量 <code>spark-output/design/</code> · 竞品 <code>bench/papertodo-bench.md</code> · 知识库可行性 <code>frame/kettd-knowledge-base-feasibility.md</code>
+</footer>
+
+</div>
+</body>
+</html>
