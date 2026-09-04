@@ -74,6 +74,7 @@ fn main() {
       commands::set_float_form,
       commands::open_capture_overlay,
       commands::close_capture_overlay,
+      commands::capture_start_drag,
       commands::register_capture_hotkey,
       commands::register_main_hotkey,
       commands::open_data_folder,
@@ -178,8 +179,9 @@ fn main() {
           api.prevent_close();
           let _ = event.window().hide();
         }
-        // 快速记录条失焦即收起（PRD 6.1 的边缘态）
+        // 快速记录条失焦即收起（PRD 6.1 的边缘态）；收起前记忆位置
         tauri::WindowEvent::Focused(false) if label == runtime::CAPTURE_LABEL => {
+          runtime::save_capture_pos_window(event.window());
           let _ = event.window().hide();
         }
         _ => {}

@@ -287,6 +287,9 @@ pub struct Settings {
   /// 本地度量埋点开关（默认开；纯本机、绝不出网）
   #[serde(default = "telemetry_default")]
   pub telemetry_enabled: bool,
+  /// 快速记录条记忆位置（物理坐标 [x,y]）；None=未移动过用默认居中
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub capture_pos: Option<[i32; 2]>,
 }
 
 fn telemetry_default() -> bool {
@@ -305,6 +308,7 @@ impl Default for Settings {
       onboarded: false,
       export_dir: None,
       telemetry_enabled: true,
+      capture_pos: None,
     }
   }
 }

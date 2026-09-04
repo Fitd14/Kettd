@@ -584,6 +584,12 @@ pub fn close_capture_overlay(app: AppHandle) -> Result<(), String> {
   runtime::close_capture_overlay(&app)
 }
 
+/// 前端拖拽把手 mousedown 时调用，移动无边框快速记录条
+#[tauri::command]
+pub fn capture_start_drag(app: AppHandle) -> Result<(), String> {
+  runtime::capture_start_drag(&app)
+}
+
 /// 换绑捕获热键；失败返回「快捷键被占用，请用备用入口」并保持旧值
 #[tauri::command]
 pub fn register_capture_hotkey(

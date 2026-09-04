@@ -18,6 +18,9 @@ tauri = { version = "1.0.0", features = [ "api-all", "system-tray" ] }
 dirs = "4.0"
 chrono = { version = "0.4", features = [ "clock", "std" ] }
 
+[target.'cfg(target_os = "windows")'.dependencies]
+window-vibrancy = "0.4"
+
 [features]
 default = [ "custom-protocol" ]
 custom-protocol = [ "tauri/custom-protocol" ]

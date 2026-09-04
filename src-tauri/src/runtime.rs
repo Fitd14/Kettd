@@ -160,7 +160,7 @@ fn create_capture_window(app: &AppHandle) -> Result<Window, String> {
     .minimizable(false)
     .closable(false)
     .decorations(false)
-    .transparent(false)
+    .transparent(true)
     .always_on_top(true)
     .skip_taskbar(true)
     .visible(false)
@@ -183,7 +183,8 @@ pub fn open_capture_overlay(app: &AppHandle) -> Result<(), String> {
       }
     },
   };
-  center_capture(&window);
+  apply_capture_material(&window);
+  place_capture(app, &window);
   let _ = window.set_always_on_top(true);
   window
     .show()
@@ -212,7 +213,86 @@ fn center_capture(window: &Window) {
   }
 }
 
+/// 打开时定位：有记忆的屏内位置就用它，否则回落默认居中（不再每次强制回中央）
+fn place_capture(app: &AppHandle, window: &Window) {
+  let stored = app
+    .try_state::<Mutex<Store>>()
+    .and_then(|s| s.lock().ok().and_then(|g| g.data.settings.capture_pos));
+  if let Some([x, y]) = stored {
+    if capture_pos_on_screen(window, x, y) {
+      let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+      return;
+    }
+  }
+  center_capture(window);
+}
+
+/// 离屏守卫：拔外接屏 / 分辨率变化后，位置若落在所有工作区外则视为无效
+fn capture_pos_on_screen(window: &Window, x: i32, y: i32) -> bool {
+  match window.available_monitors() {
+    Ok(monitors) => monitors.iter().any(|m| {
+      let p = m.position();
+      let s = m.size();
+      x >= p.x - 160 && y >= p.y - 40 && x <= p.x + s.width as i32 && y <= p.y + s.height as i32
+    }),
+    Err(_) => false,
+  }
+}
+
+/// 收起前记住当前位置（移动即记的落点：hide / 关闭时持久化）
+pub fn save_capture_pos(app: &AppHandle) {
+  let Some(window) = app.get_window(CAPTURE_LABEL) else {
+    return;
+  };
+  let Ok(pos) = window.outer_position() else {
+    return;
+  };
+  if let Some(state) = app.try_state::<Mutex<Store>>() {
+    if let Ok(mut store) = state.lock() {
+      store.data.settings.capture_pos = Some([pos.x, pos.y]);
+      let _ = store.save();
+    }
+  }
+}
+
+/// 窗口事件路径只有 &Window 时用：直接持久化其位置
+pub fn save_capture_pos_window(window: &Window) {
+  let Ok(pos) = window.outer_position() else {
+    return;
+  };
+  if let Some(state) = window.try_state::<Mutex<Store>>() {
+    if let Ok(mut store) = state.lock() {
+      store.data.settings.capture_pos = Some([pos.x, pos.y]);
+      let _ = store.save();
+    }
+  }
+}
+
+/// 桌面材质（Win11 acrylic 磨砂，异常退 blur）；非 Windows 空实现
+#[cfg(target_os = "windows")]
+fn apply_capture_material(window: &Window) {
+  unsafe {
+    if window_vibrancy::apply_acrylic(window, None).is_err() {
+      let _ = window_vibrancy::apply_blur(window, Some((240, 240, 240, 200)));
+    }
+  }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn apply_capture_material(_window: &Window) {}
+
+/// 供前端「拖拽把手」mousedown 调用，让用户用鼠标移动无边框浮条
+pub fn capture_start_drag(app: &AppHandle) -> Result<(), String> {
+  let window = app
+    .get_window(CAPTURE_LABEL)
+    .ok_or_else(|| "快速记录条未就绪".to_string())?;
+  window
+    .start_dragging()
+    .map_err(|_| "无法拖动快速记录条".to_string())
+}
+
 pub fn close_capture_overlay(app: &AppHandle) -> Result<(), String> {
+  save_capture_pos(app);
   hide_window(app, CAPTURE_LABEL)
 }
 
