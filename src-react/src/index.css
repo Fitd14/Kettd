@@ -1,0 +1,113 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ── Kettd 设计令牌（与 vanilla src/styles.css 单一来源对齐；亮暗双态）────────── */
+:root {
+  --radius: 0.75rem;
+  --background: 40 33% 98%;
+  --foreground: 240 6% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 6% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 6% 10%;
+  --primary: 240 6% 10%;
+  --primary-foreground: 40 33% 98%;
+  --secondary: 40 20% 94%;
+  --secondary-foreground: 240 6% 16%;
+  --muted: 40 18% 93%;
+  --muted-foreground: 240 4% 46%;
+  --accent: 36 100% 95%;
+  --accent-foreground: 30 80% 25%;
+  --destructive: 0 72% 45%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 40 15% 88%;
+  --input: 40 15% 86%;
+  --ring: 240 6% 10%;
+
+  /* 分类 / 优先级语义色 */
+  --cat-work: 0 62% 42%;
+  --cat-study: 158 45% 30%;
+  --cat-life: 214 55% 42%;
+  --pri-high: 0 72% 45%;
+  --pri-med: 32 85% 38%;
+  --pri-low: 240 4% 55%;
+}
+
+.dark {
+  --background: 240 6% 10%;
+  --foreground: 40 33% 98%;
+  --card: 240 5% 13%;
+  --card-foreground: 40 33% 98%;
+  --popover: 240 5% 13%;
+  --popover-foreground: 40 33% 98%;
+  --primary: 40 33% 98%;
+  --primary-foreground: 240 6% 10%;
+  --secondary: 240 4% 18%;
+  --secondary-foreground: 40 33% 98%;
+  --muted: 240 4% 16%;
+  --muted-foreground: 240 4% 62%;
+  --accent: 240 4% 20%;
+  --accent-foreground: 40 33% 98%;
+  --destructive: 0 62% 40%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 4% 20%;
+  --input: 240 4% 22%;
+  --ring: 40 33% 98%;
+
+  --cat-work: 0 70% 66%;
+  --cat-study: 156 45% 60%;
+  --cat-life: 213 65% 68%;
+  --pri-high: 0 75% 65%;
+  --pri-med: 34 85% 62%;
+  --pri-low: 240 4% 55%;
+}
+
+/* ── 把令牌暴露给 Tailwind 工具类（bg-background / text-cat-life …）──────────── */
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-pill: 9999px;
+
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-cat-work: hsl(var(--cat-work));
+  --color-cat-study: hsl(var(--cat-study));
+  --color-cat-life: hsl(var(--cat-life));
+  --color-pri-high: hsl(var(--pri-high));
+  --color-pri-med: hsl(var(--pri-med));
+  --color-pri-low: hsl(var(--pri-low));
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
