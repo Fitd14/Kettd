@@ -15,6 +15,7 @@ use crate::models::{
 };
 use crate::runtime;
 use crate::store::{reminder_key, task_key, Store};
+use crate::telemetry;
 use chrono::{DateTime, Duration, Local, NaiveDateTime};
 use std::collections::VecDeque;
 use std::sync::Mutex;
@@ -104,6 +105,10 @@ fn tick(app: &AppHandle, store: &mut Store, state: &mut NightState) {
     .collect();
   for due in stale.iter() {
     settle(store, due, true, &mut events);
+    telemetry::record_str(
+      "reminder_missed",
+      &[("id", due.id.as_str()), ("reason", "expired")],
+    );
     state.queue.retain(|item| item.key != due.key);
     changed = true;
   }
@@ -116,6 +121,10 @@ fn tick(app: &AppHandle, store: &mut Store, state: &mut NightState) {
       let count = items.len();
       for due in items.iter() {
         settle(store, due, true, &mut events);
+        telemetry::record_str(
+          "reminder_missed",
+          &[("id", due.id.as_str()), ("reason", "app_not_running")],
+        );
         state.queue.retain(|item| item.key != due.key);
       }
       if count > 0 {
@@ -139,6 +148,10 @@ fn tick(app: &AppHandle, store: &mut Store, state: &mut NightState) {
       if dnd {
         // 免打扰：静默入账，等时段结束合并补发
         settle_quiet(store, &due, &mut events);
+        telemetry::record_str(
+          "reminder_missed",
+          &[("id", due.id.as_str()), ("reason", "dnd")],
+        );
         state.quiet += 1;
         state.queue.remove(index);
         changed = true;
@@ -149,8 +162,15 @@ fn tick(app: &AppHandle, store: &mut Store, state: &mut NightState) {
         index += 1;
         continue;
       }
-      if runtime::notify(app, &body_of(&due)) {
+      let shown = runtime::notify(app, &body_of(&due));
+      if shown {
         state.sent.push_back(at);
+        telemetry::record_str("reminder_shown", &[("id", due.id.as_str())]);
+      } else {
+        telemetry::record_str(
+          "reminder_missed",
+          &[("id", due.id.as_str()), ("reason", "notify_fail")],
+        );
       }
       settle(store, &due, false, &mut events);
       state.queue.remove(index);

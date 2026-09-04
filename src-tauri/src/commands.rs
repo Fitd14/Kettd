@@ -85,7 +85,11 @@ pub fn get_reminders(state: State<'_, Shared>) -> Result<Vec<Reminder>, String> 
 #[tauri::command]
 pub fn get_data_health(state: State<'_, Shared>) -> Result<DataHealthV2, String> {
   let store = lock(&state);
-  Ok(store.health_view())
+  let view = store.health_view();
+  if view.health != "ok" {
+    crate::telemetry::record_str("data_health_fail", &[("kind", view.health.as_str())]);
+  }
+  Ok(view)
 }
 
 /// 热键实际注册状态：设置页据此判断「当前绑定」是否真的生效（qa-1）
@@ -129,6 +133,9 @@ pub fn add_task(
   };
   store.data.tasks.push(task.clone());
   save_and_emit(&mut store, &app, &task.id.clone())?;
+  if matches!(task.source, Source::Capture) {
+    crate::telemetry::capture_commit();
+  }
   Ok(task)
 }
 
@@ -565,7 +572,11 @@ pub fn set_float_form(
 
 #[tauri::command]
 pub fn open_capture_overlay(app: AppHandle) -> Result<(), String> {
-  runtime::open_capture_overlay(&app)
+  let r = runtime::open_capture_overlay(&app);
+  if r.is_ok() {
+    crate::telemetry::capture_open();
+  }
+  r
 }
 
 #[tauri::command]
@@ -684,7 +695,23 @@ pub fn export_weekly(
   let settings = store.data.settings.clone();
   let tasks = store.data.tasks.clone();
   drop(store);
-  export::write_weekly(&settings, &tasks, week, format, dir)
+  let fmt = format.clone();
+  let out = export::write_weekly(&settings, &tasks, week, format, dir);
+  if let Ok(path) = &out {
+    // 仅 md 末尾追加本地度量快照（csv 不污染格式）；纯本机读 events.jsonl 现算
+    if path.ends_with(".md") {
+      let snap = crate::telemetry::render_snapshot(&crate::telemetry::load_recent(
+        &crate::store::data_dir(),
+        8000,
+      ));
+      if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(path) {
+        use std::io::Write as _;
+        let _ = f.write_all(snap.as_bytes());
+      }
+    }
+    crate::telemetry::record_str("weekly_export", &[("fmt", fmt.as_deref().unwrap_or("md"))]);
+  }
+  out
 }
 
 // ---------------------------------------------------------------- patch 内时间字段再归一

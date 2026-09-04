@@ -19,6 +19,7 @@ mod models;
 mod runtime;
 mod scheduler;
 mod store;
+mod telemetry;
 
 use std::sync::Mutex;
 use tauri::Manager;
@@ -97,6 +98,18 @@ fn main() {
           )
         }
       };
+      // 本地度量埋点：起后台写线程，开关随设置，记一次 app_launch（纯本机、不出网）
+      telemetry::init(store::data_dir());
+      telemetry::set_enabled(
+        state
+          .lock()
+          .map(|g| g.data.settings.telemetry_enabled)
+          .unwrap_or(true),
+      );
+      telemetry::record(
+        "app_launch",
+        serde_json::json!({ "version": env!("CARGO_PKG_VERSION") }),
+      );
       // 捕获热键：窗口全部就绪后注册一次；失败重试 3 次（失败时前端可仍用悬浮面板输入框）
       let hotkey_app = handle.clone();
       std::thread::spawn(move || {

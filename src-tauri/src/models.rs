@@ -284,6 +284,13 @@ pub struct Settings {
   pub onboarded: bool,
   #[serde(skip_serializing_if = "is_absent")]
   pub export_dir: Option<String>,
+  /// 本地度量埋点开关（默认开；纯本机、绝不出网）
+  #[serde(default = "telemetry_default")]
+  pub telemetry_enabled: bool,
+}
+
+fn telemetry_default() -> bool {
+  true
 }
 
 impl Default for Settings {
@@ -297,6 +304,7 @@ impl Default for Settings {
       remind_cap_per_hour: REMINDER_CAP_DEFAULT,
       onboarded: false,
       export_dir: None,
+      telemetry_enabled: true,
     }
   }
 }
