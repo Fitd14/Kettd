@@ -6,7 +6,7 @@
 //! - 提醒的循环时刻：`HH:MM`，或多时刻 `HH:MM/HH:MM`（兼容 v1 数据）
 //! 全链路禁止 UTC 换算（对治 v1 audit-6 时间漂移）。
 
-use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
+use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, Timelike, TimeZone};
 use serde::{Deserialize, Serialize};
 
 pub const CATEGORIES: [&str; 3] = ["工作", "学习", "生活"];
@@ -601,19 +601,16 @@ pub fn is_valid_choice(allowed: &[&str], value: &str) -> bool {
   allowed.contains(&value.trim())
 }
 
-/// `HH:MM` → NaiveTime
+/// `HH:MM` → NaiveTime（**只保留时分**：调度器按整分匹配 tick，
+/// 带秒的时刻永远命中不了，会表现为「到点不响」，故一律归零）
 pub fn parse_clock(raw: &str) -> Option<NaiveTime> {
   let text = raw.trim();
-  if let Ok(time) = NaiveTime::parse_from_str(text, "%H:%M") {
-    return Some(time);
-  }
-  if let Ok(full) = NaiveDateTime::parse_from_str(text, "%Y-%m-%dT%H:%M:%S") {
-    return Some(full.time());
-  }
-  if let Ok(full) = NaiveDateTime::parse_from_str(text, "%Y-%m-%dT%H:%M") {
-    return Some(full.time());
-  }
-  None
+  let parsed = NaiveTime::parse_from_str(text, "%H:%M")
+    .or_else(|_| NaiveTime::parse_from_str(text, "%H:%M:%S"))
+    .or_else(|_| NaiveDateTime::parse_from_str(text, "%Y-%m-%dT%H:%M:%S").map(|v| v.time()))
+    .or_else(|_| NaiveDateTime::parse_from_str(text, "%Y-%m-%dT%H:%M").map(|v| v.time()))
+    .ok()?;
+  NaiveTime::from_hms_opt(parsed.hour(), parsed.minute(), 0)
 }
 
 /// 提醒 `time` 可承载多个循环时刻（v1 遗留："10:00/14:00/16:00"）
@@ -790,4 +787,180 @@ pub fn week_start(week: &str) -> Option<NaiveDate> {
 pub fn week_range(monday: &NaiveDate) -> Option<(NaiveDate, NaiveDate)> {
   let sunday = monday.checked_add_signed(chrono::Duration::days(6))?;
   Some((*monday, sunday))
+}
+
+// ---------------------------------------------------------------- 契约单测
+// 全部为纯函数断言：不读写 %APPDATA%、不创建窗口，`cargo test` 可离线跑。
+// 覆盖 V2-API §0 时间约定 与 §7 迁移规则的时间部分。
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use serde_json::json;
+
+  fn clock(h: u32, m: u32) -> NaiveTime {
+    NaiveTime::from_hms_opt(h, m, 0).unwrap()
+  }
+
+  #[test]
+  fn parse_clock_accepts_clock_and_datetime_forms() {
+    assert_eq!(parse_clock("09:00"), Some(clock(9, 0)));
+    assert_eq!(parse_clock(" 23:59 "), Some(clock(23, 59)));
+    // 带日期的串取其时刻部分
+    assert_eq!(parse_clock("2026-08-29T18:00"), Some(clock(18, 0)));
+    // 带秒必须归零：调度器按整分匹配，18:00:30 永远不会命中 tick
+    assert_eq!(parse_clock("2026-08-29T18:00:30"), Some(clock(18, 0)));
+    assert_eq!(parse_clock("18:00:30"), Some(clock(18, 0)));
+    // chrono 的 %H 接受单位数小时，对 v1 脏数据应当宽松收下
+    assert_eq!(parse_clock("9:00"), Some(clock(9, 0)));
+  }
+
+  #[test]
+  fn parse_clock_rejects_garbage_and_out_of_range() {
+    assert_eq!(parse_clock(""), None);
+    assert_eq!(parse_clock("24:00"), None);
+    assert_eq!(parse_clock("12:60"), None);
+    assert_eq!(parse_clock("明天"), None);
+    assert_eq!(parse_clock("null"), None);
+  }
+
+  #[test]
+  fn clocks_of_keeps_multi_and_dedupes() {
+    assert_eq!(clocks_of("10:00/14:00/16:00").len(), 3);
+    assert_eq!(clocks_of("09:00"), vec![clock(9, 0)]);
+    // 重复时刻去重，否则一次到点会响多遍
+    assert_eq!(clocks_of("09:00/09:00"), vec![clock(9, 0)]);
+    // 脏片段被跳过而不是整串作废
+    assert_eq!(clocks_of("09:00/坏值/14:00"), vec![clock(9, 0), clock(14, 0)]);
+    assert!(clocks_of("").is_empty());
+  }
+
+  #[test]
+  fn normalize_datetime_converts_v1_space_form_to_T_form() {
+    assert_eq!(
+      normalize_datetime("2026-08-29 18:00").as_deref(),
+      Some("2026-08-29T18:00")
+    );
+  }
+
+  #[test]
+  fn normalize_datetime_truncates_seconds_without_converting() {
+    assert_eq!(
+      normalize_datetime("2026-08-29T18:00:30").as_deref(),
+      Some("2026-08-29T18:00")
+    );
+    assert_eq!(
+      normalize_datetime("2026-08-29 18:00:30").as_deref(),
+      Some("2026-08-29T18:00")
+    );
+  }
+
+  /// 对治 v1 audit-6 时间漂移的硬约束：带时区后缀只做截断，绝不做换算
+  #[test]
+  fn normalize_datetime_truncates_tz_suffix_and_never_shifts() {
+    assert_eq!(
+      normalize_datetime("2026-08-29T18:00:00Z").as_deref(),
+      Some("2026-08-29T18:00"),
+      "若按 +08:00 换算会变成 26 日 02:00 —— 契约禁止"
+    );
+    assert_eq!(
+      normalize_datetime("2026-08-29T18:00+08:00").as_deref(),
+      Some("2026-08-29T18:00")
+    );
+    assert_eq!(
+      normalize_datetime("2026-08-29T18:00:00-05:00").as_deref(),
+      Some("2026-08-29T18:00")
+    );
+  }
+
+  #[test]
+  fn normalize_datetime_passes_through_date_only_and_clock() {
+    assert_eq!(
+      normalize_datetime("2026-08-29").as_deref(),
+      Some("2026-08-29")
+    );
+    assert_eq!(normalize_datetime("09:00").as_deref(), Some("09:00"));
+    assert_eq!(
+      normalize_datetime("2026-08-29T18:00").as_deref(),
+      Some("2026-08-29T18:00")
+    );
+  }
+
+  #[test]
+  fn normalize_datetime_nullish_and_invalid_become_none() {
+    for raw in ["", "   ", "null", "None", "undefined", "NaN"] {
+      assert_eq!(normalize_datetime(raw), None, "未置空：{:?}", raw);
+    }
+    assert_eq!(normalize_datetime("2026-13-45T10:00"), None);
+    assert_eq!(normalize_datetime("2026-08-2"), None);
+    assert_eq!(normalize_datetime("2026-08-29T9"), None);
+  }
+
+  #[test]
+  fn normalize_date_text_needs_a_full_date() {
+    assert_eq!(
+      normalize_date_text("2026-08-29T18:00").as_deref(),
+      Some("2026-08-29")
+    );
+    assert_eq!(
+      normalize_date_text("2026-08-29").as_deref(),
+      Some("2026-08-29")
+    );
+    assert_eq!(normalize_date_text("09:00"), None); // 仅时刻不构成日期
+    assert_eq!(normalize_date_text("坏值"), None);
+  }
+
+  #[test]
+  fn patch_datetime_handles_json_value_shapes() {
+    assert_eq!(patch_datetime(&serde_json::Value::Null), None);
+    assert_eq!(
+      patch_datetime(&json!("2026-08-29 18:00")),
+      Some("2026-08-29T18:00".to_string())
+    );
+    assert_eq!(patch_datetime(&json!(12345)), None); // 数字不是时间
+    assert_eq!(patch_datetime(&json!("")), None);
+  }
+
+  #[test]
+  fn parse_wall_treats_date_only_as_midnight_and_clock_as_today() {
+    let date_only = parse_wall("2026-08-29").unwrap();
+    assert_eq!(date_only.time(), NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+    assert_eq!(parse_wall("2026-08-29T18:00").unwrap().time(), clock(18, 0));
+    assert_eq!(parse_wall("09:00").unwrap().date(), today()); // 仅时刻挂今天
+    assert_eq!(parse_wall("坏值"), None);
+  }
+
+  #[test]
+  fn carry_days_counts_overdue_and_zeroes_today_and_future() {
+    assert_eq!(carry_days(&None), 0);
+    assert_eq!(carry_days(&Some("坏值".to_string())), 0);
+    let past = (today() - chrono::Duration::days(3))
+      .format("%Y-%m-%d")
+      .to_string();
+    assert_eq!(carry_days(&Some(past)), 3);
+    let future = (today() + chrono::Duration::days(3))
+      .format("%Y-%m-%d")
+      .to_string();
+    assert_eq!(carry_days(&Some(future)), 0);
+    assert_eq!(carry_days(&Some(fmt_day(&today()))), 0); // 今天不算逾期
+  }
+
+  #[test]
+  fn week_start_and_range_cover_monday_to_sunday() {
+    let monday = week_start("2026-W36").unwrap();
+    assert_eq!(monday.weekday().to_string(), "Mon");
+    let (start, end) = week_range(&monday).unwrap();
+    assert_eq!(start, monday);
+    assert_eq!((end - start).num_days(), 6, "周区间必须是周一到周日共 7 天");
+    // 紧凑写法等价
+    assert_eq!(week_start("2026W36"), Some(monday));
+  }
+
+  #[test]
+  fn week_start_rejects_bad_numbers_and_shapes() {
+    assert!(week_start("2026-W0").is_none());
+    assert!(week_start("2026-W54").is_none());
+    assert!(week_start("2026-Wabc").is_none());
+    assert!(week_start("not-a-week").is_none());
+  }
 }

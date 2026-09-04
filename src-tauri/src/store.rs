@@ -1400,3 +1400,243 @@ pub fn task_key(id: &str, stamp: &str) -> String {
   format!("t|{}|{}", id, stamp)
 }
 
+// ---------------------------------------------------------------- 迁移契约单测
+// 只喂内存 fixture 给纯函数 migrate_v1，绝不触碰 %APPDATA% 真库
+// （data_dir() 是硬编码的，手点回归必然污染唯一的 dogfood 样本）。
+// 逐条对应 V2-API §7 的十规则。
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use serde_json::json;
+
+  /// 一份最小 v1 文档（顶层 theme 是字符串 = v1 特征）
+  fn v1_doc(tasks: Value, reminders: Value) -> Value {
+    json!({ "tasks": tasks, "reminders": reminders, "theme": "纸白" })
+  }
+
+  fn migrate(tasks: Value, reminders: Value) -> (AppData, MigrationReport) {
+    migrate_v1(&v1_doc(tasks, reminders)).expect("fixture 迁移不应失败")
+  }
+
+  fn issue_for<'a>(report: &'a MigrationReport, field: &str) -> Option<&'a MigrationIssue> {
+    report.issues.iter().find(|item| item.field == field)
+  }
+
+  #[test]
+  fn rule0_detects_v1_by_absent_settings_object() {
+    assert!(looks_like_v1(&v1_doc(json!([]), json!([]))));
+    // v2 一定有 settings 对象 → 不再走迁移
+    assert!(!looks_like_v1(&json!({ "settings": { "theme": "float" }, "tasks": [] })));
+    // 既无 settings 也无 theme，但有 tasks → 仍按 v1 处理
+    assert!(looks_like_v1(&json!({ "tasks": [] })));
+  }
+
+  #[test]
+  fn rule3_maps_snake_case_fields_to_camel_case() {
+    let (data, _report) = migrate(
+      json!([{
+        "id": "t1",
+        "title": "取快递",
+        "description": "柜机 B 栋",
+        "due_date": "2026-08-29 18:00",
+        "created_at": "2026-08-01T09:00",
+        "completed": false,
+        "subtasks": [{ "id": "s1", "title": "带小票", "completed": true }],
+        "notes": [{ "id": "n1", "author": "我", "content": "备注一", "created_at": "2026-08-02T10:00" }]
+      }]),
+      json!([]),
+    );
+    let task = &data.tasks[0];
+    assert_eq!(task.note.as_str(), "柜机 B 栋", "description → note");
+    assert_eq!(
+      task.due_at.as_deref(),
+      Some("2026-08-29T18:00"),
+      "due_date → dueAt 且空格制式转 T 制式"
+    );
+    assert_eq!(task.created_at.as_str(), "2026-08-01T09:00", "created_at → createdAt");
+    assert_eq!(task.subtasks.len(), 1);
+    assert!(task.subtasks[0].done, "subtasks[].completed → done");
+    assert_eq!(task.notes[0].created_at.as_str(), "2026-08-02T10:00");
+  }
+
+  #[test]
+  fn rule4_nulls_unparsable_time_and_counts_it() {
+    let (data, report) = migrate(
+      json!([{ "id": "t1", "title": "坏时间", "due_date": "昨天下午", "completed": false }]),
+      json!([]),
+    );
+    assert_eq!(data.tasks[0].due_at, None, "解析失败必须置 null，不许猜");
+    assert_eq!(report.invalid_dates, 1);
+    let issue = issue_for(&report, "dueAt").expect("必须留痕");
+    assert!(issue.action.contains("无法解析"), "留痕要说明处置：{}", issue.action);
+    assert_eq!(issue.raw, "昨天下午");
+  }
+
+  #[test]
+  fn rule5_completed_without_done_at_is_marked_legacy_not_faked() {
+    let (data, report) = migrate(
+      json!([{ "id": "t1", "title": "老完成项", "completed": true }]),
+      json!([]),
+    );
+    let task = &data.tasks[0];
+    assert!(task.done, "v1 completed → done");
+    assert_eq!(task.done_at, None, "绝不伪造完成时刻");
+    assert!(task.legacy, "缺完成时刻要标 legacy");
+    assert_eq!(report.legacy_done, 1);
+  }
+
+  #[test]
+  fn rule6_remaps_personal_category_and_medium_priority_with_trail() {
+    let (data, report) = migrate(
+      json!([{ "id": "t1", "title": "枚举归一", "category": "个人", "priority": "medium", "completed": false }]),
+      json!([]),
+    );
+    assert_eq!(data.tasks[0].category, "生活");
+    assert_eq!(data.tasks[0].priority, "med");
+    assert!(issue_for(&report, "category").unwrap().action.contains("生活"));
+    assert!(issue_for(&report, "priority").unwrap().action.contains("med"));
+  }
+
+  #[test]
+  fn rule6_falls_back_unknown_category_without_losing_task() {
+    let (data, report) = migrate(
+      json!([{ "id": "t1", "title": "怪分类", "category": "宇宙", "completed": false }]),
+      json!([]),
+    );
+    assert_eq!(data.tasks[0].category, "生活");
+    assert!(issue_for(&report, "category").unwrap().action.contains("回落"));
+  }
+
+  #[test]
+  fn rule7_carries_overdue_open_task_to_today_once() {
+    let past = (today() - chrono::Duration::days(3))
+      .format("%Y-%m-%d")
+      .to_string();
+    let (data, _report) = migrate(
+      json!([{ "id": "t1", "title": "拖了三天", "due_date": past, "completed": false }]),
+      json!([]),
+    );
+    let task = &data.tasks[0];
+    assert_eq!(
+      task.planned_date.as_deref(),
+      Some(fmt_day(&today()).as_str()),
+      "逾期未完成要一次性粘到今天"
+    );
+    assert_eq!(task.carried_from, 3, "拖留天数一次算清，后续不再自算第二套口径");
+  }
+
+  #[test]
+  fn rule7_does_not_touch_done_or_trashed_tasks() {
+    let past = (today() - chrono::Duration::days(5))
+      .format("%Y-%m-%d")
+      .to_string();
+    let (data, _report) = migrate(
+      json!([
+        { "id": "t1", "title": "已完成", "due_date": past, "completed": true, "done_at": "2026-01-01T10:00" },
+        { "id": "t2", "title": "在回收站", "due_date": past, "completed": false, "deleted_at": "2026-01-02T10:00" }
+      ]),
+      json!([]),
+    );
+    assert_eq!(data.tasks[0].planned_date, None, "已完成的不该被塞进今天");
+    assert_eq!(data.tasks[1].planned_date, None, "回收站里的不该被塞进今天");
+  }
+
+  #[test]
+  fn rule8_keeps_recurring_and_multi_clock_times_verbatim() {
+    let (data, report) = migrate(
+      json!([]),
+      json!([
+        { "id": "r1", "title": "单次", "time": "2026-09-05 08:30", "completed": false },
+        { "id": "r2", "title": "每天", "time": "09:00", "completed": false },
+        { "id": "r3", "title": "多时刻", "time": "10:00/14:00/16:00", "completed": true }
+      ]),
+    );
+    assert_eq!(data.reminders[0].time, "2026-09-05T08:30", "空格制式仍要归一为 T 制式");
+    assert_eq!(data.reminders[1].time, "09:00");
+    assert_eq!(
+      data.reminders[2].time, "10:00/14:00/16:00",
+      "v1 多时刻必须原样保留 —— 降级为单时刻等于改用户数据"
+    );
+    assert_eq!(clocks_of(&data.reminders[2].time).len(), 3);
+    assert!(!data.reminders[2].enabled, "completed → enabled 取反");
+    assert!(!data.reminders[2].completed, "v1 的 completed 不映射为 v2 completed");
+    assert!(data.reminders[2].legacy, "迁移来的提醒一律标 legacy");
+    assert_eq!(report.reminder_count, 3);
+  }
+
+  #[test]
+  fn rule9_v1_theme_string_falls_back_to_float_with_trail() {
+    let (data, report) = migrate(json!([]), json!([]));
+    assert_eq!(data.settings.theme, "float");
+    let issue = issue_for(&report, "theme").expect("主题语义变更必须留痕");
+    assert_eq!(issue.raw, "纸白");
+  }
+
+  #[test]
+  fn rule9_carries_over_v1_hotkey_and_clamps_cap() {
+    let mut raw = v1_doc(json!([]), json!([]));
+    raw["captureHotkey"] = json!("  Ctrl+Alt+K  ");
+    raw["remindCapPerHour"] = json!(999);
+    raw["onboarded"] = json!(true);
+    let (data, _report) = migrate_v1(&raw).unwrap();
+    assert_eq!(data.settings.capture_hotkey, "Ctrl+Alt+K", "两端空格要清掉");
+    assert_eq!(data.settings.remind_cap_per_hour, 60, "超上限要夹住而不是写花库");
+    assert!(data.settings.onboarded);
+  }
+
+  #[test]
+  fn rule10_non_list_tasks_must_error_not_silently_empty() {
+    let err = migrate_v1(&json!({ "tasks": { "not": "a list" }, "theme": "纸白" }))
+      .expect_err("结构不可还原必须走 Err → corrupt 通道");
+    assert!(err.contains("不是列表"), "错误要能直接显示给用户：{}", err);
+    let err2 = migrate_v1(&json!({ "reminders": 42, "theme": "纸白" }))
+      .expect_err("reminders 非列表同样要报错");
+    assert!(err2.contains("不是列表"));
+  }
+
+  #[test]
+  fn zero_loss_dropped_entries_leave_a_trail() {
+    let (data, report) = migrate(
+      json!(["我是脏数据",
+             { "id": "t1", "title": "好任务1", "completed": false },
+             { "id": "t2", "title": "好任务2", "completed": false }]),
+      json!([]),
+    );
+    assert_eq!(data.tasks.len(), 2);
+    assert_eq!(report.task_count, 2);
+    assert!(
+      report.issues.iter().any(|item| item.field == "tasks"),
+      "丢弃的每一条都要留痕，否则「零丢失」不可核对"
+    );
+  }
+
+  #[test]
+  fn empty_v1_document_migrates_cleanly_without_panicking() {
+    let (data, report) = migrate(json!([]), json!([]));
+    assert!(data.tasks.is_empty());
+    assert!(data.reminders.is_empty());
+    assert_eq!(report.task_count, 0);
+    assert_eq!(report.invalid_dates, 0);
+  }
+
+  #[test]
+  fn report_points_at_the_immutable_v1_archive_name() {
+    let (_data, report) = migrate(json!([]), json!([]));
+    assert_eq!(report.archived_to, V1_ARCHIVE);
+    assert_eq!(V1_ARCHIVE, "data.v1.json", "原件留档名是对用户的承诺");
+  }
+
+  #[test]
+  fn fired_keys_survive_migration_as_opaque_strings() {
+    let mut raw = v1_doc(json!([]), json!([]));
+    raw["fired"] = json!(["t|t1|2026-09-03T09:00", 42, "r|r1|2026-09-03T10:00"]);
+    let (data, _report) = migrate_v1(&raw).unwrap();
+    assert_eq!(
+      data.fired,
+      vec!["t|t1|2026-09-03T09:00".to_string(), "r|r1|2026-09-03T10:00".to_string()],
+      "非字符串键丢弃可以，但合法键一个不能少（跨重启不重复响）"
+    );
+  }
+}
+
