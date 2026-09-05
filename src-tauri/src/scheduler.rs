@@ -56,6 +56,14 @@ impl NightState {
 }
 
 /// 启动调度线程（托盘常驻，1s tick）
+///
+/// 锁边界（ADR-0004）：一次 tick 分四段，**OS 通知与 emit 一律不在持锁期间发生**：
+/// ① 持短锁 plan（只读 + 决策，不写库不通知）→ 放锁
+/// ② 锁外发系统通知、记遥测（拿到逐条送达结果）
+/// ③ 再持短锁 apply（幂等重校验后落库 + save）→ 放锁
+/// ④ 锁外 emit
+/// 磁盘写有意留在 ③ 的锁内：读-改-写必须原子，移出锁会引入并发写风险，
+/// 且它远快于 OS 通知 IPC —— 这不是"没做完"。
 pub fn start(app: AppHandle) {
   std::thread::spawn(move || {
     let mut state = NightState::new();
@@ -65,20 +73,59 @@ pub fn start(app: AppHandle) {
         None => continue,
         Some(handle) => handle,
       };
-      let mut store = match slot.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => poisoned.into_inner(),
+      // ① 短锁决策
+      let plan = {
+        let mut store = match slot.lock() {
+          Ok(guard) => guard,
+          Err(poisoned) => poisoned.into_inner(),
+        };
+        match plan_tick(&mut store, &mut state) {
+          Some(plan) => plan,
+          None => continue,
+        }
+      }; // ← 锁在此释放
+      // ② 锁外通知 + 遥测
+      let outcome = deliver(&app, plan);
+      // ③ 短锁落库
+      let events = {
+        let mut store = match slot.lock() {
+          Ok(guard) => guard,
+          Err(poisoned) => poisoned.into_inner(),
+        };
+        apply(&mut store, &mut state, outcome)
       };
-      if !store.is_corrupt() {
-        tick(&app, &mut store, &mut state);
-      }
-      drop(store);
+      // ④ 锁外广播
+      broadcast(&app, events);
       blur_float_on_desktop_form(&app);
     }
   });
 }
 
-fn tick(app: &AppHandle, store: &mut Store, state: &mut NightState) {
+/// ① 阶段的产物：锁外要发的通知 + 锁内要落的库
+struct Plan {
+  /// 逐条发通知的到点事件（发完在 ③ 落库）
+  fires: Vec<Due>,
+  /// 汇总类通知（启动补发、免打扰合并）
+  batches: Vec<String>,
+  /// ③ 阶段要落库的动作：(事件, quiet)
+  settles: Vec<(Due, bool)>,
+  /// 本 tick 是否有变化（决定是否 save / emit）
+  dirty: bool,
+}
+
+/// ② 阶段的产物
+struct Outcome {
+  settles: Vec<(Due, bool)>,
+  /// 逐条通知成功送达的条数 → 计入每小时滑窗
+  shown: usize,
+  dirty: bool,
+}
+
+/// ① 持短锁决策：只读 Store、只改线程内的 NightState，**不写库、不发通知**
+fn plan_tick(store: &mut Store, state: &mut NightState) -> Option<Plan> {
+  if store.is_corrupt() {
+    return None; // corrupt 状态下不发通知也不写库（等用户恢复）
+  }
   let at = Local::now();
   let dnd = in_dnd(&store.data.settings, &at);
   let mut candidates: Vec<Due> = Vec::new();
@@ -93,8 +140,12 @@ fn tick(app: &AppHandle, store: &mut Store, state: &mut NightState) {
     .sent
     .retain(|when| *when > at - Duration::hours(1));
   let cap = store.data.settings.remind_cap_per_hour.max(1) as usize;
-  let mut events: Vec<StoreEvent> = Vec::new();
-  let mut changed = false;
+  let mut plan = Plan {
+    fires: Vec::new(),
+    batches: Vec::new(),
+    settles: Vec::new(),
+    dirty: false,
+  };
 
   // 1. 超过 24h 的：不再打扰，只记 missed 清账
   let stale: Vec<Due> = state
@@ -104,37 +155,38 @@ fn tick(app: &AppHandle, store: &mut Store, state: &mut NightState) {
     .cloned()
     .collect();
   for due in stale.iter() {
-    settle(store, due, true, &mut events);
+    state.queue.retain(|item| item.key != due.key);
     telemetry::record_str(
       "reminder_missed",
       &[("id", due.id.as_str()), ("reason", "expired")],
     );
-    state.queue.retain(|item| item.key != due.key);
-    changed = true;
+    plan.settles.push((due.clone(), true));
+    plan.dirty = true;
   }
 
   // 2. 启动首 tick：错过的合并成一条汇总通知
   if !state.warmed_up {
     state.warmed_up = true;
-    if !state.queue.is_empty() {
-      let items: Vec<Due> = state.queue.iter().filter(|due| due.at <= at).cloned().collect();
-      let count = items.len();
-      for due in items.iter() {
-        settle(store, due, true, &mut events);
-        telemetry::record_str(
-          "reminder_missed",
-          &[("id", due.id.as_str()), ("reason", "app_not_running")],
-        );
-        state.queue.retain(|item| item.key != due.key);
-      }
-      if count > 0 {
-        changed = true;
-        runtime::notify(app, &format!("错过 {} 条提醒", count));
-        state.sent.push_back(at);
-      }
+    let items: Vec<Due> = state.queue.iter().filter(|due| due.at <= at).cloned().collect();
+    let count = items.len();
+    for due in items.iter() {
+      state.queue.retain(|item| item.key != due.key);
+      telemetry::record_str(
+        "reminder_missed",
+        &[("id", due.id.as_str()), ("reason", "app_not_running")],
+      );
+      plan.settles.push((due.clone(), true));
+    }
+    if count > 0 {
+      plan.batches.push(format!("错过 {} 条提醒", count));
+      state.sent.push_back(at);
+      plan.dirty = true;
     }
   } else {
-    // 3. 常规触发
+    // 3. 常规触发。上限语义：本轮最多放行 `cap - 已发条数` 条，宁少不超
+    //    （原实现是"发成功才计数"，同轮内可能多放行；改为预扣后，
+    //      通知失败的那条要等下个 tick 才补，绝不会突破每小时上限）
+    let mut budget = cap.saturating_sub(state.sent.len());
     let mut index = 0;
     while index < state.queue.len() {
       let due = match state.queue.get(index) {
@@ -147,34 +199,24 @@ fn tick(app: &AppHandle, store: &mut Store, state: &mut NightState) {
       }
       if dnd {
         // 免打扰：静默入账，等时段结束合并补发
-        settle_quiet(store, &due, &mut events);
+        state.queue.remove(index);
         telemetry::record_str(
           "reminder_missed",
           &[("id", due.id.as_str()), ("reason", "dnd")],
         );
         state.quiet += 1;
-        state.queue.remove(index);
-        changed = true;
+        plan.settles.push((due, true));
+        plan.dirty = true;
         continue;
       }
-      if state.sent.len() >= cap {
-        // 本小时已达上限：留在队列里，下个 tick 再试
+      if budget == 0 {
         index += 1;
-        continue;
+        continue; // 本小时已达上限：留在队列里，下个 tick 再试
       }
-      let shown = runtime::notify(app, &body_of(&due));
-      if shown {
-        state.sent.push_back(at);
-        telemetry::record_str("reminder_shown", &[("id", due.id.as_str())]);
-      } else {
-        telemetry::record_str(
-          "reminder_missed",
-          &[("id", due.id.as_str()), ("reason", "notify_fail")],
-        );
-      }
-      settle(store, &due, false, &mut events);
+      budget -= 1;
       state.queue.remove(index);
-      changed = true;
+      plan.fires.push(due);
+      plan.dirty = true;
     }
   }
 
@@ -182,11 +224,72 @@ fn tick(app: &AppHandle, store: &mut Store, state: &mut NightState) {
   if state.last_dnd && !dnd && state.quiet > 0 {
     let count = state.quiet;
     state.quiet = 0;
-    runtime::notify(app, &format!("免打扰期间有 {} 条提醒", count));
+    plan.batches.push(format!("免打扰期间有 {} 条提醒", count));
   }
   state.last_dnd = dnd;
-  if changed {
-    commit(store, app, events);
+  Some(plan)
+}
+
+/// ② 锁外执行：发系统通知 + 记逐条遥测（这两样都不碰 Store）
+fn deliver(app: &AppHandle, plan: Plan) -> Outcome {
+  for body in plan.batches.iter() {
+    runtime::notify(app, body);
+  }
+  let mut shown = 0usize;
+  for due in plan.fires.iter() {
+    // 通知失败也照样落库记 fired —— 保持既有语义：不重复打扰，但也不静默漏记
+    if runtime::notify(app, &body_of(due)) {
+      shown += 1;
+      telemetry::record_str("reminder_shown", &[("id", due.id.as_str())]);
+    } else {
+      telemetry::record_str(
+        "reminder_missed",
+        &[("id", due.id.as_str()), ("reason", "notify_fail")],
+      );
+    }
+  }
+  let mut settles = plan.settles;
+  for due in plan.fires.into_iter() {
+    settles.push((due, false));
+  }
+  Outcome {
+    settles,
+    shown,
+    dirty: plan.dirty,
+  }
+}
+
+/// ③ 持短锁落库：幂等重校验 → settle → save（磁盘写有意留在锁内）
+fn apply(store: &mut Store, state: &mut NightState, outcome: Outcome) -> Vec<StoreEvent> {
+  if !outcome.dirty {
+    return Vec::new();
+  }
+  let now = Local::now();
+  let mut events: Vec<StoreEvent> = Vec::new();
+  for (due, quiet) in outcome.settles.iter() {
+    // 幂等重校验：①–③ 之间这条若已被别处记过，就不再重复落库与广播
+    if store.has_fired(&due.key) {
+      continue;
+    }
+    settle(store, due, *quiet, &mut events);
+  }
+  for _ in 0..outcome.shown {
+    state.sent.push_back(now);
+  }
+  if events.is_empty() {
+    return Vec::new();
+  }
+  if let Err(error) = store.save() {
+    store.health = crate::store::HEALTH_WRITE_FAILED.to_string();
+    store.last_error = Some(error);
+  }
+  events
+}
+
+/// ④ 锁外广播（放在 save 之后：避免前端重拉到时读到未落盘的旧数据）
+fn broadcast(app: &AppHandle, events: Vec<StoreEvent>) {
+  for event in events.iter() {
+    let _ = app.emit_all("store-changed", event.clone());
   }
 }
 
@@ -213,20 +316,6 @@ fn settle(store: &mut Store, due: &Due, quiet: bool, events: &mut Vec<StoreEvent
     events.push(StoreEvent::missed(&due.id));
   } else {
     events.push(StoreEvent::fired(&due.id));
-  }
-}
-
-fn settle_quiet(store: &mut Store, due: &Due, events: &mut Vec<StoreEvent>) {
-  settle(store, due, true, events);
-}
-
-fn commit(store: &mut Store, app: &AppHandle, events: Vec<StoreEvent>) {
-  for event in events.iter() {
-    let _ = app.emit_all("store-changed", event.clone());
-  }
-  if let Err(error) = store.save() {
-    store.health = crate::store::HEALTH_WRITE_FAILED.to_string();
-    store.last_error = Some(error);
   }
 }
 
