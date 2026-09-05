@@ -1,7 +1,7 @@
 # 设计规格 · Kettd 回顾页重设计（场景A 数据分析/BI）
 
 - 状态：**定稿（2026-09-04）** · 听众：实现者（M3）· 组件库：shadcn/ui + 自研组件
-- 关联：`spark-output/context/brief.json`、`sitemap.json`、`timeline-component-spec.md`、`ADR-001`（`src-tauri/docs/ADR-001-frontend-react-migration.md`，React 迁移 M3）
+- 关联：`spark-output/context/brief.json`、`sitemap.json`、`timeline-component-spec.md`、`ADR-0001`（`src-tauri/docs/adr/0001-frontend-react-migration.md`，React 迁移 M3）
 - 边界：本文档**只做设计规格，不含实现代码**。回顾页在 v2 现状是「日志簿 / 周汇总草稿」两 tab，本次重设计引入 **年热力图 + 横向时间轴 + 点某天下钻**。
 
 ---

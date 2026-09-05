@@ -1,7 +1,7 @@
 # 组件规格 · 复古便签（StickyNote · 悬浮窗重设计）
 
 - 状态：**定稿（2026-09-04）** · 供 M3 实现 · 取代现有「悬浮窗 float」
-- 关联：`spark-output/context/brief.json`、`review-redesign-spec.md`、`ADR-001`（`src-tauri/docs/ADR-001-frontend-react-migration.md`，React 迁移）
+- 关联：`spark-output/context/brief.json`、`review-redesign-spec.md`、`ADR-0001`（`src-tauri/docs/adr/0001-frontend-react-migration.md`，React 迁移）
 - 边界：本文件只做设计规格，不含实现代码。
 
 ---

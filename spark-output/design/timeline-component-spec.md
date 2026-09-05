@@ -7,7 +7,7 @@
 
 ## 1. 设计决策（先定这条）
 
-- **为什么自研而非 `import { Timeline } from 'antd'`**：`ADR-001`（`src-tauri/docs/ADR-001-frontend-react-migration.md`）已把全站统一到 **shadcn/ui**（单一设计系统、token 一致）。仅为一个时间轴引入 antd 会破坏「组件统一」并增加包体/主题双轨成本。→ **用 shadcn token 手写一个 Ant-Timeline 兼容组件**，视觉与 props 语义对齐 Ant v6，未来若整体迁 antd 可无缝替换。
+- **为什么自研而非 `import { Timeline } from 'antd'`**：`ADR-0001`（`src-tauri/docs/adr/0001-frontend-react-migration.md`）已把全站统一到 **shadcn/ui**（单一设计系统、token 一致）。仅为一个时间轴引入 antd 会破坏「组件统一」并增加包体/主题双轨成本。→ **用 shadcn token 手写一个 Ant-Timeline 兼容组件**，视觉与 props 语义对齐 Ant v6，未来若整体迁 antd 可无缝替换。
 - 若你更看重"直接用官方组件、接受引入 antd"，此项可推翻——但默认按自研走。
 
 ## 2. 对齐 Ant Design Timeline v6 的解剖

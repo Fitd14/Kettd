@@ -1,9 +1,12 @@
-# ADR-001 · 前端基座迁移到 React + shadcn（双轨推进）
+# ADR-0001 · 前端基座迁移到 React + shadcn（双轨推进）
+
+> 编号说明：本记录 2026-09-05 起纳入 `docs/adr/` 四位编号体系；旧引用中的「ADR-001」即本文件。
 
 - **状态**：Accepted（决策已拍板，执行中；M0 已完成，M1 未开工）
 - **日期**：2026-09-04 提出 · 2026-09-05 补齐成文
 - **取代**：无（本文是权威决策记录，此前只散落在 `roadmap/kettd-roadmap-v2.md` 的 bullet 与 `src-react/M0-BASELINE.md`）
-- **被引用于**：`spark-output/design/{review-redesign,sticky-note-component,timeline-component}-spec.md`、`src-react/M0-BASELINE.md`
+- **被引用于**：`spark-output/design/{review-redesign,sticky-note-component,timeline-component}-spec.md`、`src-react/M0-BASELINE.md`（在 `feat/react-ui` 分支）
+- **索引**：[`README.md`](README.md) · **总览**：[`../ARCHITECTURE-v3.md`](../ARCHITECTURE-v3.md)
 - **关联**：`spark-output/context/{brief,flow-web,frame}.json` · `spark-output/roadmap/kettd-roadmap-v2.md` · `src-tauri/docs/{PRD-v2,V2-API}.md`
 
 > 本文只记**决策与其代价**。设计细节在各组件规格里，工程接线细节在 `M0-BASELINE.md` 里。
@@ -72,13 +75,16 @@ M1 选 **capture 窗**（约 120 行卡片，是全站最小的窗体），目�
 | 阶段 | 内容 | 出口判据（可证伪） | 状态 |
 |---|---|---|---|
 | **M0** | React 基座脚手架（双轨） | `npm run build` 通过；令牌与 `src/styles.css` 逐字对齐；`npx shadcn add button` 取件链路通 | ✅ 完成（`b58504a`，实测 1932 modules） |
+| **M0.5** | **双轨回归网前置门**（2026-09-05 新增）：ADR-0006 共享内核抽模块 + ADR-0004 调度锁边界 | ① 快录组参三份复制收敛为一；② `test/rem-editor.test.mjs` 改为 `import` 且仍全绿；③ `cargo test` 覆盖 scheduler 到期判定；④ 真机确认到点仍响且不重复 | ⬜ 未开工 |
 | **M1** | capture 窗 React 化（最小试点） | React 版 capture 在真机达到 vanilla 同等表现：DWM 圆角干净、无磨砂环、文字实测对比度 ≥4.5:1、OS 材质与拖拽/记位仍由 Rust 提供且行为不变、`Alt+Shift+A` 与 `Esc` 有效 | ⬜ 未开工 |
 | **M2** | 底座：`api.ts` / 状态 / Toast / Undo | 40 命令全部有类型化封装；软删 10s 撤销链路可用；与 `V2-API.md` 对账脚本 40↔40↔40 仍绿 | ⬜ |
 | **M3** | 五视图迁移（今天/收件箱/计划/回顾/设置） | 五份已定稿规格逐条落地；`qa`/`check` 重跑无新增 Blocker；**回归测试随迁不丢**（见 §5-R1） | ⬜ |
 | **M4** | 退役旧 `src/` | M3 全部视图在 React 侧通过验收 **且** 回归测试已迁移并通过；`tauri.conf.json` 的 build 段切到 `../src-react/dist` | ⬜ |
 | **M5** | 无障碍 | `/无障碍检查` 全量跑过（WCAG 2.1 AA）；键盘可达与焦点管理在两窗均验证 | ⬜ |
 
-M1 是唯一带"验证门"性质的阶段：路线图假设表里「React 迁移不拖垮 v2.x 迭代」的**最便宜验证就是 M1 capture 试点先跑通**。M1 失败 → 停在双轨，vanilla 继续发版，不强行推进。
+M0.5 与 M1 是两道门：M0.5 保证"动手前有网"，M1 保证"接线能通"。**M0.5 不过，M1 不开工。**
+
+M1 是唯一带"接线"性质的阶段：路线图假设表里「React 迁移不拖垮 v2.x 迭代」的**最便宜验证就是 M1 capture 试点先跑通**。M1 失败 → 停在双轨，vanilla 继续发版，不强行推进。
 
 ---
 
@@ -129,6 +135,6 @@ M1 拟启用的接线（**M0 阶段勿改发布路径**）：
 ## 7. 本 ADR 成文时顺带修正的两处不一致
 
 1. **悬空引用**：`ADR-001` 此前**并不存在**，却被四处引用 —— 其中三份 design 规格（`review-redesign` / `sticky-note-component` / `timeline-component`）只写了名字没给路径，无法解析；唯一给出路径的 `src-react/M0-BASELINE.md` 写的是「详见 `spark-output/pitch/` 的 ADR-001」，而 `spark-output/pitch/` 实际只有 v2.1 收口的两份产物。
-   本次处理：ADR 落位于 `src-tauri/docs/ADR-001-frontend-react-migration.md`（与 `PRD-v2.md`、`V2-API.md` 同族），并给上述三份规格**补上可解析路径**。
+   本次处理：ADR 落位于 `src-tauri/docs/adr/0001-frontend-react-migration.md`（2026-09-05 起迁入 `docs/adr/` 四位编号体系，见 [`README.md`](README.md)），并给上述三份规格**补上可解析路径**。
    ⚠️ **`M0-BASELINE.md` 里的错误路径本次未改** —— 它在 `feat/react-ui` 分支上，为改一行链接而切分支会干扰在跑的实例与未提交改动。该分支下次被触碰时（M1 前置的 rebase 正好会碰），把 `spark-output/pitch/` 改为 `src-tauri/docs/` 即可。
 2. **阶段编号**：路线图写「M1–M5」，实际含已完成的 M0 共六段，本文 §4 已按 M0–M5 记录。
