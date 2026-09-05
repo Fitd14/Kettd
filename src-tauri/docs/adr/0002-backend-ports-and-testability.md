@@ -1,6 +1,6 @@
 # ADR-0002: 引入四个自有端口（Clock / StoreBackend / Notifier / Hotkeys）
 
-**状态**：Proposed
+**状态**：Accepted（2026-09-05 拍板，六条全批）
 **日期**：2026-09-05
 **决定者**：需求方（单人项目）
 **关联**：`ARCHITECTURE-v3.md` §2/§8-R1 · ADR-0001 §5-R2 · ADR-003

@@ -24,6 +24,12 @@
 
   <script type="module">
 import * as api from './api.js';
+/* 提醒时刻编辑器的语义实现在共享内核里（ADR-0006）：
+   vanilla 三窗与 src-react 共用同一份，node 测试直接 import 它，不再抽本文件源码。 */
+import {
+  parseRemTime, composeRemTime, nextTimesForMode, removeTimeSlot, appendTimeSlot,
+  prettyRemTime, renderRemEditor, emptyRemDraft, normMode, REM_ERRORS,
+} from './kernel/rem-editor.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = api.esc;
@@ -581,46 +587,38 @@ function remStatus(r) {
   if (r.snoozedUntil && String(r.snoozedUntil) >= `${today()}T${api.localNowHHMM()}`) return `延后至 ${String(r.snoozedUntil).slice(5, 16)}`;
   return '待触发';
 }
-/* ---- 提醒时刻编辑器（添加行与行内编辑同构）----
-   显式「每天/单次」开关；每天模式可增删多个时刻。落库契约不变（V2-API §时间约定）：
-   每天 = HH:MM[/HH:MM...]（循环，永不“过期”），单次 = YYYY-MM-DDTHH:mm。
-   只复用既有 .seg/.input/.btn/.row-flex 类，不新增任何样式与色值。 */
+/* ---- 提醒时刻编辑器：语义在 src/kernel/rem-editor.js（ADR-0006），
+       这里只是读写 S 的薄封装。落库契约不变（V2-API §时间约定）：
+       每天 = HH:MM[/HH:MM...]（循环，永不"过期"），单次 = YYYY-MM-DDTHH:mm。 ---- */
+const remDraftOf = (pfx) => ({
+  mode: S.drafts[pfx + 'Mode'],
+  date: S.drafts[pfx + 'Date'],
+  times: S.drafts[pfx + 'Times'],
+});
+const remInvalid = () => !!(S.errs.remTime || S.errs.remPast);
+
 function remTimeEditor(pfx, compact) {
-  const mode = S.drafts[pfx + 'Mode'] === 'once' ? 'once' : 'daily';
-  const times = (S.drafts[pfx + 'Times'] || []).length ? S.drafts[pfx + 'Times'] : [''];
-  const bad = S.errs.remTime || S.errs.remPast ? ' invalid' : '';
-  const sz = compact ? ' sm' : '';
-  const slots = times.map((v, i) => `<span class="row-flex" style="gap:2px">
-      <input class="input mono${bad}${sz}" type="time" style="width:${compact ? 96 : 100}px" data-in="${pfx}Times" data-idx="${i}" value="${esc(v)}" aria-label="提醒时刻 ${i + 1}">
-      ${mode === 'daily' && times.length > 1 ? `<button class="btn ghost xs" data-act="${pfx}-time-del" data-idx="${i}" aria-label="删掉第 ${i + 1} 个时刻">✕</button>` : ''}
-    </span>`).join('');
-  return `<span class="seg" role="group" aria-label="提醒方式">
-      <button class="btn sm${mode === 'daily' ? ' on' : ''}" data-act="${pfx}-mode" data-arg="daily" aria-pressed="${mode === 'daily'}">每天</button>
-      <button class="btn sm${mode === 'once' ? ' on' : ''}" data-act="${pfx}-mode" data-arg="once" aria-pressed="${mode === 'once'}">单次</button>
-    </span>
-    ${mode === 'once' ? `<input class="input mono${bad}${sz}" type="date" style="width:${compact ? 140 : 150}px" data-in="${pfx}Date" value="${esc(S.drafts[pfx + 'Date'] || '')}" aria-label="提醒日期">` : ''}
-    ${slots}
-    ${mode === 'daily' ? `<button class="btn ghost xs${sz}" data-act="${pfx}-time-add" aria-label="再加一个提醒时刻">+ 时刻</button>` : ''}`;
+  const d = remDraftOf(pfx);
+  return renderRemEditor({
+    prefix: pfx,
+    mode: normMode(d.mode),
+    date: d.date || '',
+    times: (Array.isArray(d.times) && d.times.length) ? d.times : [''],
+    invalid: remInvalid(),
+    compact: !!compact,
+  });
 }
 
-/* 编辑器状态 → 契约串；返回 { value } 或 { err }（文案只讲下一步动作，不教手输格式） */
+/* 编辑器状态 → 契约串；返回 { value } 或 { err } */
 function remCompose(pfx) {
-  const mode = S.drafts[pfx + 'Mode'] === 'once' ? 'once' : 'daily';
-  const times = (S.drafts[pfx + 'Times'] || []).map((x) => String(x || '').trim()).filter(Boolean);
-  if (!times.length) return { err: '先选一个提醒时刻' };
-  if (mode === 'daily') return { value: times.join('/') };
-  const date = String(S.drafts[pfx + 'Date'] || '').trim();
-  if (!date) return { err: '单次提醒要选日期；想每天提醒请切到「每天」' };
-  if (times.length > 1) return { err: '单次提醒只能一个时刻，先删掉多余的' };
-  return { value: `${date}T${times[0]}` };
+  return composeRemTime(remDraftOf(pfx));
 }
 
 /* 切模式时收敛时刻数组：进单次只留第一个已选时刻，避免带着多时刻进单次语义 */
 function setRemMode(pfx, arg) {
-  const mode = arg === 'once' ? 'once' : 'daily';
-  const picked = (S.drafts[pfx + 'Times'] || []).map((t) => String(t || '').trim()).filter(Boolean);
+  const mode = normMode(arg);
   S.drafts[pfx + 'Mode'] = mode;
-  S.drafts[pfx + 'Times'] = mode === 'once' ? [picked[0] || ''] : (picked.length ? picked : ['']);
+  S.drafts[pfx + 'Times'] = nextTimesForMode(S.drafts[pfx + 'Times'], mode);
   S.errs.remTime = ''; S.errs.remPast = '';
   renderView();
 }
@@ -664,9 +662,10 @@ function viewPlanned() {
     </div>`;
 }
 function remDraftClear(pfx) {
-  S.drafts[pfx + 'Mode'] = 'daily';
-  S.drafts[pfx + 'Times'] = [''];
-  S.drafts[pfx + 'Date'] = '';
+  const empty = emptyRemDraft();
+  S.drafts[pfx + 'Mode'] = empty.mode;
+  S.drafts[pfx + 'Times'] = empty.times;
+  S.drafts[pfx + 'Date'] = empty.date;
 }
 async function addReminderNow(timeVal, titleVal) {
   const title = String(titleVal || '').trim();
@@ -680,12 +679,8 @@ async function addReminderNow(timeVal, titleVal) {
   render();
   toast(`已添加提醒「${title}」· ${remPretty(timeVal)}`, { ms: 3000 });
 }
-/* 时刻串的人话版：多时刻说个数，单次只说时刻不念日期前缀 */
-function remPretty(v) {
-  const s = String(v || '');
-  if (s.includes('/')) return `${s.split('/').length} 个时刻`;
-  return s.includes('T') ? s.slice(11, 16) : s;
-}
+/* 时刻串的人话版（实现在内核，ADR-0006） */
+const remPretty = (v) => prettyRemTime(v);
 ACTS['rem-add'] = () => {
   const t = (S.drafts.remTitle || '').trim();
   if (!t) { S.errs.remTitle = '标题不能为空'; S.errs.remTime = ''; S.errs.remPast = ''; renderView(); return; }
@@ -701,18 +696,14 @@ ACTS['rem-add'] = () => {
 ACTS['rem-mode'] = (el) => setRemMode('rem', el.dataset.arg);
 ACTS['remEdit-mode'] = (el) => setRemMode('remEdit', el.dataset.arg);
 function remPushTime(pfx) {
-  if (!Array.isArray(S.drafts[pfx + 'Times'])) S.drafts[pfx + 'Times'] = [''];
-  S.drafts[pfx + 'Times'].push('');
+  S.drafts[pfx + 'Times'] = appendTimeSlot(S.drafts[pfx + 'Times']);
   renderView();
   const all = document.querySelectorAll(`input[data-in="${pfx}Times"]`);
   const last = all[all.length - 1];
   if (last) last.focus();
 }
 function remDelTime(pfx, idx) {
-  const arr = S.drafts[pfx + 'Times'];
-  if (!Array.isArray(arr)) return;
-  arr.splice(Number(idx) || 0, 1);
-  if (!arr.length) arr.push('');
+  S.drafts[pfx + 'Times'] = removeTimeSlot(S.drafts[pfx + 'Times'], idx);
   S.errs.remTime = ''; S.errs.remPast = '';
   renderView();
 }
@@ -727,24 +718,17 @@ ACTS['rem-fix-recent'] = () => {
   const title = ((S.drafts.remTitle || '提醒').trim()) + ' · 刚刚+5min';
   addReminderNow(stamp, title);
 };
-ACTS['rem-fix-raw'] = () => { const v = S.pastValue || remCompose('rem').value || ''; if (!v) { S.errs.remTime = '先选一个提醒时刻'; renderView(); return; } addReminderNow(v, S.drafts.remTitle || '原样提醒'); };
+ACTS['rem-fix-raw'] = () => { const v = S.pastValue || remCompose('rem').value || ''; if (!v) { S.errs.remTime = REM_ERRORS.noTime; renderView(); return; } addReminderNow(v, S.drafts.remTitle || '原样提醒'); };
 ACTS['rem-edit'] = (el) => {
   const r0 = S.reminders.find((x) => x.id === el.dataset.id);
   if (!r0) return;
   S.remEdit = r0.id;
-  const t0 = String(r0.time || '');
-  if (t0.includes('T')) {
-    S.drafts.remEditMode = 'once';
-    S.drafts.remEditDate = t0.slice(0, 10);
-    S.drafts.remEditTimes = [t0.slice(11, 16)];
-  } else {
-    /* 循环语义：HH:MM 或 v1 遗留多时刻 HH:MM/HH:MM —— 全量回填成多个槽位，
-       保存时原样写回，修掉旧版「进编辑即置空、保存即降级为单时刻」的静默改写（qa-3） */
-    S.drafts.remEditMode = 'daily';
-    S.drafts.remEditDate = '';
-    const ts = t0.split('/').map((s) => s.trim().slice(0, 5)).filter(Boolean);
-    S.drafts.remEditTimes = ts.length ? ts : [''];
-  }
+  /* 解析在 kernel/rem-editor.js#parseRemTime：v1 遗留多时刻 HH:MM/HH:MM 全量展开成
+     等量槽位，保存时原样写回 —— 修掉旧版「进编辑即置空、保存即降级为单时刻」（qa-3） */
+  const p = parseRemTime(r0.time);
+  S.drafts.remEditMode = p.mode;
+  S.drafts.remEditDate = p.date;
+  S.drafts.remEditTimes = p.times;
   S.errs.remTime = ''; S.errs.remPast = '';
   renderView();
   const i = document.querySelector('input[data-in="remEditTimes"]');

@@ -222,10 +222,9 @@ const PRI_CLS = { high: 'pri-high', med: 'pri-med', low: 'pri-low' };
 export function getPriorityColor(priority) { return PRI_CLS[priority] || 'pri-low'; }
 export const PRIORITY_LABEL = { high: '高', med: '中', low: '低' };
 
-export function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
+/* esc 的实现已收进共享内核（ADR-0006）：vanilla 三窗与 src-react 共用同一份。
+   这里再导出以保持所有 api.esc(...) 调用点不变。 */
+export { esc } from './kernel/text.js';
 
 /* ---------------- 快录语法解析（移植 prototype mock-data.parseCapture；输出契约：
  * title/chips/dueAt/autoRemind/category/priority/fellBack，dueAt 全本地语义） ---------------- */

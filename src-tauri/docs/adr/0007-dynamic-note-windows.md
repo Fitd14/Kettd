@@ -1,6 +1,6 @@
 # ADR-0007: 动态便签窗口的注册表与位置持久化
 
-**状态**：Proposed（**Deferred** —— 等 H0 便签 v2.1 定稿后再实施，但决策方向先记下来）
+**状态**：Accepted（2026-09-05 拍板；实施时机 Deferred 到 H0 便签 v2.1 定稿后）
 **日期**：2026-09-05
 **关联**：`ARCHITECTURE-v3.md` §3/§5/§8-R6 · ADR-005（`note_pos`）· ADR-0001（React 基座）· `spark-output/design/sticky-note-component-spec.md`
 
