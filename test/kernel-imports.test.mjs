@@ -55,18 +55,21 @@ for (const rel of consumers) {
 }
 assert.ok(checks >= 10, `只比对了 ${checks} 个导入名，疑似正则没匹配上，检查内核引用写法`);
 
-// 反向：内核不许留无人使用的导出（投机 API 会变第二份漂移实现）
+// 反向：内核不许留无人使用的导出（投机 API 会变第二份漂移实现）。
+// 消费路径有两种：① 直接 import { A } from './kernel/x.js'；
+// ② api.js 再导出 export { A } from './kernel/x.js'，各窗口以 api.A 使用。
 const usedNames = new Set();
+const BRACE_RE = /(?:import|export)\s*\{([^}]*)\}\s*from\s*['"]\.\/kernel\/[\w.-]+\.js['"]/g;
 for (const rel of consumers) {
   const src = readFileSync(path.join(root, rel), 'utf8');
-  for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s*['"]\.\/kernel\/[\w.-]+\.js['"]/g)) {
+  for (const m of src.matchAll(BRACE_RE)) {
     for (const part of m[1].split(',')) {
       const n = part.trim().split(/\s+as\s+/)[0].trim();
       if (n) usedNames.add(n);
     }
   }
 }
-const unused = [...exported.values()].flatMap((set) => [...set]).filter((n) => !usedNames.has(n) && n !== 'esc');
+const unused = [...exported.values()].flatMap((set) => [...set]).filter((n) => !usedNames.has(n));
 assert.deepEqual(unused, [], `内核有无人使用的导出：${unused.join(', ')} —— 要么接上调用方，要么删掉`);
 
 console.log(`  ✓ ${consumers.length} 个消费方、${checks} 个导入名全部可在内核中解析，且无未使用导出`);

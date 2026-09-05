@@ -1,7 +1,15 @@
 /* Kettd v2 · Tauri v1 前端桥接层。
- * 契约真相源：src-tauri/docs/V2-API.md —— 37 个命令逐一对应，参数名一律 camelCase。
+ * 契约真相源：src-tauri/docs/V2-API.md —— 40 个命令逐一对应，参数名一律 camelCase。
  * 约定：所有命令封装返回 { data, err }；err 为后端可直接展示的中文短句，永不 throw。
- * 时间全链路本地语义字符串，零 UTC 换算（不用 toISOString）。 */
+ * 时间全链路本地语义字符串，零 UTC 换算（不用 toISOString）。
+ *
+ * 纯逻辑（本地日期原语、快录解析与组参）已收进 src/kernel/（ADR-0006）：
+ * 本文件只保留 Tauri 桥接与命令封装，并把内核符号再导出以保持所有 api.xxx 调用点不变。 */
+import { pad2, WEEK_CN, localToday, localNowHHMM, addDays, isLocalDate, fullDueParts } from './kernel/time.js';
+import { parseCapture } from './kernel/capture.js';
+
+export { pad2, WEEK_CN, localToday, localNowHHMM, addDays, isLocalDate, fullDueParts } from './kernel/time.js';
+export { parseCapture, buildCaptureArgs } from './kernel/capture.js';
 
 const T = globalThis.__TAURI__ || {};
 const rawInvoke = (T.tauri && T.tauri.invoke) || (T.core && T.core.invoke) || T.invoke;
@@ -138,28 +146,9 @@ export function takePendingRoute() {
 
 /* ---------------- 本地语义时间（与后端约定对齐：YYYY-MM-DD / YYYY-MM-DDTHH:mm / HH:MM） ---------------- */
 
-const pad2 = (n) => String(n).padStart(2, '0');
-export const WEEK_CN = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+/* 本地日期原语（pad2 / WEEK_CN / localToday / localNowHHMM / addDays / isLocalDate /
+   fullDueParts）已搬到 src/kernel/time.js，文件头统一导入并再导出。 */
 
-export function localToday() {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-export function localNowHHMM() {
-  const d = new Date();
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-export function addDays(iso, n) {
-  const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
-  const dt = new Date(y, m - 1, d + n);
-  return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
-}
-export function isLocalDate(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')); }
-export function fullDueParts(dueAt) {
-  const date = String(dueAt).slice(0, 10);
-  const time = dueAt && String(dueAt).length > 10 ? String(dueAt).slice(11, 16) : '';
-  return { date, time };
-}
 /* formatDue：今天 HH:MM / 明天 / 周X / 逾期红（cls=due-over 由调用方挂到 .due-over） */
 export function formatDue(dueAt, today) {
   if (!dueAt) return { text: '无截止', cls: 'text-muted', overdue: false };
@@ -226,100 +215,10 @@ export const PRIORITY_LABEL = { high: '高', med: '中', low: '低' };
    这里再导出以保持所有 api.esc(...) 调用点不变。 */
 export { esc } from './kernel/text.js';
 
-/* ---------------- 快录语法解析（移植 prototype mock-data.parseCapture；输出契约：
- * title/chips/dueAt/autoRemind/category/priority/fellBack，dueAt 全本地语义） ---------------- */
-
-export function parseCapture(raw, today) {
-  const t0 = today || localToday();
-  let text = String(raw == null ? '' : raw).trim();
-  const chips = [];
-  let category;
-  let priority;
-
-  const cat = text.match(/#(工作|学习|生活)/);
-  if (cat) {
-    category = cat[1];
-    chips.push({ kind: 'category', raw: cat[0], value: `分类 · ${category}`, confidence: 'high' });
-    text = text.replace(cat[0], ' ');
-  }
-
-  const prio = text.match(/!(高|中|低)/);
-  if (prio) {
-    const pmap = { 高: 'high', 中: 'med', 低: 'low' };
-    priority = pmap[prio[1]];
-    chips.push({ kind: 'priority', raw: prio[0], value: `优先级 · ${prio[1]}`, confidence: 'high' });
-    text = text.replace(prio[0], ' ');
-  }
-
-  // 时间：下午3点 / 15:00 / 晚上9点半 / 中午12点
-  let hour = null;
-  let minute = 0;
-  const tm = text.match(/(早上|上午|中午|下午|晚上)\s*(\d{1,2})\s*[:：点]\s*(半|整|\d{1,2})?|(\d{1,2})[:：](\d{2})/);
-  if (tm) {
-    if (tm[4] !== undefined) {
-      hour = parseInt(tm[4], 10);
-      minute = parseInt(tm[5], 10);
-    } else {
-      hour = parseInt(tm[2], 10);
-      const m = tm[3];
-      minute = m === '半' ? 30 : (m && m !== '整' ? (parseInt(m, 10) || 0) : 0);
-      const ap = tm[1];
-      if ((ap === '下午' || ap === '晚上') && hour < 12) hour += 12;
-      if (ap === '中午' && hour < 11) hour += 12;
-    }
-    if (hour > 23 || minute > 59) {
-      hour = null;
-      minute = 0;
-    } else {
-      chips.push({ kind: 'time', raw: tm[0].trim(), value: `时间 · ${pad2(hour)}:${pad2(minute)}`, confidence: 'high' });
-      text = text.replace(tm[0], ' ');
-    }
-  }
-
-  // 日期：今天/明天/后天 / 周X / 下周X / N月D日 / N.D
-  const [ty, tmo, tda] = t0.split('-').map(Number);
-  const base = new Date(ty, tmo - 1, tda);
-  let dateISO = null;
-  const dm = text.match(/(今天|明天|后天)/)
-    || text.match(/(本周|下周|星期|周)([一二三四五六日天1-7])/)
-    || text.match(/(\d{1,2})月(\d{1,2})[日号]/)
-    || text.match(/(\d{1,2})[./](\d{1,2})(?=\s|$|[^(\d])/);
-  if (dm) {
-    const d = new Date(base);
-    if (/^(今天|明天|后天)$/.test(dm[0])) {
-      const off = { 今天: 0, 明天: 1, 后天: 2 };
-      d.setDate(base.getDate() + off[dm[0]]);
-    } else if (dm[2] !== undefined && /^(本周|下周|星期|周)/.test(dm[0])) {
-      const wmap = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 0, 天: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 0 };
-      const target = wmap[dm[2]] !== undefined ? wmap[dm[2]] : base.getDay();
-      let diff = (target - base.getDay() + 7) % 7;
-      if (dm[0].startsWith('下周')) diff += 7;
-      d.setDate(base.getDate() + diff);
-    } else {
-      const nums = (dm[0].match(/\d+/g) || []).map(Number);
-      if (nums.length === 2) d.setMonth(nums[0] - 1, nums[1]);
-    }
-    dateISO = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-    chips.push({ kind: 'date', raw: dm[0], value: `日期 · ${dateISO}`, confidence: 'high' });
-    text = text.replace(dm[0], ' ');
-  }
-
-  let dueAt = dateISO;
-  if (dueAt && hour !== null) dueAt = `${dueAt}T${pad2(hour)}:${pad2(minute)}`;
-  else if (!dueAt && hour !== null) dueAt = `${t0}T${pad2(hour)}:${pad2(minute)}`; // 只有时间：视为今天该时刻
-
-  const title = text.replace(/\s+/g, ' ').trim() || String(raw == null ? '' : raw).trim();
-  return {
-    title,
-    chips,
-    dueAt,
-    autoRemind: dueAt !== null, // 有截止即随截止提醒
-    category,
-    priority,
-    fellBack: chips.length === 0,
-  };
-}
-
+/* ---------------- 快录语法解析与组参 ----------------
+   parseCapture / buildCaptureArgs 已搬到 src/kernel/capture.js（ADR-0006）：
+   原先快录组参在 index.html / float.html / capture.html 各有一份逐字复制，
+   现由内核的 buildCaptureArgs 唯一提供。文件头已再导出，调用点不变。 */
 /* 提醒时间校验：HH:MM（多时刻 / 分隔，循环语义，永不“过期”）或 YYYY-MM-DDTHH:mm（对齐 V2-API 时间语义） */
 export function validateReminderTime(s) {
   const v = String(s || '').trim();

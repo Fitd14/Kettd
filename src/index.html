@@ -1296,8 +1296,7 @@ ACTS['cap-add'] = async () => {
   const raw = String(S.capFallback.text || '').trim();
   if (!raw) { S.capFallback.err = '标题不能为空'; renderOverlays(); return; }
   const parsed = api.parseCapture(raw, today());
-  const args = { title: parsed.title, source: 'capture', category: parsed.category || '生活', priority: parsed.priority || 'med' };
-  if (parsed.dueAt) { args.dueAt = parsed.dueAt; args.remindAt = parsed.autoRemind ? parsed.dueAt : null; }
+  const args = api.buildCaptureArgs(parsed); // 组参唯一实现见 src/kernel/capture.js
   const r = await api.addTask(args);
   if (r.err) { S.capFallback.err = r.err; renderOverlays(); return; }
   S.capFallback = null;

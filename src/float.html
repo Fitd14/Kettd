@@ -147,8 +147,7 @@ async function commitQuick() {
   if (!raw) { $('quick').classList.add('invalid'); flash('标题不能为空，先写几个字', true); return; }
   $('quick').classList.remove('invalid');
   const parsed = api.parseCapture(raw, today());
-  const args = { title: parsed.title, source: 'capture', category: parsed.category || '生活', priority: parsed.priority || 'med' };
-  if (parsed.dueAt) { args.dueAt = parsed.dueAt; args.remindAt = parsed.autoRemind ? parsed.dueAt : null; }
+  const args = api.buildCaptureArgs(parsed); // 组参唯一实现见 src/kernel/capture.js
   const r = await api.addTask(args);
   if (r.err) { S.quickErr = r.err; flash(r.err + ' · 输入已保留，可点「记下」重试', true); return; }
   S.quick = '';
