@@ -343,6 +343,15 @@ fn collect(store: &Store, at: &DateTime<Local>, out: &mut Vec<Due>) {
     if !reminder.enabled || reminder.completed {
       continue;
     }
+    // 先判「带日期 = 单次」（V2-API §时间约定）。顺序不能反：parse_clock 会顺带接受
+    // YYYY-MM-DDTHH:mm，若先跑 clocks_of，单次提醒会被误判成循环 ——
+    // 实测后果：一条 2026-09-04T08:11 的单次提醒连着两天各响一次，且永不置 completed。
+    if reminder.time.contains('T') {
+      if let Some(due) = one_shot_reminder(reminder, at) {
+        out.push(due);
+      }
+      continue;
+    }
     let clocks = clocks_of(&reminder.time);
     if !clocks.is_empty() {
       // 循环提醒：今天已过的每个时刻各算一次
@@ -484,5 +493,179 @@ fn blur_float_on_desktop_form(app: &AppHandle) {
     return;
   }
   let _ = runtime::hide_window(app, runtime::FLOAT_LABEL);
+}
+
+// ---------------------------------------------------------------- 调度决策单测
+// 离线构造 Store（字段全 pub），不碰 %APPDATA%、不建窗口、不真实等待时间。
+// ADR-0004 出口判据③：决策逻辑必须可表驱动测试。
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::models::{AppData, Repeat};
+  use chrono::TimeZone;
+  use std::path::PathBuf;
+
+  fn wall(y: i32, mo: u32, d: u32, h: u32, mi: u32) -> DateTime<Local> {
+    Local.with_ymd_and_hms(y, mo, d, h, mi, 0).unwrap()
+  }
+
+  fn reminder(id: &str, time: &str) -> Reminder {
+    Reminder {
+      id: id.to_string(),
+      title: format!("提醒 {}", id),
+      time: time.to_string(),
+      category: "生活".to_string(),
+      enabled: true,
+      completed: false,
+      repeat: Repeat::default(),
+      last_fired: None,
+      snoozed_until: None,
+      legacy: false,
+    }
+  }
+
+  fn store_with(reminders: Vec<Reminder>, fired: Vec<String>) -> Store {
+    Store {
+      dir: PathBuf::from("."),
+      data: AppData {
+        reminders,
+        fired,
+        ..Default::default()
+      },
+      health: "ok".to_string(),
+      corrupt_file: None,
+      last_error: None,
+      undo: Vec::new(),
+    }
+  }
+
+  fn keys(dues: &[Due]) -> Vec<String> {
+    dues.iter().map(|d| d.key.clone()).collect()
+  }
+
+  /// 回归哨兵：带日期的单次提醒必须按**真实日期**出键。
+  /// 旧缺陷是 parse_clock 顺带接受 YYYY-MM-DDTHH:mm，使其被误判成循环、
+  /// 键按"今天"生成 → 明天换个键再响一次，且永不置 completed。
+  #[test]
+  fn one_shot_key_is_stable_across_days() {
+    let store = store_with(vec![reminder("r1", "2026-09-04T08:11")], vec![]);
+    let mut day1 = Vec::new();
+    let mut day2 = Vec::new();
+    collect(&store, &wall(2026, 9, 4, 9, 0), &mut day1);
+    collect(&store, &wall(2026, 9, 5, 9, 0), &mut day2);
+    assert_eq!(keys(&day1), vec!["r|r1|2026-09-04T08:11".to_string()]);
+    assert_eq!(
+      keys(&day1),
+      keys(&day2),
+      "同一条单次提醒在不同日子必须同一键，否则明天会重响"
+    );
+    assert!(
+      day1[0].one_shot_reminder,
+      "必须走单次分支，否则触发后不会被置 completed"
+    );
+  }
+
+  #[test]
+  fn one_shot_in_the_future_produces_nothing() {
+    let store = store_with(vec![reminder("r1", "2026-09-05T20:00")], vec![]);
+    let mut dues = Vec::new();
+    collect(&store, &wall(2026, 9, 5, 9, 0), &mut dues);
+    assert!(dues.is_empty(), "未到点的单次提醒不该产出：{:?}", keys(&dues));
+  }
+
+  #[test]
+  fn recurring_clock_key_uses_today() {
+    let store = store_with(vec![reminder("r2", "09:00")], vec![]);
+    let mut dues = Vec::new();
+    collect(&store, &wall(2026, 9, 5, 10, 0), &mut dues);
+    assert_eq!(keys(&dues), vec!["r|r2|2026-09-05T09:00".to_string()]);
+    assert!(!dues[0].one_shot_reminder);
+  }
+
+  #[test]
+  fn multi_clock_recurring_produces_one_due_per_passed_clock() {
+    let store = store_with(vec![reminder("r3", "09:00/14:00/20:00")], vec![]);
+    let mut dues = Vec::new();
+    collect(&store, &wall(2026, 9, 5, 15, 0), &mut dues);
+    assert_eq!(
+      keys(&dues),
+      vec![
+        "r|r3|2026-09-05T09:00".to_string(),
+        "r|r3|2026-09-05T14:00".to_string()
+      ],
+      "只应产出已过的时刻，20:00 还没到"
+    );
+  }
+
+  #[test]
+  fn disabled_reminder_is_not_collected() {
+    let mut r = reminder("r4", "09:00");
+    r.enabled = false;
+    let store = store_with(vec![r], vec![]);
+    let mut dues = Vec::new();
+    collect(&store, &wall(2026, 9, 5, 10, 0), &mut dues);
+    assert!(dues.is_empty());
+  }
+
+  #[test]
+  fn already_fired_one_shot_never_enters_the_plan() {
+    let mut store = store_with(
+      vec![reminder("r1", "2026-09-04T08:11")],
+      vec!["r|r1|2026-09-04T08:11".to_string()],
+    );
+    let mut state = NightState::new();
+    state.warmed_up = true;
+    let plan = plan_tick(&mut store, &mut state).expect("非 corrupt 应返回计划");
+    assert!(plan.fires.is_empty(), "已 fired 的键不该再进通知队列");
+    assert!(plan.settles.is_empty(), "已 fired 的键不该再落库");
+    assert!(!plan.dirty);
+  }
+
+  #[test]
+  fn corrupt_store_skips_the_whole_tick() {
+    let mut store = store_with(vec![reminder("r1", "09:00")], vec![]);
+    store.health = crate::store::HEALTH_CORRUPT.to_string();
+    let mut state = NightState::new();
+    assert!(plan_tick(&mut store, &mut state).is_none(), "corrupt 时不发通知也不写库");
+  }
+
+  #[test]
+  fn hourly_cap_never_over_admits() {
+    let mut store = store_with(vec![reminder("r5", "01:00/02:00/03:00")], vec![]);
+    store.data.settings.remind_cap_per_hour = 2;
+    let mut state = NightState::new();
+    state.warmed_up = true;
+    let plan = plan_tick(&mut store, &mut state).unwrap();
+    assert_eq!(plan.fires.len(), 2, "上限 2 就只放行 2 条，宁少不超");
+    assert_eq!(state.queue.len(), 1, "第 3 条应留在队列里等下个 tick");
+  }
+
+  #[test]
+  fn apply_is_idempotent_when_key_got_fired_in_the_meantime() {
+    // ① 决策后、③ 落库前该键已被记过 → 幂等重校验应跳过，不重复 settle/广播
+    let mut store = store_with(
+      vec![reminder("r6", "2026-09-04T08:11")],
+      vec!["r|r6|2026-09-04T08:11".to_string()],
+    );
+    let mut state = NightState::new();
+    let due = Due {
+      key: "r|r6|2026-09-04T08:11".to_string(),
+      id: "r6".to_string(),
+      title: "提醒 r6".to_string(),
+      at: wall(2026, 9, 4, 8, 11),
+      snoozed: false,
+      one_shot_task: false,
+      one_shot_reminder: true,
+    };
+    let outcome = Outcome {
+      settles: vec![(due, false)],
+      shown: 0,
+      dirty: true,
+    };
+    let events = apply(&mut store, &mut state, outcome);
+    assert!(events.is_empty(), "已 fired 的键不该重复产生事件");
+    assert_eq!(state.sent.len(), 0);
+  }
 }
 
