@@ -160,8 +160,9 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `set_float_form` | `form` | `void` | `mini` → 无边框 + 300×56 + 禁止 resize + 贴主屏右下角；`topmost` → 置顶 + 回 380×520；`desktop` → 取消置顶且失焦自动收起；结果写回 `settings.floatForm` |
 | `register_capture_hotkey` | `combo` | `Settings` | 例 `Alt+Shift+A`；注册失败 → Err「快捷键被占用，请用备用入口」（保持旧值） |
 | `register_main_hotkey` | `combo` | `Settings` | 打开主界面全局热键；`combo` 空串 = 解绑（`mainHotkey` → `null`）；与 `register_capture_hotkey` 同一约束：组合键互斥、失败保持旧值 |
-| `open_capture_overlay` | — | `void` | label `capture`：560×112、无边框**不透明纸片卡**（背景跟随主题 `--card`，不依赖 WebView2 透明）、屏幕上部 28% 居中、置顶，显示后 emit `capture-opened` 让前端聚焦输入框；失焦自动收起 |
+| `open_capture_overlay` | — | `void` | label `capture`：560×80、无边框、「硫酸纸」材质（OS `apply_blur` 暖纸 tint + DWM 圆角，CSS 层负责反光描边/厚度/可读性，详见 `styles.css` 的 `--vellum-*` 令牌）、屏幕上部 28% 居中、置顶，显示后 emit `capture-opened` 让前端聚焦输入框；失焦自动收起 |
 | `close_capture_overlay` | — | `void` | |
+| `capture_start_drag` | — | `void` | 让无边框捕获条可被鼠标拖动（转调 `window.start_dragging()`）。**当前前端未接线** —— 实际拖拽走 Tauri 的 `data-tauri-drag-region` 属性（见 `capture.html` 的 ✎ 把手）；此命令作为备用入口保留，位置记忆由 `settings.capturePos` 承担 |
 | `export_weekly` | `week?: string`, `format?: 'md' \| 'csv'`, `dir?: string` | `string`（完整路径） | `week` = `current`（默认）/ `last` / `YYYY-Www`；文件名含 ISO 周（如 `周汇总-2026-W36.md`）；二次导出不覆盖（自动 `-2`/`-3`）；目标不可写 → Err「这个位置写不了，换个位置」 |
 | `get_backups` | — | `BackupInfo[]` | 含不可读备份（`readable:false` + 中文 error） |
 | `restore_backup` | `slot`（`"1".."5"`，也吃 `data.json.bak-3` 这种整名） | `RestoreResult` | 成功即解除 corrupt 封锁；损坏原件已留存为 `data.corrupt.*`，`data.v1.json` 永不删 |
@@ -272,7 +273,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | 项 | 手段 | 结果 |
 | --- | --- | --- |
 | 类型检查与链接 | `cargo check` / `cargo build`（debug） | **0 error**；7 条 `dead_code` warning（`models.rs:21/187/243/385/573/748`、`store.rs:688`） |
-| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **39 ↔ 39 ↔ 39**（v2.1 新增 `get_hotkey_status`，表格已补） |
+| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **40 ↔ 40 ↔ 40**（v2.1 新增 `get_hotkey_status`；本次补齐 `capture_start_drag` —— 它随「可拖拽」提交注册但漏了文档行，且**前端未接线**，实际拖拽走 `data-tauri-drag-region`） |
 | 存储安全自查 | 人工 | 无 `unwrap_or_default()` 式空库回退；无 `toISOString`/`Utc`/`naive_utc` 混入；`tauri.conf.json` JSON 合法 |
 | 提醒编辑器逻辑 | `node test/rem-editor.test.mjs`（从 `index.html` 抽真实函数源码断言，17 项） | 全绿：多时刻 round-trip 四形态、模式收敛、渲染契约、aria-label、文案不含手输格式 |
 | 时间契约 + v1 迁移十规则 | `cargo test`（**30 项** = `models` 14 时间契约 + `store` 16 迁移规则，纯内存 fixture，不碰数据目录） | 全绿。过程逼出 `parse_clock` 两处加固：带秒输入归零（否则永不命中整分 tick = 到点不响）、接受裸 `HH:MM:SS` 与单位数小时 |
