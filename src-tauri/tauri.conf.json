@@ -2,8 +2,8 @@
   "build": {
     "beforeDevCommand": "",
     "beforeBuildCommand": "",
-    "devPath": "../src",
-    "distDir": "../src",
+    "devPath": "../src-react/dist",
+    "distDir": "../src-react/dist",
     "withGlobalTauri": true
   },
   "package": {
