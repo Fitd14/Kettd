@@ -10,7 +10,7 @@
 //! - 兼任：嵌入桌面形态的悬浮面板失焦后自动收起
 
 use crate::models::{
-  clocks_of, fmt_dt, now_text, parse_clock, parse_wall, repeat_allows, to_local, today, Reminder, Settings,
+  clocks_of, fmt_dt, now_text, parse_clock, parse_wall, repeat_allows, to_local, Reminder, Settings,
   StoreEvent, MISSED_GRACE_HOURS,
 };
 use crate::runtime;
@@ -354,9 +354,11 @@ fn collect(store: &Store, at: &DateTime<Local>, out: &mut Vec<Due>) {
     }
     let clocks = clocks_of(&reminder.time);
     if !clocks.is_empty() {
-      // 循环提醒：今天已过的每个时刻各算一次
+      // 循环提醒：今天已过的每个时刻各算一次。「今天」以注入时刻 at 为准 ——
+      // collect 必须对 at 纯，掺入真实时钟会让表驱动测试随日期漂移
+      // （2026-09-05 写的测试次日全红，即此病）
       for clock in clocks.iter() {
-        let wall = today().and_time(*clock);
+        let wall = at.date_naive().and_time(*clock);
         if !repeat_allows(reminder, &wall) {
           continue;
         }
@@ -391,9 +393,20 @@ fn collect(store: &Store, at: &DateTime<Local>, out: &mut Vec<Due>) {
       Some(text) if !text.trim().is_empty() => text.clone(),
       _ => continue,
     };
-    let wall = match parse_wall(&raw) {
-      Some(value) => value,
-      None => continue,
+    // 只写 HH:MM 的 remindAt 视作每日循环（v1 兼容），不清 remindAt；
+    // 日期同样取注入时刻 at 而非真实时钟（parse_wall 对 HH:MM 会补真实「今天」，
+    // 在这里必须绕开 —— collect 对 at 纯是 ADR-0002 出口判据的前置）
+    let daily = raw.chars().count() == 5;
+    let wall = if daily {
+      match parse_clock(raw.trim()) {
+        Some(clock) => at.date_naive().and_time(clock),
+        None => continue,
+      }
+    } else {
+      match parse_wall(&raw) {
+        Some(value) => value,
+        None => continue,
+      }
     };
     let local = match to_local(&wall) {
       Some(value) => value,
@@ -581,6 +594,24 @@ mod tests {
     collect(&store, &wall(2026, 9, 5, 10, 0), &mut dues);
     assert_eq!(keys(&dues), vec!["r|r2|2026-09-05T09:00".to_string()]);
     assert!(!dues[0].one_shot_reminder);
+  }
+
+  /// 回归哨兵：HH:MM 的任务 remindAt 按**注入时间**的日期出键。
+  /// parse_wall 对 HH:MM 补的是真实「今天」，collect 若直接用它，
+  /// 测试就会随真实日期漂移（与循环提醒同一病灶）。
+  #[test]
+  fn daily_task_key_uses_injected_day() {
+    let mut store = store_with(vec![], vec![]);
+    store.data.tasks.push(crate::models::Task {
+      id: "t1".to_string(),
+      title: "每日站会".to_string(),
+      remind_at: Some("09:30".to_string()),
+      ..Default::default()
+    });
+    let mut dues = Vec::new();
+    collect(&store, &wall(2026, 9, 5, 10, 0), &mut dues);
+    assert_eq!(keys(&dues), vec!["t|t1|2026-09-05T09:30".to_string()]);
+    assert!(!dues[0].one_shot_task, "HH:MM 是循环语义，不得走单次分支");
   }
 
   #[test]
