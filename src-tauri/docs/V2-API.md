@@ -75,7 +75,8 @@ interface Dnd { enabled: boolean; from: string; to: string }   // 默认 true, 2
 
 interface Settings {
   theme: string                    // 主题名（float / dark / light，前端解释）
-  stickyPinned: FloatForm
+  stickyPinned: boolean            // 便签固定=置顶（三形态已收敛，便签规格 §1）
+  stickyPaper: string              // 便签纸色：warm | kraft | cyan | ink（§12.1 四选一）
   captureHotkey: string            // 默认 "Alt+Shift+A"
   mainHotkey: string | null        // 打开主界面全局热键；null = 未绑定；默认 "Alt+Shift+O"
   dnd: Dnd
@@ -152,7 +153,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `toggle_reminder` | `id` | `Reminder` | completed ⇄ enabled；重新启用会清 `snoozedUntil` |
 | `snooze_reminder` | `id`, `minutes` | `Reminder` | 写 `snoozedUntil = now + minutes`（1–720） |
 | `get_settings` | — | `Settings` | |
-| `set_settings` | `patch: Partial<Settings>` | `Settings` | 部分字段 MERGE；改 `captureHotkey` 会真实重绑热键，失败整次回滚并 Err「快捷键被占用，请用备用入口」；改 `stickyPinned` 同步改窗口 |
+| `set_settings` | `patch: Partial<Settings>` | `Settings` | 部分字段 MERGE；改 `captureHotkey` 会真实重绑热键，任一热键失败整次回滚（两槽位事务）并 Err「快捷键被占用，请用备用入口」；`stickyPinned` 改设置值（窗口同步走 `set_sticky_pinned`）；`stickyPaper` 校验四预设 |
 | `open_main_window` | — | `void` | 显示主窗并请求焦点 |
 | `show_float` | — | `void` | 显示悬浮面板并请求焦点 |
 | `hide_float` | — | `void` | 隐藏悬浮面板（不退出进程） |
@@ -175,7 +176,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `get_data_health` | — | `DataHealthV2` | 损坏恢复页数据源 |
 | `get_hotkey_status` | — | `HotkeyStatus` | 两个全局热键的**实际注册**快照 `{capture, main}`（未绑上/已解绑为 `null`）；设置页与 `settings.captureHotkey / mainHotkey` 比对，不一致即标「未生效」（qa-1）。运行期状态，不落盘 |
 | `clear_migration_report` | — | `MigrationReport \| null` | 前端展示完迁移报告后清账，避免每次启动重复提示 |
-| `get_form_hints` | — | `{ categories, priorities, stickyPinneds, sources, repeat, defaultHotkey, defaultCap, retentionDays, today }` | 表单常量，避免前端硬编码 |
+| `get_form_hints` | — | `{ categories, priorities, sources, repeat, defaultHotkey, defaultCap, retentionDays, today }` | 表单常量，避免前端硬编码 |
 
 参数名映射：Rust 侧 `snake_case` 形参由 Tauri v1 宏自动转成 camelCase（`task_id` → `taskId`，`include_deleted` → `includeDeleted`）。结构体入参（`TaskPayload` 等）本身带 `rename_all = "camelCase"`。
 
@@ -183,7 +184,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 
 - 时间字段传 `null` 或空串 = 清空；传字符串 = 归一后写入，归一失败 → Err（不会静默丢值）。
 - `title` 传空串 → Err「标题不能为空」。
-- `category` / `priority` / `stickyPinned` / `dnd.from` / `dnd.to` 非法值 → 中文 Err，不落库。
+- `category` / `priority` / `stickyPaper` / `dnd.from` / `dnd.to` 非法值 → 中文 Err，不落库。
 - `subtasks` / `notes` 传数组 = 整体替换（空标题项会被丢弃）。
 
 ## 3. 事件表（后端 → 前端）
