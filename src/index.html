@@ -911,11 +911,6 @@ function viewSettings() {
         <div class="seg" role="group" aria-label="主题">
           <button class="btn sm ${s.theme !== 'dark' ? 'on' : ''}" data-act="theme" data-arg="light">纸白</button>
           <button class="btn sm ${s.theme === 'dark' ? 'on' : ''}" data-act="theme" data-arg="dark">暗色</button></div></div>
-      <div class="set-row"><div>悬浮面板形态<div class="tiny text-muted">常驻桌面不挡路 · 托盘菜单也能切</div></div>
-        <div class="seg" role="group" aria-label="悬浮面板形态">
-          <button class="btn sm ${s.floatForm === 'topmost' ? 'on' : ''}" data-act="form" data-arg="topmost">置顶</button>
-          <button class="btn sm ${s.floatForm === 'desktop' ? 'on' : ''}" data-act="form" data-arg="desktop">嵌桌面</button>
-          <button class="btn sm ${s.floatForm === 'mini' ? 'on' : ''}" data-act="form" data-arg="mini">迷你条</button></div></div>
       <div class="set-row"><span>悬浮面板</span><span class="row-flex" style="gap:6px">
         <button class="btn outline sm" data-act="float-show">显示</button>
         <button class="btn ghost sm" data-act="float-hide">收起</button></span></div>
@@ -980,12 +975,6 @@ ACTS['theme'] = async (el) => {
   S.settings = r.data;
   api.applyTheme(r.data.theme);
   renderView();
-};
-ACTS['form'] = async (el) => {
-  const r = await api.setFloatForm(el.dataset.arg);
-  if (r.err) { toast(r.err, { kind: 'bad', ms: 5000 }); renderView(); return; }
-  if (S.settings) S.settings.floatForm = el.dataset.arg;
-  renderView(); toast('悬浮面板已切换形态', { ms: 2500 });
 };
 ACTS['float-show'] = async () => { const r = await api.showFloat(); if (r.err) toast(r.err, { kind: 'bad' }); };
 ACTS['float-hide'] = async () => { const r = await api.hideFloat(); if (r.err) toast(r.err, { kind: 'bad' }); };

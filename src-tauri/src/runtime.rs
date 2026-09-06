@@ -4,8 +4,8 @@ use crate::store::Store;
 use std::path::Path;
 use std::sync::Mutex;
 use tauri::{
-  AppHandle, CustomMenuItem, GlobalShortcutManager, LogicalSize, Manager, PhysicalPosition,
-  Position, Size, SystemTray, SystemTrayMenu, SystemTrayMenuItem, SystemTraySubmenu, Window,
+  AppHandle, CustomMenuItem, GlobalShortcutManager, Manager, PhysicalPosition,
+  Position, SystemTray, SystemTrayMenu, SystemTrayMenuItem, Window,
   WindowBuilder, WindowUrl,
 };
 
@@ -73,66 +73,45 @@ pub fn hide_window(app: &AppHandle, label: &str) -> Result<(), String> {
   window.hide().map_err(|_| "窗口隐藏失败".to_string())
 }
 
-/// 悬浮面板三形态：置顶 / 嵌桌面 / 迷你条
-pub fn set_float_form(app: &AppHandle, form: &str) -> Result<(), String> {
-  if !crate::models::FLOAT_FORMS.contains(&form) {
-    return Err("悬浮形态只能是 topmost / desktop / mini".to_string());
-  }
+/// 便签固定 = 置顶开关（便签规格 §1：三形态收敛为单一便签，固定只切置顶、位置始终可拖）
+pub fn set_sticky_pinned(app: &AppHandle, pinned: bool) -> Result<(), String> {
   let window = window_of(app, FLOAT_LABEL)?;
-  match form {
-    "topmost" => {
-      let _ = window.set_always_on_top(true);
-      let _ = window.set_decorations(true);
-      let _ = window.set_resizable(true);
-      let _ = window.set_size(Size::Logical(LogicalSize::new(380.0, 520.0)));
-    }
-    "desktop" => {
-      // 嵌入桌面：取消置顶，失焦即收起（收起逻辑在 scheduler 的 1s 巡检里）
-      let _ = window.set_always_on_top(false);
-      let _ = window.set_decorations(true);
-      let _ = window.set_resizable(true);
-      let _ = window.set_size(Size::Logical(LogicalSize::new(380.0, 520.0)));
-    }
-    "mini" => {
-      let _ = window.set_decorations(false);
-      let _ = window.set_resizable(false);
-      let _ = window.set_always_on_top(true);
-      let _ = window.set_size(Size::Logical(LogicalSize::new(300.0, 56.0)));
-      park_mini(&window);
-    }
-    _ => {}
-  }
+  let _ = window.set_always_on_top(pinned);
   Ok(())
 }
 
-/// 迷你条贴主屏右下角，避开工作区
-fn park_mini(window: &Window) {
-  if let Ok(Some(monitor)) = window.current_monitor() {
-    let scale = monitor.scale_factor();
-    let width = (300.0 * scale) as i32;
-    let height = (56.0 * scale) as i32;
-    let right = monitor.position().x + monitor.size().width as i32;
-    let bottom = monitor.position().y + monitor.size().height as i32;
-    let x = right - width - (16.0 * scale) as i32;
-    let y = bottom - height - (16.0 * scale) as i32;
-    let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+/// 便签位置记忆（ADR-0007 H0 约束：位置归 runtime.json 的 note_pos map，不进用户数据）
+pub fn save_sticky_pos_window(window: &Window) {
+  let Ok(pos) = window.outer_position() else {
+    return;
+  };
+  let Some(state) = window.try_state::<Mutex<Store>>() else {
+    return;
+  };
+  let Ok(mut store) = state.lock() else {
+    return;
+  };
+  let next = [pos.x, pos.y];
+  if store.runtime.note_pos.get("sticky") == Some(&next) {
+    return; // 位置没变不落盘
   }
+  store.runtime.note_pos.insert("sticky".to_string(), next);
+  let _ = store.save_runtime_only();
 }
 
-/// 悬浮面板当前形态；读不到时按置顶处理
-pub fn float_form(app: &AppHandle) -> String {
-  match app.try_state::<Mutex<Store>>() {
-    None => "topmost".to_string(),
-    Some(state) => match state.lock() {
-      Ok(guard) => guard.data.settings.float_form.clone(),
-      Err(poisoned) => poisoned.into_inner().data.settings.float_form.clone(),
-    },
+/// 启动恢复便签记位；不在任何屏内则保持默认位置
+pub fn restore_sticky_pos(app: &AppHandle) {
+  let stored = app
+    .try_state::<Mutex<Store>>()
+    .and_then(|s| s.lock().ok().and_then(|g| g.runtime.note_pos.get("sticky").copied()));
+  let Some([x, y]) = stored else {
+    return;
+  };
+  if let Ok(window) = window_of(app, FLOAT_LABEL) {
+    if capture_pos_on_screen(&window, x, y) {
+      let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+    }
   }
-}
-
-/// 供 scheduler 判断桌面形态是否要因失焦收起
-pub fn float_should_hide_on_blur(app: &AppHandle) -> bool {
-  float_form(app) == "desktop"
 }
 
 pub fn float_is_focused(app: &AppHandle) -> bool {
@@ -485,29 +464,18 @@ fn slot_mut(registry: &mut HotkeyRegistry, action: HotkeyAction) -> &mut Option<
 
 // ---------------------------------------------------------------- 托盘
 
-pub fn tray_menu(form: &str) -> SystemTrayMenu {
-  let mut topmost = CustomMenuItem::new("form_topmost", "置于顶层");
-  let mut desktop = CustomMenuItem::new("form_desktop", "嵌入桌面");
-  let mut mini = CustomMenuItem::new("form_mini", "迷你条");
-  if form == "topmost" {
-    topmost = topmost.selected();
-  }
-  if form == "desktop" {
-    desktop = desktop.selected();
-  }
-  if form == "mini" {
-    mini = mini.selected();
+pub fn tray_menu(pinned: bool) -> SystemTrayMenu {
+  let mut pinned_item = CustomMenuItem::new("sticky_pinned", "便签置顶");
+  if pinned {
+    pinned_item = pinned_item.selected();
   }
   SystemTrayMenu::new()
     .add_item(CustomMenuItem::new("open_main", "打开主界面"))
     .add_item(CustomMenuItem::new("capture", "快速记录"))
     .add_native_item(SystemTrayMenuItem::Separator)
-    .add_item(CustomMenuItem::new("float_show", "显示悬浮面板"))
-    .add_item(CustomMenuItem::new("float_hide", "隐藏悬浮面板"))
-    .add_submenu(SystemTraySubmenu::new(
-      "悬浮形态",
-      SystemTrayMenu::new().add_item(topmost).add_item(desktop).add_item(mini),
-    ))
+    .add_item(CustomMenuItem::new("float_show", "显示便签"))
+    .add_item(CustomMenuItem::new("float_hide", "隐藏便签"))
+    .add_item(pinned_item)
     .add_native_item(SystemTrayMenuItem::Separator)
     .add_item(CustomMenuItem::new("reminders", "管理提醒"))
     .add_item(CustomMenuItem::new("weekly", "本周汇总导出"))
@@ -516,22 +484,15 @@ pub fn tray_menu(form: &str) -> SystemTrayMenu {
     .add_item(CustomMenuItem::new("quit", "退出"))
 }
 
-pub fn build_tray(form: &str) -> SystemTray {
-  SystemTray::new().with_id(TRAY_ID).with_menu(tray_menu(form))
+pub fn build_tray(pinned: bool) -> SystemTray {
+  SystemTray::new().with_id(TRAY_ID).with_menu(tray_menu(pinned))
 }
 
-/// 形态变化后刷新托盘子菜单勾选
-pub fn sync_tray_selection(app: &AppHandle, form: &str) {
+/// 置顶开关变化后刷新托盘勾选
+pub fn sync_tray_pinned(app: &AppHandle, pinned: bool) {
   if let Some(handle) = app.tray_handle_by_id(TRAY_ID) {
-    let pairs = [
-      ("form_topmost", form == "topmost"),
-      ("form_desktop", form == "desktop"),
-      ("form_mini", form == "mini"),
-    ];
-    for (id, active) in pairs.iter() {
-      if let Some(item) = handle.try_get_item(*id) {
-        let _ = item.set_selected(*active);
-      }
+    if let Some(item) = handle.try_get_item("sticky_pinned") {
+      let _ = item.set_selected(pinned);
     }
   }
 }
@@ -551,28 +512,28 @@ pub fn handle_tray_click(app: &AppHandle, id: &str) -> bool {
     "float_hide" => {
       let _ = hide_window(app, FLOAT_LABEL);
     }
-    "form_topmost" | "form_desktop" | "form_mini" => {
-      let form = id.replace("form_", "");
-      if crate::models::FLOAT_FORMS.contains(&form.as_str()) {
-        let _ = set_float_form(app, &form);
-        if let Some(state) = app.try_state::<Mutex<Store>>() {
-          let mut guard = match state.lock() {
-            Ok(value) => value,
-            Err(poisoned) => poisoned.into_inner(),
-          };
-          if guard.data.settings.float_form != form {
-            guard.data.settings.float_form = form.clone();
-            if guard.save().is_ok() {
-              drop(guard);
-              let _ = app.emit_all(
-                "store-changed",
-                crate::models::StoreEvent::changed("settings"),
-              );
-            }
-          }
+    "sticky_pinned" => {
+      let current = app
+        .try_state::<Mutex<Store>>()
+        .and_then(|s| s.lock().ok().map(|g| g.data.settings.sticky_pinned))
+        .unwrap_or(true);
+      let next = !current;
+      let _ = set_sticky_pinned(app, next);
+      if let Some(state) = app.try_state::<Mutex<Store>>() {
+        let mut guard = match state.lock() {
+          Ok(value) => value,
+          Err(poisoned) => poisoned.into_inner(),
+        };
+        guard.data.settings.sticky_pinned = next;
+        if guard.save().is_ok() {
+          drop(guard);
+          let _ = app.emit_all(
+            "store-changed",
+            crate::models::StoreEvent::changed("settings"),
+          );
         }
-        sync_tray_selection(app, &form);
       }
+      sync_tray_pinned(app, next);
     }
     "reminders" => {
       let _ = show_main(app, Some("/planned/reminders"));

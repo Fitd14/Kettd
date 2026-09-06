@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 
 pub const CATEGORIES: [&str; 3] = ["工作", "学习", "生活"];
 pub const PRIORITIES: [&str; 3] = ["high", "med", "low"];
-pub const FLOAT_FORMS: [&str; 3] = ["topmost", "desktop", "mini"];
 pub const DEFAULT_HOTKEY: &str = "Alt+Shift+A";
 pub const DEFAULT_MAIN_HOTKEY: &str = "Alt+Shift+O";
 pub const DEFAULT_DND_FROM: &str = "23:00";
@@ -274,8 +273,9 @@ impl Default for Dnd {
 pub struct Settings {
   /// 主题（float / dark / light …由前端决定，后端只存不解释）
   pub theme: String,
-  /// topmost | desktop | mini
-  pub float_form: String,
+  /// 便签固定 = 置顶（便签规格 §1：三形态收敛为单一便签，仅剩置顶开关；旧 floatForm 忽略即归一）
+  #[serde(default = "bool_true")]
+  pub sticky_pinned: bool,
   pub capture_hotkey: String,
   /// None = 未绑定全局快捷键
   pub main_hotkey: Option<String>,
@@ -297,7 +297,7 @@ impl Default for Settings {
   fn default() -> Self {
     Self {
       theme: "float".to_string(),
-      float_form: "topmost".to_string(),
+      sticky_pinned: true,
       capture_hotkey: DEFAULT_HOTKEY.to_string(),
       main_hotkey: Some(DEFAULT_MAIN_HOTKEY.to_string()),
       dnd: Dnd::default(),
@@ -314,9 +314,6 @@ impl Settings {
   pub fn coerce(&mut self) {
     if self.theme.trim().is_empty() {
       self.theme = "float".to_string();
-    }
-    if !FLOAT_FORMS.contains(&self.float_form.as_str()) {
-      self.float_form = "topmost".to_string();
     }
     if self.capture_hotkey.trim().is_empty() {
       self.capture_hotkey = DEFAULT_HOTKEY.to_string();
@@ -437,7 +434,7 @@ pub struct DndPayload {
 #[serde(rename_all = "camelCase", default)]
 pub struct SettingsPayload {
   pub theme: Option<String>,
-  pub float_form: Option<String>,
+  pub sticky_pinned: Option<bool>,
   pub capture_hotkey: Option<String>,
   pub main_hotkey: Option<String>,
   pub dnd: Option<DndPayload>,

@@ -100,7 +100,7 @@ export interface Dnd {
 
 export interface Settings {
   theme: string
-  floatForm: string
+  stickyPinned: boolean
   captureHotkey: string
   mainHotkey: string | null
   dnd: Dnd
@@ -112,7 +112,7 @@ export interface Settings {
 
 export interface SettingsPayload {
   theme?: string
-  floatForm?: string
+  stickyPinned?: boolean
   captureHotkey?: string
   mainHotkey?: string | null
   dnd?: Partial<Dnd>
@@ -246,7 +246,7 @@ export const openMainWindow = (route?: string) => call<void>('open_main_window',
 export const showFloat = () => call<void>('show_float')
 export const hideFloat = () => call<void>('hide_float')
 export const openDataFolder = () => call<void>('open_data_folder')
-export const setFloatForm = (form: string) => call<void>('set_float_form', { form })
+export const setStickyPinned = (pinned: boolean) => call<void>('set_sticky_pinned', { pinned })
 export const registerCaptureHotkey = (combo: string) => call<void>('register_capture_hotkey', { combo })
 export const registerMainHotkey = (combo: string | null) => call<void>('register_main_hotkey', { combo })
 /** 热键实际注册快照（null = 未绑上/已解绑），设置页据此标「未生效」 */

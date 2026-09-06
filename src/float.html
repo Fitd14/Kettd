@@ -32,10 +32,6 @@
       <div id="overdue"></div>
     </section>
   </div>
-  <div class="ministrip" id="ministrip" title="点开主界面">
-    <span class="l">今天剩 <b id="mRemain">0</b><span id="mUnit"> 件</span></span>
-    <span class="r">下一条 <span id="mNext">—</span></span>
-  </div>
 
   <script type="module">
 import * as api from './api.js';
@@ -81,10 +77,6 @@ const overdue = () => live().filter((t) => api.isOverdue(t, today()));
 
 function render() {
   if (S.health && S.health.health === 'corrupt') { showError('数据文件已损坏'); return; }
-  const form = (S.settings && S.settings.floatForm) || 'topmost';
-  document.body.classList.toggle('mini', form === 'mini');
-  document.body.classList.toggle('desktop', form === 'desktop');
-  document.body.classList.toggle('topmost', form === 'topmost');
   const pend = pending();
   const done = doneCnt();
   const total = done + pend.length;
@@ -118,11 +110,7 @@ function render() {
     await api.openMainWindow();
     api.emitNavigate('/today?open=' + encodeURIComponent(row.dataset.id));
   }));
-  const m = $('ministrip');
   const remain = pend.length;
-  $('mRemain').textContent = remain === 0 ? '清零 ✓' : (remain > 99 ? '99+' : String(remain));
-  $('mUnit').textContent = remain === 0 ? '' : ' 件';
-  $('mNext').textContent = next;
   renderChips();
   const qe = $('quick');
   if (qe && document.activeElement !== qe) qe.value = S.quick;
@@ -160,7 +148,6 @@ $('quick').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preve
 $('quickAdd').addEventListener('click', commitQuick);
 $('btnManage').addEventListener('click', async () => { await api.openMainWindow(); api.emitNavigate('/planned'); });
 $('btnHide').addEventListener('click', () => api.hideFloat());
-$('ministrip').addEventListener('click', async () => { await api.openMainWindow(); });
 
 api.onEvent('store-changed', api.debounce(lightRefresh, 200));
 api.onEvent('theme-changed', (t) => api.applyTheme(t));

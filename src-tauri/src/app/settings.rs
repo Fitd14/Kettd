@@ -39,7 +39,7 @@ pub fn apply_with_hotkeys(
 
 fn restore(store: &mut Store, snapshot: &Settings) {
   store.data.settings.theme = snapshot.theme.clone();
-  store.data.settings.float_form = snapshot.float_form.clone();
+  store.data.settings.sticky_pinned = snapshot.sticky_pinned;
   store.data.settings.capture_hotkey = snapshot.capture_hotkey.clone();
   store.data.settings.main_hotkey = snapshot.main_hotkey.clone();
 }
@@ -61,7 +61,7 @@ mod tests {
     store.data = AppData::default();
     store.data.settings.capture_hotkey = "Alt+Shift+A".to_string();
     store.data.settings.theme = "纸白".to_string();
-    store.data.settings.float_form = "topmost".to_string();
+    store.data.settings.sticky_pinned = true;
     store
   }
 
@@ -91,7 +91,7 @@ mod tests {
     hotkeys.fail_when = Some("Ctrl+Shift+C".to_string());
     let patch = SettingsPayload {
       theme: Some("石墨".to_string()),
-      float_form: Some("mini".to_string()),
+      sticky_pinned: Some(false),
       capture_hotkey: Some("Ctrl+Shift+C".to_string()),
       ..Default::default()
     };
@@ -99,7 +99,7 @@ mod tests {
     assert!(error.contains("占用"), "失败要给可展示的中文短句：{error}");
     let settings = &store.data.settings;
     assert_eq!(settings.theme, "纸白", "主题回滚");
-    assert_eq!(settings.float_form, "topmost", "形态回滚");
+    assert!(settings.sticky_pinned, "置顶回滚");
     assert_eq!(settings.capture_hotkey, "Alt+Shift+A", "捕获键回滚");
   }
 

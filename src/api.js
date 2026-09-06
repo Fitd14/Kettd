@@ -59,7 +59,7 @@ export async function openMainWindow() { return call('open_main_window'); }
 export async function showFloat() { return call('show_float'); }
 export async function hideFloat() { return call('hide_float'); }
 export async function openDataFolder() { return call('open_data_folder'); }
-export async function setFloatForm(form) { return call('set_float_form', { form }); }
+export async function setStickyPinned(pinned) { return call('set_sticky_pinned', { pinned }); }
 export async function registerCaptureHotkey(combo) { return call('register_capture_hotkey', { combo }); }
 export async function registerMainHotkey(combo) { return call('register_main_hotkey', { combo }); }
 /** 热键实际注册快照 { capture, main }（null = 未绑上/已解绑），设置页据此标「未生效 */

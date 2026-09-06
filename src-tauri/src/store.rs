@@ -13,8 +13,7 @@ use crate::models::{
   patch_datetime, patch_text, parse_wall, to_local, AppData, BackupInfo, CATEGORIES,
   DataHealthV2, MigrationIssue, MigrationReport, Note, PRIORITIES, Reminder, ReminderPayload,
   RuntimeState,
-  Repeat, Settings, SettingsPayload, Source, Subtask, Task, TaskPayload, FLOAT_FORMS,
-  TRASH_RETENTION_DAYS,
+  Repeat, Settings, SettingsPayload, Source, Subtask, Task, TaskPayload, TRASH_RETENTION_DAYS,
 };
 use crate::ports::clock::{Clock, SystemClock};
 use crate::ports::store_backend::StoreBackend;
@@ -395,11 +394,7 @@ fn migrate_settings(raw: &Value, settings: &mut Settings, report: &mut Migration
     );
     settings.theme = "float".to_string();
   }
-  if let Some(value) = raw.get("floatForm").and_then(|item| item.as_str()) {
-    if FLOAT_FORMS.contains(&value) {
-      settings.float_form = value.to_string();
-    }
-  }
+  // v1/v2 旧 floatForm（topmost/desktop/mini）一律忽略：sticky_pinned 默认 true 即归一（便签规格 §2）
   if let Some(value) = raw.get("captureHotkey").and_then(|item| item.as_str()) {
     if !value.trim().is_empty() {
       settings.capture_hotkey = value.trim().to_string();
@@ -1284,11 +1279,8 @@ impl Store {
         }
         settings.theme = value.trim().to_string();
       }
-      if let Some(value) = &patch.float_form {
-        if !FLOAT_FORMS.contains(&value.as_str()) {
-          return Err("悬浮形态只能是 topmost / desktop / mini".to_string());
-        }
-        settings.float_form = value.clone();
+      if let Some(value) = patch.sticky_pinned {
+        settings.sticky_pinned = value;
       }
       if let Some(value) = &patch.capture_hotkey {
         let trimmed = value.trim();

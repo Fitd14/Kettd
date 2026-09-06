@@ -2,8 +2,8 @@
 
 use crate::export;
 use crate::models::{
-  clocks_of, is_valid_choice, new_id, normalize_datetime, now_text,
-  Bootstrap, CATEGORIES, DataHealthV2, DEFAULT_HOTKEY, FLOAT_FORMS,
+  clocks_of, new_id, normalize_datetime, now_text,
+  Bootstrap, CATEGORIES, DataHealthV2, DEFAULT_HOTKEY,
   HotkeyStatus, MigrationReport, Note, NotePayload, PRIORITIES, REMINDER_CAP_DEFAULT, Reminder, ReminderPayload,
   RestoreResult, Settings, SettingsPayload, Source, StoreEvent, Subtask, Task, TaskPayload,
   TRASH_RETENTION_DAYS, today,
@@ -431,17 +431,11 @@ pub fn set_settings(
   let mut store = lock(&state);
   store.ensure_writable()?;
   let old_theme = store.data.settings.theme.clone();
-  let old_form = store.data.settings.float_form.clone();
-  // 两槽位热键事务：任一换绑失败，主题/形态/键位整批回滚（规则在 app/settings）
+  // 两槽位热键事务：任一换绑失败，主题/键位整批回滚（规则在 app/settings）
   let mut hotkeys = crate::infra::tauri_hotkeys::TauriHotkeys::new(&app);
   crate::app::settings::apply_with_hotkeys(&mut store, &patch, &mut hotkeys)?;
-  let next_form = store.data.settings.float_form.clone();
   let next_theme = store.data.settings.theme.clone();
   store.save()?;
-  if next_form != old_form {
-    let _ = runtime::set_float_form(&app, &next_form);
-    runtime::sync_tray_selection(&app, &next_form);
-  }
   if next_theme != old_theme {
     let _ = app.emit_all("theme-changed", next_theme.clone());
   }
@@ -467,24 +461,21 @@ pub fn hide_float(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn set_float_form(
+pub fn set_sticky_pinned(
   app: AppHandle,
   state: State<'_, Shared>,
-  form: String,
+  pinned: bool,
 ) -> Result<(), String> {
-  if !is_valid_choice(&FLOAT_FORMS, &form) {
-    return Err("悬浮形态只能是 topmost / desktop / mini".to_string());
-  }
-  runtime::set_float_form(&app, &form)?;
+  runtime::set_sticky_pinned(&app, pinned)?;
   let mut store = lock(&state);
-  if store.data.settings.float_form != form {
+  if store.data.settings.sticky_pinned != pinned {
     store.ensure_writable()?;
-    store.data.settings.float_form = form.clone();
+    store.data.settings.sticky_pinned = pinned;
     store.data.settings.coerce();
     store.save()?;
     emit(&app, StoreEvent::changed("settings"));
   }
-  runtime::sync_tray_selection(&app, &form);
+  runtime::sync_tray_pinned(&app, pinned);
   Ok(())
 }
 
@@ -654,7 +645,6 @@ pub fn get_form_hints() -> Result<serde_json::Value, String> {
   Ok(serde_json::json!({
     "categories": CATEGORIES,
     "priorities": PRIORITIES,
-    "floatForms": FLOAT_FORMS,
     "sources": ["capture", "manual", "seed"],
     "repeat": ["none", "daily", "workdays", "weekly"],
     "defaultHotkey": DEFAULT_HOTKEY,

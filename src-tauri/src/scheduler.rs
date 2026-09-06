@@ -101,7 +101,6 @@ pub fn start(app: AppHandle) {
       };
       // ④ 锁外广播
       broadcast(&app, events);
-      blur_float_on_desktop_form(&app);
     }
   });
 }
@@ -504,20 +503,6 @@ pub fn in_dnd(settings: &Settings, at: &DateTime<Local>) -> bool {
   }
 }
 
-// ---------------------------------------------------------------- 桌面形态失焦收起
-
-fn blur_float_on_desktop_form(app: &AppHandle) {
-  if !runtime::float_should_hide_on_blur(app) {
-    return;
-  }
-  if !runtime::float_is_visible(app) || runtime::float_is_focused(app) {
-    return;
-  }
-  if runtime::capture_is_visible(app) {
-    return;
-  }
-  let _ = runtime::hide_window(app, runtime::FLOAT_LABEL);
-}
 
 // ---------------------------------------------------------------- 调度决策单测
 // 离线构造 Store（字段全 pub），不碰 %APPDATA%、不建窗口、不真实等待时间。

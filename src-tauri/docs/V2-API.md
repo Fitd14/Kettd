@@ -75,7 +75,7 @@ interface Dnd { enabled: boolean; from: string; to: string }   // 默认 true, 2
 
 interface Settings {
   theme: string                    // 主题名（float / dark / light，前端解释）
-  floatForm: FloatForm
+  stickyPinned: FloatForm
   captureHotkey: string            // 默认 "Alt+Shift+A"
   mainHotkey: string | null        // 打开主界面全局热键；null = 未绑定；默认 "Alt+Shift+O"
   dnd: Dnd
@@ -152,12 +152,12 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `toggle_reminder` | `id` | `Reminder` | completed ⇄ enabled；重新启用会清 `snoozedUntil` |
 | `snooze_reminder` | `id`, `minutes` | `Reminder` | 写 `snoozedUntil = now + minutes`（1–720） |
 | `get_settings` | — | `Settings` | |
-| `set_settings` | `patch: Partial<Settings>` | `Settings` | 部分字段 MERGE；改 `captureHotkey` 会真实重绑热键，失败整次回滚并 Err「快捷键被占用，请用备用入口」；改 `floatForm` 同步改窗口 |
+| `set_settings` | `patch: Partial<Settings>` | `Settings` | 部分字段 MERGE；改 `captureHotkey` 会真实重绑热键，失败整次回滚并 Err「快捷键被占用，请用备用入口」；改 `stickyPinned` 同步改窗口 |
 | `open_main_window` | — | `void` | 显示主窗并请求焦点 |
 | `show_float` | — | `void` | 显示悬浮面板并请求焦点 |
 | `hide_float` | — | `void` | 隐藏悬浮面板（不退出进程） |
 | `open_data_folder` | — | `void` | 在文件管理器里打开 `%APPDATA%/todo-list`；失败 Err「打不开这个位置，请手动前往」 |
-| `set_float_form` | `form` | `void` | `mini` → 无边框 + 300×56 + 禁止 resize + 贴主屏右下角；`topmost` → 置顶 + 回 380×520；`desktop` → 取消置顶且失焦自动收起；结果写回 `settings.floatForm` |
+| `set_sticky_pinned` | `pinned: boolean` | `void` | 便签规格 §1（三形态收敛为单一便签）：固定=仅切换置顶，位置始终可拖；结果写回 `settings.stickyPinned`，托盘勾选同步 |
 | `register_capture_hotkey` | `combo` | `Settings` | 例 `Alt+Shift+A`；注册失败 → Err「快捷键被占用，请用备用入口」（保持旧值） |
 | `register_main_hotkey` | `combo` | `Settings` | 打开主界面全局热键；`combo` 空串 = 解绑（`mainHotkey` → `null`）；与 `register_capture_hotkey` 同一约束：组合键互斥、失败保持旧值 |
 | `open_capture_overlay` | — | `void` | label `capture`：560×80、无边框、「硫酸纸」材质（OS `apply_blur` 暖纸 tint + DWM 圆角，CSS 层负责反光描边/厚度/可读性，详见 `styles.css` 的 `--vellum-*` 令牌）、屏幕上部 28% 居中、置顶，显示后 emit `capture-opened` 让前端聚焦输入框；失焦自动收起 |
@@ -170,7 +170,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `get_data_health` | — | `DataHealthV2` | 损坏恢复页数据源 |
 | `get_hotkey_status` | — | `HotkeyStatus` | 两个全局热键的**实际注册**快照 `{capture, main}`（未绑上/已解绑为 `null`）；设置页与 `settings.captureHotkey / mainHotkey` 比对，不一致即标「未生效」（qa-1）。运行期状态，不落盘 |
 | `clear_migration_report` | — | `MigrationReport \| null` | 前端展示完迁移报告后清账，避免每次启动重复提示 |
-| `get_form_hints` | — | `{ categories, priorities, floatForms, sources, repeat, defaultHotkey, defaultCap, retentionDays, today }` | 表单常量，避免前端硬编码 |
+| `get_form_hints` | — | `{ categories, priorities, stickyPinneds, sources, repeat, defaultHotkey, defaultCap, retentionDays, today }` | 表单常量，避免前端硬编码 |
 
 参数名映射：Rust 侧 `snake_case` 形参由 Tauri v1 宏自动转成 camelCase（`task_id` → `taskId`，`include_deleted` → `includeDeleted`）。结构体入参（`TaskPayload` 等）本身带 `rename_all = "camelCase"`。
 
@@ -178,7 +178,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 
 - 时间字段传 `null` 或空串 = 清空；传字符串 = 归一后写入，归一失败 → Err（不会静默丢值）。
 - `title` 传空串 → Err「标题不能为空」。
-- `category` / `priority` / `floatForm` / `dnd.from` / `dnd.to` 非法值 → 中文 Err，不落库。
+- `category` / `priority` / `stickyPinned` / `dnd.from` / `dnd.to` 非法值 → 中文 Err，不落库。
 - `subtasks` / `notes` 传数组 = 整体替换（空标题项会被丢弃）。
 
 ## 3. 事件表（后端 → 前端）
@@ -204,7 +204,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 6. 错过超过 24h：不再发通知，只记 `missed` 并清账。
 7. 应用未运行期间错过的：启动后第一次 tick 合并成一条「错过 N 条提醒」，不逐条轰炸。
 8. 每次落库（`lastFired` / 单次提醒的 `completed=true` 或 `remindAt` 清空 / `fired` 键）都走同一套原子写，并 emit `store-changed`。
-9. 顺带：`floatForm === 'desktop'` 且悬浮面板可见又失焦（捕获条未显示）→ 自动隐藏。
+9. 顺带：`stickyPinned === 'desktop'` 且悬浮面板可见又失焦（捕获条未显示）→ 自动隐藏。
 10. corrupt 状态下调度线程不发通知也不写库（等用户恢复）。
 
 ## 5. 托盘与窗口（配置侧）

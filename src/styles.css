@@ -277,16 +277,6 @@ select.input { width: auto; }
 .float-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--card)); flex: none; }
 .float-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
 body.desktop .float-app { background: hsl(var(--background)); }
-.ministrip { display: none; }
-body.mini { overflow: hidden; }
-body.mini .float-app { display: none; }
-body.mini .ministrip { display: flex; height: 56px; max-height: 56px; align-items: center; justify-content: space-between; gap: 10px; padding: 0 14px; background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--r-md); box-shadow: var(--shadow-md); cursor: pointer; transition: box-shadow 150ms ease-out, transform 120ms ease-out; }
-body.mini .ministrip:hover { box-shadow: var(--shadow-lg); }
-body.mini .ministrip:active { transform: scale(0.99); }
-.ministrip .l { font-size: 11px; line-height: 1.25; color: hsl(var(--muted-foreground)); }
-.ministrip .l b { font-size: 14px; color: hsl(var(--foreground)); font-weight: 600; }
-.ministrip .r { font-size: 11px; color: hsl(var(--muted-foreground)); }
-.ministrip .r span { font-family: ui-monospace, Consolas, monospace; color: hsl(var(--foreground)); }
 
 /* ---- 捕获条（capture）：硫酸纸材质。
    磨砂由 OS 材质层提供（runtime::apply_capture_material），它画在**整个窗口矩形**上 ——

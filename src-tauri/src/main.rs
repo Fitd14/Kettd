@@ -34,7 +34,7 @@ fn main() {
   if purged > 0 {
     let _ = boot.save();
   }
-  let form = boot.data.settings.float_form.clone();
+  let sticky_pinned = boot.data.settings.sticky_pinned;
 
   let app = tauri::Builder::default()
     // 状态必须在窗口创建前注册：float 窗口随 build() 立即加载页面并 invoke，
@@ -74,7 +74,7 @@ fn main() {
       commands::open_main_window,
       commands::show_float,
       commands::hide_float,
-      commands::set_float_form,
+      commands::set_sticky_pinned,
       commands::open_capture_overlay,
       commands::close_capture_overlay,
       commands::capture_start_drag,
@@ -86,7 +86,7 @@ fn main() {
       commands::clear_migration_report,
       commands::export_weekly
     ])
-    .system_tray(runtime::build_tray(&form))
+    .system_tray(runtime::build_tray(sticky_pinned))
     .setup(|app| {
       let handle = app.handle().clone();
       let state = app.state::<Mutex<store::Store>>();
@@ -155,13 +155,14 @@ fn main() {
       });
       // 提醒调度线程（托盘常驻，A3 批复）
       scheduler::start(handle.clone());
-      // 形态跟随设置
+      // 便签置顶跟随设置 + 恢复记位（位置在 runtime.json 的 note_pos，ADR-0007）
       let state = handle.state::<Mutex<store::Store>>();
-      let want = match state.lock() {
-        Ok(guard) => guard.data.settings.float_form.clone(),
-        Err(poisoned) => poisoned.into_inner().data.settings.float_form.clone(),
+      let pinned = match state.lock() {
+        Ok(guard) => guard.data.settings.sticky_pinned,
+        Err(poisoned) => poisoned.into_inner().data.settings.sticky_pinned,
       };
-      let _ = runtime::set_float_form(&handle, &want);
+      let _ = runtime::set_sticky_pinned(&handle, pinned);
+      runtime::restore_sticky_pos(&handle);
       if let Some(tray) = handle.tray_handle_by_id(runtime::TRAY_ID) {
         let _ = tray.set_tooltip("待办列表 · 常驻托盘");
       }
@@ -187,6 +188,10 @@ fn main() {
         tauri::WindowEvent::Focused(false) if label == runtime::CAPTURE_LABEL => {
           runtime::save_capture_pos_window(event.window());
           let _ = event.window().hide();
+        }
+        // 便签拖动即记位（位置归 runtime.json，不轮转）
+        tauri::WindowEvent::Moved(_) if label == runtime::FLOAT_LABEL => {
+          runtime::save_sticky_pos_window(event.window());
         }
         _ => {}
       }
