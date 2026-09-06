@@ -244,28 +244,28 @@ pub fn save_capture_pos(app: &AppHandle) {
   let Some(window) = app.get_window(CAPTURE_LABEL) else {
     return;
   };
-  let Ok(pos) = window.outer_position() else {
-    return;
-  };
-  if let Some(state) = app.try_state::<Mutex<Store>>() {
-    if let Ok(mut store) = state.lock() {
-      store.data.settings.capture_pos = Some([pos.x, pos.y]);
-      let _ = store.save();
-    }
-  }
+  save_capture_pos_window(&window);
 }
 
-/// 窗口事件路径只有 &Window 时用：直接持久化其位置
+/// 窗口事件路径只有 &Window 时用：直接持久化其位置。
+/// 位置没变不落盘；要写也走不轮转备份的轻量路径 —— 位置是高频低价值变更，
+/// 全量轮转会把历史备份里真正有价值的旧档顶掉。
 pub fn save_capture_pos_window(window: &Window) {
   let Ok(pos) = window.outer_position() else {
     return;
   };
-  if let Some(state) = window.try_state::<Mutex<Store>>() {
-    if let Ok(mut store) = state.lock() {
-      store.data.settings.capture_pos = Some([pos.x, pos.y]);
-      let _ = store.save();
-    }
+  let Some(state) = window.try_state::<Mutex<Store>>() else {
+    return;
+  };
+  let Ok(mut store) = state.lock() else {
+    return;
+  };
+  let next = Some([pos.x, pos.y]);
+  if store.data.settings.capture_pos == next {
+    return;
   }
+  store.data.settings.capture_pos = next;
+  let _ = store.save_light();
 }
 
 /// 桌面材质：**主用 accent blur + 暖纸 tint，acrylic 退为兜底**。

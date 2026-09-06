@@ -424,7 +424,8 @@ pub fn delete_reminder(
     .find_reminder_index(&id)
     .ok_or_else(reminder_error)?;
   store.data.reminders.remove(index);
-  let prefix = format!("r|{}|", id);
+  // 用键生成器本身造前缀，格式永远与写入侧一致（reminder_key 是 r|{id}|{stamp}）
+  let prefix = crate::store::reminder_key(&id, "");
   store.data.fired.retain(|key| !key.starts_with(&prefix));
   save_and_emit(&mut store, &app, &id)?;
   Ok(())

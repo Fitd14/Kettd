@@ -760,13 +760,26 @@ impl Store {
   /// 读—改—内存—序列化 tmp—fs::rename 原子替换；覆盖写前轮转备份
   pub fn save(&mut self) -> Result<(), String> {
     self.ensure_writable()?;
+    let json = self.serialized()?;
     let dir = self.dir.clone();
-    let json = serde_json::to_string_pretty(&self.data)
-      .map_err(|error| format!("数据序列化失败，本次没有保存：{}", brief(&error.to_string())))?;
     if let Err(error) = rotate_backups(&dir) {
       return Err(file_error("备份轮转失败，本次没有保存", &error));
     }
     write_json(&dir, TMP_FILE, DATA_FILE, &json)
+  }
+
+  /// 轻量保存：不轮转备份。只给窗口位置记忆这类高频低价值写入用，
+  /// 避免把轮转历史里真正有价值的旧档顶掉。
+  pub fn save_light(&mut self) -> Result<(), String> {
+    self.ensure_writable()?;
+    let json = self.serialized()?;
+    let dir = self.dir.clone();
+    write_json(&dir, TMP_FILE, DATA_FILE, &json)
+  }
+
+  fn serialized(&self) -> Result<String, String> {
+    serde_json::to_string_pretty(&self.data)
+      .map_err(|error| format!("数据序列化失败，本次没有保存：{}", brief(&error.to_string())))
   }
 
   /// 只写不轮转（回滚备份时使用，避免挤掉刚选中的备份）
@@ -824,23 +837,28 @@ impl Store {
   /// 启动时物理清理超过保留期的软删任务（含其子任务与备注）
   pub fn purge_expired(&mut self, days: i64) -> usize {
     let limit = now() - Duration::days(days);
-    let before = self.data.tasks.len();
-    self.data.tasks.retain(|task| match &task.deleted_at {
-      None => true,
-      Some(stamp) => match parse_wall(stamp).and_then(|wall| to_local(&wall)) {
-        Some(when) => when > limit,
+    let mut purged_ids: Vec<String> = Vec::new();
+    self.data.tasks.retain(|task| {
+      let keep = match &task.deleted_at {
         None => true,
-      },
+        Some(stamp) => match parse_wall(stamp).and_then(|wall| to_local(&wall)) {
+          Some(when) => when > limit,
+          None => true,
+        },
+      };
+      if !keep {
+        purged_ids.push(task.id.clone());
+      }
+      keep
     });
-    let dropped = before - self.data.tasks.len();
-    if dropped > 0 {
-      let alive: Vec<String> = self.data.tasks.iter().map(|task| task.id.clone()).collect();
-      self.data.fired.retain(|key| match key.split('|').next() {
-        Some(id) => alive.iter().any(|value| value == id),
-        None => false,
+    if !purged_ids.is_empty() {
+      // fired 键是 t|{id}|{stamp}，id 在第二段；只回收被清任务自己的键
+      self.data.fired.retain(|key| match key.split('|').nth(1) {
+        Some(id) => !purged_ids.iter().any(|value| value == id),
+        None => true,
       });
     }
-    dropped
+    purged_ids.len()
   }
 
   // -------------------------------------------------------------- 领域写操作
@@ -958,7 +976,8 @@ impl Store {
       return Err("请先删除这条待办，再彻底清除".to_string());
     }
     let removed = self.data.tasks.remove(index);
-    let prefix = format!("{}|", removed.id);
+    // 用键生成器本身造前缀，格式永远与写入侧一致（task_key 是 t|{id}|{stamp}）
+    let prefix = task_key(&removed.id, "");
     self.data.fired.retain(|key| !key.starts_with(&prefix));
     self
       .undo
@@ -1636,6 +1655,63 @@ mod tests {
       data.fired,
       vec!["t|t1|2026-09-03T09:00".to_string(), "r|r1|2026-09-03T10:00".to_string()],
       "非字符串键丢弃可以，但合法键一个不能少（跨重启不重复响）"
+    );
+  }
+
+  #[test]
+  fn purge_expired_recycles_only_purged_task_keys_and_keeps_the_rest() {
+    let mut store = Store::new(Path::new("unused"));
+    let old = fmt_dt(now() - Duration::days(TRASH_RETENTION_DAYS + 1));
+    let fresh = fmt_dt(now() - Duration::days(1));
+    store.data.tasks.push(Task {
+      id: "t-old".to_string(),
+      deleted_at: Some(old),
+      ..Default::default()
+    });
+    store.data.tasks.push(Task {
+      id: "t-keep".to_string(),
+      deleted_at: Some(fresh),
+      ..Default::default()
+    });
+    store.data.fired = vec![
+      task_key("t-old", "2026-09-01T09:00"),
+      task_key("t-keep", "2026-09-01T09:00"),
+      reminder_key("r-1", "2026-09-01T09:00"),
+    ];
+
+    let dropped = store.purge_expired(TRASH_RETENTION_DAYS);
+
+    assert_eq!(dropped, 1, "只应清掉过期的软删任务");
+    assert_eq!(
+      store.data.fired,
+      vec![
+        task_key("t-keep", "2026-09-01T09:00"),
+        reminder_key("r-1", "2026-09-01T09:00"),
+      ],
+      "只回收被清任务自己的键；在世任务与提醒的键一个不能少，否则会重复补发提醒"
+    );
+  }
+
+  #[test]
+  fn purge_task_recycles_its_own_fired_keys() {
+    let mut store = Store::new(Path::new("unused"));
+    store.data.tasks.push(Task {
+      id: "t-gone".to_string(),
+      deleted_at: Some("2026-09-01T10:00".to_string()),
+      ..Default::default()
+    });
+    store.data.fired = vec![
+      task_key("t-gone", "2026-09-01T09:00"),
+      reminder_key("r-1", "2026-09-01T09:00"),
+    ];
+
+    let removed = store.purge_task("t-gone").expect("回收站里的任务应可彻底清除");
+
+    assert_eq!(removed.id, "t-gone");
+    assert_eq!(
+      store.data.fired,
+      vec![reminder_key("r-1", "2026-09-01T09:00")],
+      "彻底清除后该任务的 fired 键必须回收"
     );
   }
 }
