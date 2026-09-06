@@ -1,49 +1,130 @@
-import { Moon, Sun } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  applyTheme,
+  getBootstrap,
+  onEvent,
+  takePendingRoute,
+  type Bootstrap,
+} from '@/lib/api'
+import { todaySections } from '../../src/kernel/selectors.js'
+import { localToday } from '../../src/kernel/time.js'
+import { useUndoToast, UndoToast } from '@/components/undo-toast'
+import { TodayView } from '@/views/TodayView'
+import { InboxView } from '@/views/InboxView'
+import { PlannedView } from '@/views/PlannedView'
+import { ReviewView } from '@/views/ReviewView'
+import { SettingsView } from '@/views/SettingsView'
+import './styles/app.css'
 
-// M0 冒烟页：验证 (1) shadcn 组件可用 (2) Kettd 设计令牌生效 (3) 暗态可切 (4) Tailwind v4 工具类成图
+const ROUTES = [
+  { hash: '#/today', label: '今天' },
+  { hash: '#/inbox', label: '收件箱' },
+  { hash: '#/planned', label: '计划' },
+  { hash: '#/review', label: '回顾' },
+  { hash: '#/settings', label: '设置' },
+] as const
+
+type Route = (typeof ROUTES)[number]['hash']
+
+function routeFromHash(): Route {
+  const h = window.location.hash as Route
+  return ROUTES.some((r) => r.hash === h) ? h : '#/today'
+}
+
+/**
+ * 应用外壳（M3）：侧栏五视图 + 单一真相源（后端 Store）。
+ * 跨窗一致性沿用契约：store-changed 广播 → 重拉（api.ts 的补发队列保证启动竞态不丢事件）。
+ */
 export default function App() {
-  const [dark, setDark] = useState(false)
+  const [route, setRoute] = useState<Route>(routeFromHash)
+  const [boot, setBoot] = useState<Bootstrap | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const undo = useUndoToast()
+
+  const refresh = useCallback(async () => {
+    const r = await getBootstrap()
+    if (r.err || !r.data) {
+      setError(r.err ?? '启动加载失败')
+      return
+    }
+    setError(null)
+    setBoot(r.data)
+    applyTheme(r.data.settings.theme)
+  }, [])
+
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark)
-  }, [dark])
+    void refresh()
+    // E14：store-changed 在订阅前到达会先进补发队列，挂上监听即回放
+    const off = onEvent('store-changed', () => { void refresh() })
+    // 跨窗导航兜底：主窗 focus 时消费 localStorage 里的待跳转路由
+    const pending = takePendingRoute()
+    if (pending) {
+      const hash = `#${pending.split('?')[0]}`
+      if (ROUTES.some((r) => r.hash === hash)) {
+        window.location.hash = hash
+        setRoute(hash as Route)
+      }
+    }
+    const onHash = () => setRoute(routeFromHash())
+    window.addEventListener('hashchange', onHash)
+    return () => { off(); window.removeEventListener('hashchange', onHash) }
+  }, [refresh])
+
+  const today = localToday()
+  const todayCount = useMemo(() => {
+    if (!boot) return 0
+    const s = todaySections(boot.tasks, today)
+    return s.due.length + s.carried.length
+  }, [boot, today])
+  const inboxCount = useMemo(() => {
+    if (!boot) return 0
+    return boot.tasks.filter(
+      (t) => !t.done && !t.deletedAt && !t.plannedDate && !t.dueAt,
+    ).length
+  }, [boot])
+
+  const counts: Partial<Record<Route, number>> = {
+    '#/today': todayCount,
+    '#/inbox': inboxCount,
+  }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="w-full max-w-sm space-y-4 rounded-lg border border-border bg-card p-6 text-card-foreground shadow-md">
-        <div className="space-y-1">
-          <h1 className="text-lg font-semibold">Kettd · React 基座已就绪</h1>
-          <p className="text-sm text-muted-foreground">
-            M0 空壳双轨：vanilla 发布路径未动，此页仅验证新栈与令牌。
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button variant="default">主按钮</Button>
-          <Button variant="secondary">次按钮</Button>
-          <Button variant="destructive">危险</Button>
-          <Button variant="outline">描边</Button>
-        </div>
-
-        <div className="flex items-center gap-2 text-sm">
-          <span className="rounded-pill bg-cat-life/15 px-2 py-0.5 text-cat-life">生活</span>
-          <span className="rounded-pill bg-cat-study/15 px-2 py-0.5 text-cat-study">学习</span>
-          <span className="rounded-pill bg-pri-high/15 px-2 py-0.5 text-pri-high">高优先</span>
-          <span className="ml-auto text-xs text-muted-foreground">令牌与 vanilla 单一来源一致</span>
-        </div>
-
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn('w-full justify-center gap-2')}
-          onClick={() => setDark((v) => !v)}
-        >
-          {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
-          切换到{dark ? '亮' : '暗'}色
-        </Button>
-      </div>
+    <div className="shell">
+      <nav className="shell-side" aria-label="视图">
+        <div className="brand">Kettd</div>
+        {ROUTES.map((r) => (
+          <button
+            key={r.hash}
+            className={`side-item${route === r.hash ? ' on' : ''}`}
+            onClick={() => { window.location.hash = r.hash; setRoute(r.hash) }}
+          >
+            <span className="label">{r.label}</span>
+            {counts[r.hash] ? <span className="count">{counts[r.hash]}</span> : null}
+          </button>
+        ))}
+      </nav>
+      <main className="shell-main">
+        {error && (
+          <div className="view">
+            <div className="inline-err" role="alert">{error}</div>
+          </div>
+        )}
+        {!error && !boot && (
+          <div className="view">
+            <div className="empty">加载中…</div>
+          </div>
+        )}
+        {boot && route === '#/today' && (
+          <TodayView boot={boot} refresh={refresh} undo={undo} />
+        )}
+        {boot && route === '#/inbox' && (
+          <InboxView boot={boot} refresh={refresh} undo={undo} />
+        )}
+        {boot && route === '#/planned' && <PlannedView boot={boot} refresh={refresh} />}
+        {boot && route === '#/review' && <ReviewView boot={boot} />}
+        {boot && route === '#/settings' && <SettingsView boot={boot} refresh={refresh} />}
+      </main>
+      <UndoToast state={undo.state} onUndo={() => { void undo.undo() }} onDismiss={undo.dismiss} />
     </div>
   )
 }

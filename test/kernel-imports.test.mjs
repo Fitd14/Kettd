@@ -33,17 +33,25 @@ const kernelFiles = existsSync(KDIR) ? readdirSync(KDIR).filter((f) => f.endsWit
 assert.ok(kernelFiles.length >= 2, `src/kernel/ 至少应有 text.js 与 rem-editor.js，实际：${kernelFiles.join(',')}`);
 
 const exported = new Map();
-for (const f of kernelFiles) exported.set(`./kernel/${f}`, exportsOf(path.join(KDIR, f)));
+for (const f of kernelFiles) exported.set(f, exportsOf(path.join(KDIR, f)));
 
-const consumers = ['src/index.html', 'src/float.html', 'src/capture.html', 'src/api.js']
+// 消费方 = vanilla 四窗 + src-react（M3 起视图层直接依赖内核，ADR-0001 ①）
+const consumers = [
+  'src/index.html', 'src/float.html', 'src/capture.html', 'src/api.js',
+  'src-react/src/App.tsx', 'src-react/src/lib/api.ts', 'src-react/src/lib/kernel.ts',
+  'src-react/src/capture/CaptureWindow.tsx', 'src-react/src/capture/main.tsx',
+  'src-react/src/views/TodayView.tsx', 'src-react/src/views/InboxView.tsx',
+  'src-react/src/views/PlannedView.tsx', 'src-react/src/views/ReviewView.tsx',
+  'src-react/src/views/SettingsView.tsx',
+]
   .filter((p) => existsSync(path.join(root, p)));
 assert.ok(consumers.length >= 4, '消费方清单与实际文件不符，检查是否漏了窗口文件');
 
 let checks = 0;
 for (const rel of consumers) {
   const src = readFileSync(path.join(root, rel), 'utf8');
-  for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s*['"](\.\/kernel\/[\w.-]+\.js)['"]/g)) {
-    const spec = m[2];
+  for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s*['"]([^'"]*kernel\/[\w.-]+\.js)['"]/g)) {
+    const spec = path.basename(m[2]);
     assert.ok(exported.has(spec), `${rel}: 引用了不存在的内核模块 ${spec}`);
     const names = m[1].split(',').map((s) => s.trim().split(/\s+as\s+/)[0]).filter(Boolean);
     for (const n of names) {
@@ -59,7 +67,7 @@ assert.ok(checks >= 10, `只比对了 ${checks} 个导入名，疑似正则没�
 // 消费路径有两种：① 直接 import { A } from './kernel/x.js'；
 // ② api.js 再导出 export { A } from './kernel/x.js'，各窗口以 api.A 使用。
 const usedNames = new Set();
-const BRACE_RE = /(?:import|export)\s*\{([^}]*)\}\s*from\s*['"]\.\/kernel\/[\w.-]+\.js['"]/g;
+const BRACE_RE = /(?:import|export)\s*\{([^}]*)\}\s*from\s*['"][^'"]*kernel\/[\w.-]+\.js['"]/g;
 for (const rel of consumers) {
   const src = readFileSync(path.join(root, rel), 'utf8');
   for (const m of src.matchAll(BRACE_RE)) {

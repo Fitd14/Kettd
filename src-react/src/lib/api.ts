@@ -44,6 +44,8 @@ export interface Task {
   legacy?: boolean
   /** 单向 task→KB 引用（frame H1b 预埋） */
   kbRefs?: string[]
+  /** 用户主动钉上便签的单条（便签规格 D2） */
+  stickyPinned?: boolean
   subtasks: Subtask[]
   notes: Note[]
   source: 'capture' | 'manual' | 'seed'
@@ -64,6 +66,7 @@ export interface TaskPayload {
   doneAt?: unknown
   deletedAt?: unknown
   legacy?: boolean
+  stickyPinned?: boolean | null
   kbRefs?: string[] | null
   subtasks?: Subtask[]
   notes?: Note[]
@@ -119,6 +122,7 @@ export interface Dnd {
 export interface Settings {
   theme: string
   stickyPinned: boolean
+  stickyPaper: string
   captureHotkey: string
   mainHotkey: string | null
   dnd: Dnd
@@ -131,6 +135,7 @@ export interface Settings {
 export interface SettingsPayload {
   theme?: string
   stickyPinned?: boolean
+  stickyPaper?: string
   captureHotkey?: string
   mainHotkey?: string | null
   dnd?: Partial<Dnd>
