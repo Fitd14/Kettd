@@ -7,6 +7,7 @@
  * 本文件只保留 Tauri 桥接与命令封装，并把内核符号再导出以保持所有 api.xxx 调用点不变。 */
 import { pad2, WEEK_CN, localToday, localNowHHMM, addDays, isLocalDate, fullDueParts } from './kernel/time.js';
 import { parseCapture } from './kernel/capture.js';
+import { createEventBus } from './kernel/event-bus.js';
 import { isOverdue, isPlannedToday, isDoneToday, isCarry, isoWeekOf, weekWindow, nextReminderTime } from './kernel/selectors.js';
 
 export { pad2, WEEK_CN, localToday, localNowHHMM, addDays, isLocalDate, fullDueParts } from './kernel/time.js';
@@ -79,53 +80,11 @@ export async function getDataHealth() { return call('get_data_health'); }
 export async function clearMigrationReport() { return call('clear_migration_report'); }
 export async function getFormHints() { return call('get_form_hints'); }
 
-/* ---------------- 事件（listen 队列：订阅前到达的事件先入队，挂上监听即补发，不丢） ---------------- */
+/* ---------------- 事件（补发队列语义已收进内核 event-bus.js，ADR-0006/E14 唯一实现） ---------------- */
 
-const listeners = Object.create(null); // name -> [handler]
-const earlyQueue = Object.create(null); // name -> [payload]（无监听器时暂存最近 20 条）
-const tauriBound = Object.create(null); // name -> true（该事件已挂上后端监听）
-const subscribed = Object.create(null); // name -> true（取消订阅后不再回灌旧事件）
-
-function pump(name, payload) {
-  const subs = (listeners[name] || []).slice();
-  if (!subs.length) {
-    if (subscribed[name]) return;
-    const q = earlyQueue[name] || (earlyQueue[name] = []);
-    if (q.length < 20) q.push(payload);
-    return;
-  }
-  for (const handler of subs) {
-    try { handler(payload); } catch (_) { /* 单个订阅者异常不阻断其他订阅者 */ }
-  }
-}
-
-/* 返回取消订阅函数；注册时先补发队列里积压的事件 */
-export function onEvent(name, handler) {
-  (listeners[name] || (listeners[name] = [])).push(handler);
-  subscribed[name] = true;
-  const queued = earlyQueue[name] || [];
-  earlyQueue[name] = [];
-  for (const p of queued) {
-    try { handler(p); } catch (_) { /* 补发同样容错 */ }
-  }
-  if (typeof rawListen === 'function' && !tauriBound[name]) {
-    tauriBound[name] = true;
-    try {
-      const pr = rawListen(name, (ev) => pump(name, ev && typeof ev === 'object' && 'payload' in ev ? ev.payload : ev));
-      if (pr && typeof pr.catch === 'function') pr.catch(() => { tauriBound[name] = false; });
-    } catch (_) { tauriBound[name] = false; }
-  }
-  return () => {
-    const arr = listeners[name] || [];
-    const i = arr.indexOf(handler);
-    if (i >= 0) arr.splice(i, 1);
-  };
-}
-
-export function eventOnce(name, handler) {
-  const off = onEvent(name, (p) => { off(); handler(p); });
-  return off;
-}
+const bus = createEventBus({ listen: rawListen });
+export const onEvent = bus.onEvent;
+export const eventOnce = bus.eventOnce;
 
 /* 跨窗导航：优先走后端事件总线；不可用时落同一 webview 源的 localStorage，主窗 focus 时自取 */
 export function emitNavigate(route) {

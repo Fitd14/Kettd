@@ -26,6 +26,17 @@
   --input: 40 15% 86%;
   --ring: 240 6% 10%;
 
+  /* extract 语义档位：radius 12/10/6/pill · shadow 三档（纯黑低透明）· spacing 锚 4px
+     （与 vanilla 逐字对齐，R2 令牌一致性） */
+  --r-lg: 12px;
+  --r-md: 10px;
+  --r-sm: 6px;
+  --r-pill: 9999px;
+  --shadow-sm: 0 1px 2px hsl(240 6% 10% / 0.05), 0 1px 3px hsl(240 6% 10% / 0.04);
+  --shadow-md: 0 4px 14px hsl(240 6% 10% / 0.07), 0 1px 3px hsl(240 6% 10% / 0.05);
+  --shadow-lg: 0 12px 34px hsl(240 6% 10% / 0.14), 0 2px 8px hsl(240 6% 10% / 0.06);
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-6: 24px; --sp-8: 32px;
+
   /* ---- 材质令牌：硫酸纸（capture 快速记录条专用；与 vanilla styles.css 逐字对齐，R2）----
      方向不是「iOS 玻璃」，是文具店里盖在笔记本上那张描图纸：物理透光、边缘反光、仍然是纸。
      浓度按最差对比 5.11:1 定档（等效 α 0.64）；tint 用 --background 暖纸白而非纯白。 */
@@ -81,6 +92,10 @@
   --vellum-lit-a: 0.80; --vellum-tint-a: 0.76; --vellum-dark-a: 0.72;
   --vellum-hair: var(--foreground); --vellum-hair-a: 0.30;
   --vellum-edge-a: 0.16; --vellum-thick-a: 0.34; --vellum-ink-a: 0.84;
+
+  --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.30), 0 1px 3px hsl(0 0% 0% / 0.22);
+  --shadow-md: 0 4px 14px hsl(0 0% 0% / 0.38), 0 1px 3px hsl(0 0% 0% / 0.26);
+  --shadow-lg: 0 12px 34px hsl(0 0% 0% / 0.50), 0 2px 8px hsl(0 0% 0% / 0.30);
 }
 
 /* ── 把令牌暴露给 Tailwind 工具类（bg-background / text-cat-life …）──────────── */
