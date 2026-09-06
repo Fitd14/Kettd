@@ -150,6 +150,9 @@ pub struct Task {
   /// v1 迁移而来且缺少真实完成时刻
   #[serde(default, skip_serializing_if = "is_false")]
   pub legacy: bool,
+  /// 挂载的知识条目 id（**单向** task→KB，H2 验证后才有反向/活引用）
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub kb_refs: Vec<String>,
   pub subtasks: Vec<Subtask>,
   pub notes: Vec<Note>,
   pub source: Source,
@@ -173,6 +176,7 @@ impl Default for Task {
       done_at: None,
       deleted_at: None,
       legacy: false,
+            kb_refs: Vec::new(),
       subtasks: Vec::new(),
       notes: Vec::new(),
       source: Source::Manual,
@@ -354,6 +358,42 @@ impl Default for AppData {
   }
 }
 
+/// add/update_kb_item 载荷：缺省字段沿用原值（update）或默认值（add）
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct KbPayload {
+  pub title: Option<String>,
+  pub body_md: Option<String>,
+  pub tags: Option<Vec<String>>,
+}
+
+/// 知识条目（frame H1b 最小地基）：flomo 式片段，Markdown 正文，不做长文档编辑器。
+/// 独立 notes.json；任务经 `Task.kbRefs` **单向**引用本表（ACL：KB 不反向持有 Task，
+/// 架构 §3 —— 假设失败时 KB 可整体降级而不伤 Task 聚合）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct KbItem {
+  pub id: String,
+  pub title: String,
+  pub body_md: String,
+  pub tags: Vec<String>,
+  pub created_at: String,
+  pub updated_at: String,
+}
+
+impl Default for KbItem {
+  fn default() -> Self {
+    Self {
+      id: String::new(),
+      title: String::new(),
+      body_md: String::new(),
+      tags: Vec::new(),
+      created_at: String::new(),
+      updated_at: String::new(),
+    }
+  }
+}
+
 /// 运行态（ADR-0005）：住在 runtime.json，与用户数据物理隔离。
 /// 丢了只是体验退化（个别提醒重响一次、窗口回默认位），绝不值得冻结用户数据，
 /// 因此损坏时静默重建、**绝不**进 corrupt 通道；单文件覆盖写、不轮转。
@@ -391,6 +431,7 @@ pub struct TaskPayload {
   pub legacy: Option<bool>,
   pub subtasks: Option<Vec<Subtask>>,
   pub notes: Option<Vec<Note>>,
+  pub kb_refs: Option<Vec<String>>,
   pub source: Option<Source>,
   pub created_at: Option<String>,
 }

@@ -42,6 +42,8 @@ export interface Task {
   doneAt?: string | null
   deletedAt?: string | null
   legacy?: boolean
+  /** 单向 task→KB 引用（frame H1b 预埋） */
+  kbRefs?: string[]
   subtasks: Subtask[]
   notes: Note[]
   source: 'capture' | 'manual' | 'seed'
@@ -62,6 +64,7 @@ export interface TaskPayload {
   doneAt?: unknown
   deletedAt?: unknown
   legacy?: boolean
+  kbRefs?: string[] | null
   subtasks?: Subtask[]
   notes?: Note[]
   source?: Task['source']
@@ -90,6 +93,21 @@ export interface ReminderPayload {
   completed?: boolean
   repeat?: string
   snoozedUntil?: string | null
+}
+
+export interface KbItem {
+  id: string
+  title: string
+  bodyMd: string
+  tags: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface KbPayload {
+  title?: string
+  bodyMd?: string
+  tags?: string[]
 }
 
 export interface Dnd {
@@ -269,6 +287,13 @@ export const clearMigrationReport = () => call<MigrationReport | null>('clear_mi
 export const getFormHints = () => call<{ examples: string[]; categories: string[]; priorities: string[] }>('get_form_hints')
 /** 调试入口（不进 UI，ADR-0005） */
 export const rollbackSchemaSplit = () => call<string>('rollback_schema_split')
+
+/* 知识库（frame H1b：库 + 搜索 + 任务单向引用；链接/unlink 走 updateTask 的 kbRefs 补丁） */
+export const getKbItems = () => call<KbItem[]>('get_kb_items')
+export const addKbItem = (args: KbPayload) => call<KbItem>('add_kb_item', { args })
+export const updateKbItem = (id: string, patch: KbPayload) => call<KbItem>('update_kb_item', { id, patch })
+export const deleteKbItem = (id: string) => call<void>('delete_kb_item', { id })
+export const searchKb = (query?: string) => call<KbItem[]>('search_kb', { query: query ?? null })
 
 /* ---------------------------------------------------------------- 跨窗导航（E14 localStorage 兜底，原样保留） */
 

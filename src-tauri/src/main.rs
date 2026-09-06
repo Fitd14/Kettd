@@ -16,6 +16,7 @@
 mod app;
 mod commands;
 mod infra;
+mod kb;
 mod export;
 mod models;
 mod ports;
@@ -83,6 +84,11 @@ fn main() {
       commands::open_data_folder,
       commands::restore_backup,
       commands::rollback_schema_split,
+      commands::get_kb_items,
+      commands::add_kb_item,
+      commands::update_kb_item,
+      commands::delete_kb_item,
+      commands::search_kb,
       commands::clear_migration_report,
       commands::export_weekly
     ])

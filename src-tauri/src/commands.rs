@@ -3,7 +3,7 @@
 use crate::export;
 use crate::models::{
   clocks_of, new_id, normalize_datetime, now_text,
-  Bootstrap, CATEGORIES, DataHealthV2, DEFAULT_HOTKEY,
+  Bootstrap, CATEGORIES, DataHealthV2, DEFAULT_HOTKEY, KbItem, KbPayload,
   HotkeyStatus, MigrationReport, Note, NotePayload, PRIORITIES, REMINDER_CAP_DEFAULT, Reminder, ReminderPayload,
   RestoreResult, Settings, SettingsPayload, Source, StoreEvent, Subtask, Task, TaskPayload,
   TRASH_RETENTION_DAYS, today,
@@ -595,6 +595,88 @@ pub fn clear_migration_report(
     emit(&app, StoreEvent::changed("data"));
   }
   Ok(report)
+}
+
+// ---------------------------------------------------------------- 知识库（frame H1b：库 + 搜索 + 任务单向引用）
+
+/// 知识条目全量（内存扫检索在 search_kb；全量供前端本地过滤/详情跳转）
+#[tauri::command]
+pub fn get_kb_items(state: State<'_, Shared>) -> Result<Vec<KbItem>, String> {
+  let store = lock(&state);
+  Ok(store.kb.clone())
+}
+
+#[tauri::command]
+pub fn add_kb_item(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  args: KbPayload,
+) -> Result<KbItem, String> {
+  let mut store = lock(&state);
+  store.ensure_writable()?;
+  let item = crate::kb::create(
+    &mut store.kb,
+    new_id("k"),
+    args.title.as_deref().unwrap_or(""),
+    args.body_md.as_deref().unwrap_or(""),
+    args.tags.unwrap_or_default(),
+    &now_text(),
+  )?;
+  store.save_notes()?;
+  emit(&app, StoreEvent::changed("kb"));
+  Ok(item)
+}
+
+#[tauri::command]
+pub fn update_kb_item(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  id: String,
+  patch: KbPayload,
+) -> Result<KbItem, String> {
+  let mut store = lock(&state);
+  store.ensure_writable()?;
+  let item = crate::kb::update(
+    &mut store.kb,
+    &id,
+    patch.title.as_deref(),
+    patch.body_md.as_deref(),
+    patch.tags,
+    &now_text(),
+  )?;
+  store.save_notes()?;
+  emit(&app, StoreEvent::changed("kb"));
+  Ok(item)
+}
+
+/// 删除条目；任务侧的 kbRefs 会悬空 —— 前端据此展示「已失效」
+#[tauri::command]
+pub fn delete_kb_item(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  id: String,
+) -> Result<(), String> {
+  let mut store = lock(&state);
+  store.ensure_writable()?;
+  crate::kb::delete(&mut store.kb, &id)?;
+  store.save_notes()?;
+  emit(&app, StoreEvent::changed("kb"));
+  Ok(())
+}
+
+/// 内存扫全文检索：返回按相关度排序的条目（空查询 = 全量按更新时间倒序）
+#[tauri::command]
+pub fn search_kb(
+  state: State<'_, Shared>,
+  query: Option<String>,
+) -> Result<Vec<KbItem>, String> {
+  let store = lock(&state);
+  let ids = crate::kb::search(&store.kb, query.as_deref().unwrap_or(""));
+  Ok(ids
+    .iter()
+    .filter_map(|id| store.kb.iter().find(|item| &item.id == id))
+    .cloned()
+    .collect())
 }
 
 /// 调试入口（不进 UI）：回滚 schema 拆分，重启后生效

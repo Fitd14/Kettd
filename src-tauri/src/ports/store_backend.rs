@@ -52,6 +52,12 @@ pub trait StoreBackend: Send {
 
   /// schema 回滚（仅调试入口）：删除 runtime.json
   fn remove_runtime(&self) -> Result<(), String>;
+
+  /// 读 notes.json（知识库，frame H1b）；None = 不存在
+  fn read_notes(&self) -> Result<Option<String>, String>;
+
+  /// 原子写 notes.json
+  fn write_notes(&self, json: &str) -> Result<(), String>;
 }
 
 #[cfg(test)]
@@ -65,6 +71,7 @@ pub mod test_double {
     pub data: RefCell<Option<String>>,
     pub archive: RefCell<Option<String>>,
     pub runtime: RefCell<Option<String>>,
+    pub notes: RefCell<Option<String>>,
     pub pre_split: RefCell<Option<String>>,
     pub backups: RefCell<Vec<String>>,
     pub fail_writes: RefCell<bool>,
@@ -79,6 +86,7 @@ pub mod test_double {
         data: RefCell::new(None),
         archive: RefCell::new(None),
         runtime: RefCell::new(None),
+        notes: RefCell::new(None),
         pre_split: RefCell::new(None),
         backups: RefCell::new(Vec::new()),
         fail_writes: RefCell::new(false),
@@ -249,6 +257,18 @@ pub mod test_double {
     fn remove_runtime(&self) -> Result<(), String> {
       self.note("remove_runtime");
       *self.runtime.borrow_mut() = None;
+      Ok(())
+    }
+
+    fn read_notes(&self) -> Result<Option<String>, String> {
+      Ok(self.notes.borrow().clone())
+    }
+
+    fn write_notes(&self, json: &str) -> Result<(), String> {
+      if *self.fail_writes.borrow() {
+        return Err("没有写入权限".to_string());
+      }
+      *self.notes.borrow_mut() = Some(json.to_string());
       Ok(())
     }
   }

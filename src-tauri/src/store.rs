@@ -11,7 +11,7 @@ use crate::infra::fs_store::{default_dir, FsBackend, ARCHIVE_FILE};
 use crate::models::{
   carry_days, clocks_of, fmt_day, fmt_dt, new_id, normalize_date_text, normalize_datetime, now_text, today,
   patch_datetime, patch_text, parse_wall, to_local, AppData, BackupInfo, CATEGORIES,
-  DataHealthV2, MigrationIssue, MigrationReport, Note, PRIORITIES, Reminder, ReminderPayload,
+  DataHealthV2, KbItem, MigrationIssue, MigrationReport, Note, PRIORITIES, Reminder, ReminderPayload,
   RuntimeState,
   Repeat, Settings, SettingsPayload, Source, Subtask, Task, TaskPayload, TRASH_RETENTION_DAYS,
 };
@@ -310,6 +310,7 @@ fn migrate_task(object: &Value, report: &mut MigrationReport) -> Task {
     remind_at,
     planned_date,
     carried_from,
+    kb_refs: Vec::new(),
     done,
     done_at,
     deleted_at,
@@ -568,6 +569,8 @@ pub struct Store {
   pub data: AppData,
   /// 运行态（runtime.json）：fired / capturePos / notePos / 迁移报告（ADR-0005）
   pub runtime: RuntimeState,
+  /// 知识条目（notes.json，frame H1b）：与 data.json 物理隔离
+  pub kb: Vec<KbItem>,
   pub health: String,
   pub corrupt_file: Option<String>,
   pub last_error: Option<String>,
@@ -582,6 +585,7 @@ impl Store {
       clock,
       data: AppData::default(),
       runtime: RuntimeState::default(),
+      kb: Vec::new(),
       health: HEALTH_OK.to_string(),
       corrupt_file: None,
       last_error: None,
@@ -695,6 +699,15 @@ impl Store {
         store.data = data;
         // 运行态解析失败 = 静默重建为空（重复响一次的代价，不冻结数据）
         store.runtime = serde_json::from_value::<RuntimeState>(runtime_value)
+          .unwrap_or_default();
+        // 知识库：缺失/损坏 → 静默空库（KB 可整体降级，绝不传染用户数据）
+        store.kb = store
+          .backend
+          .read_notes()
+          .ok()
+          .flatten()
+          .and_then(|text| parse_value(&text).ok())
+          .and_then(|value| serde_json::from_value::<Vec<KbItem>>(value).ok())
           .unwrap_or_default();
         store
       }
@@ -844,6 +857,14 @@ impl Store {
   }
 
   /// 只写运行态：窗口位置这类不改用户数据的高频写（runtime.json 不轮转）
+  /// 只写知识库（notes.json，原子写；v1 不轮转，H2 成熟化）
+  pub fn save_notes(&mut self) -> Result<(), String> {
+    self.ensure_writable()?;
+    let json = serde_json::to_string_pretty(&self.kb)
+      .map_err(|error| format!("知识条目序列化失败：{}", brief(&error.to_string())))?;
+    self.backend.write_notes(&json)
+  }
+
   pub fn save_runtime_only(&mut self) -> Result<(), String> {
     let runtime_json = self.serialized_runtime()?;
     self.backend.write_runtime(&runtime_json)
@@ -1119,6 +1140,10 @@ impl Store {
         return Err("分类只能是 工作 / 学习 / 生活".to_string());
       }
       task.category = value.clone();
+    }
+    if let Some(value) = &patch.kb_refs {
+      // 单向引用集合整体替换（前端以「当前挂载列表」提交，避免增量同步复杂度）
+      task.kb_refs = value.clone();
     }
     if let Some(value) = &patch.priority {
       if !PRIORITIES.contains(&value.as_str()) {

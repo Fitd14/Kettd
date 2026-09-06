@@ -166,6 +166,11 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `export_weekly` | `week?: string`, `format?: 'md' \| 'csv'`, `dir?: string` | `string`（完整路径） | `week` = `current`（默认）/ `last` / `YYYY-Www`；文件名含 ISO 周（如 `周汇总-2026-W36.md`）；二次导出不覆盖（自动 `-2`/`-3`）；目标不可写 → Err「这个位置写不了，换个位置」 |
 | `get_backups` | — | `BackupInfo[]` | 含不可读备份（`readable:false` + 中文 error） |
 | `restore_backup` | `slot`（`"1".."5"`，也吃 `data.json.bak-3` 这种整名） | `RestoreResult` | 成功即解除 corrupt 封锁；损坏原件已留存为 `data.corrupt.*`，`data.v1.json` 永不删 |
+| `get_kb_items` | — | `KbItem[]` | 全量条目（frame H1b） |
+| `add_kb_item` | `args: { title, bodyMd?, tags? }` | `KbItem` | 标题非空；tags 去空白去重 |
+| `update_kb_item` | `id`, `patch: KbPayload` | `KbItem` | 未给字段不动；`updatedAt` 刷新 |
+| `delete_kb_item` | `id` | `void` | 任务侧 kbRefs 会悬空，前端展示「已失效」 |
+| `search_kb` | `query?` | `KbItem[]` | 内存扫：title×2/tag×1.5/body×1 相关度排序；空查询=全量按更新时间倒序 |
 | `rollback_schema_split` | — | `String` | **调试入口，不进 UI**（ADR-0005）：把 `data.pre-split.json` 复制回 `data.json` 并删 `runtime.json`，重启生效。回滚窗口期内新增提醒的 fired 键会丢 → 后果仅是可能重复响一次 |
 | `get_data_health` | — | `DataHealthV2` | 损坏恢复页数据源 |
 | `get_hotkey_status` | — | `HotkeyStatus` | 两个全局热键的**实际注册**快照 `{capture, main}`（未绑上/已解绑为 `null`）；设置页与 `settings.captureHotkey / mainHotkey` 比对，不一致即标「未生效」（qa-1）。运行期状态，不落盘 |
@@ -292,7 +297,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | 项 | 手段 | 结果 |
 | --- | --- | --- |
 | 类型检查与链接 | `cargo check` / `cargo build`（debug） | **0 error**；7 条 `dead_code` warning（`models.rs:21/187/243/385/573/748`、`store.rs:688`） |
-| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **41 ↔ 41 ↔ 41**（v2.1 40 项 + ADR-0005 调试命令 `rollback_schema_split`，不进 UI） |
+| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **46 ↔ 46 ↔ 46**（v2.1 40 项 + ADR-0005 调试命令 `rollback_schema_split` + frame H1b 知识库 5 项） |
 | 存储安全自查 | 人工 | 无 `unwrap_or_default()` 式空库回退；无 `toISOString`/`Utc`/`naive_utc` 混入；`tauri.conf.json` JSON 合法 |
 | 提醒编辑器逻辑 | `node test/rem-editor.test.mjs`（从 `index.html` 抽真实函数源码断言，17 项） | 全绿：多时刻 round-trip 四形态、模式收敛、渲染契约、aria-label、文案不含手输格式 |
 | 时间契约 + v1 迁移十规则 | `cargo test`（**30 项** = `models` 14 时间契约 + `store` 16 迁移规则，纯内存 fixture，不碰数据目录） | 全绿。过程逼出 `parse_clock` 两处加固：带秒输入归零（否则永不命中整分 tick = 到点不响）、接受裸 `HH:MM:SS` 与单位数小时 |
