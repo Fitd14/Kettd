@@ -22,5 +22,13 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     target: 'es2022',
+    // M1（ADR-0001 D5）：capture 窗先 React 化；Tauri v1 各窗按 URL 取 HTML，
+    // 多入口让 dist 里同时存在 index.html 与 capture.html，Rust 侧 WindowUrl 不用改
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        capture: fileURLToPath(new URL('./capture.html', import.meta.url)),
+      },
+    },
   },
 })

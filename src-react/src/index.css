@@ -26,6 +26,19 @@
   --input: 40 15% 86%;
   --ring: 240 6% 10%;
 
+  /* ---- 材质令牌：硫酸纸（capture 快速记录条专用；与 vanilla styles.css 逐字对齐，R2）----
+     方向不是「iOS 玻璃」，是文具店里盖在笔记本上那张描图纸：物理透光、边缘反光、仍然是纸。
+     浓度按最差对比 5.11:1 定档（等效 α 0.64）；tint 用 --background 暖纸白而非纯白。 */
+  --vellum-tint: var(--background);
+  --vellum-lit-a: 0.66;   /* 上缘受光 */
+  --vellum-tint-a: 0.62;  /* 中部 */
+  --vellum-dark-a: 0.58;  /* 下缘背光 —— 三段渐变做出纸的厚度 */
+  --vellum-hair: var(--card);
+  --vellum-hair-a: 0.55;
+  --vellum-edge-a: 0.62;   /* 上缘 1px 高光 */
+  --vellum-thick-a: 0.07;  /* 下缘内阴影，替代会被窗边界裁掉的外投影 */
+  --vellum-ink-a: 0.82;    /* placeholder 浓度 */
+
   /* 分类 / 优先级语义色 */
   --cat-work: 0 62% 42%;
   --cat-study: 158 45% 30%;
@@ -62,6 +75,12 @@
   --pri-high: 0 75% 65%;
   --pri-med: 34 85% 62%;
   --pri-low: 240 4% 55%;
+
+  /* 硫酸纸 · 暗色覆盖（与 vanilla 逐字对齐）：更厚（等效 α 0.78，最差 6.43:1），
+     白色上缘高光压到 0.16 否则像划痕。 */
+  --vellum-lit-a: 0.80; --vellum-tint-a: 0.76; --vellum-dark-a: 0.72;
+  --vellum-hair: var(--foreground); --vellum-hair-a: 0.30;
+  --vellum-edge-a: 0.16; --vellum-thick-a: 0.34; --vellum-ink-a: 0.84;
 }
 
 /* ── 把令牌暴露给 Tailwind 工具类（bg-background / text-cat-life …）──────────── */
