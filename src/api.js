@@ -7,9 +7,11 @@
  * 本文件只保留 Tauri 桥接与命令封装，并把内核符号再导出以保持所有 api.xxx 调用点不变。 */
 import { pad2, WEEK_CN, localToday, localNowHHMM, addDays, isLocalDate, fullDueParts } from './kernel/time.js';
 import { parseCapture } from './kernel/capture.js';
+import { isOverdue, isPlannedToday, isDoneToday, isCarry, isoWeekOf, weekWindow, nextReminderTime } from './kernel/selectors.js';
 
 export { pad2, WEEK_CN, localToday, localNowHHMM, addDays, isLocalDate, fullDueParts } from './kernel/time.js';
 export { parseCapture, buildCaptureArgs } from './kernel/capture.js';
+export { isOverdue, isPlannedToday, isDoneToday, isCarry, isoWeekOf, weekWindow, nextReminderTime } from './kernel/selectors.js';
 
 const T = globalThis.__TAURI__ || {};
 const rawInvoke = (T.tauri && T.tauri.invoke) || (T.core && T.core.invoke) || T.invoke;
@@ -166,42 +168,9 @@ export function formatDue(dueAt, today) {
     cls: 'text-muted', overdue: false,
   };
 }
-export function isOverdue(t, today) {
-  const t0 = today || localToday();
-  return !t.done && !!t.dueAt && String(t.dueAt).slice(0, 10) < t0;
-}
-/* 三处「今天」同一 selector（V2-API.md §8） */
-export function isPlannedToday(t, today) {
-  const t0 = today || localToday();
-  return !t.done && !isOverdue(t, t0) && (t.plannedDate === t0 || String(t.dueAt || '').startsWith(t0));
-}
-export function isDoneToday(t, today) {
-  const t0 = today || localToday();
-  return !!t.done && (t.plannedDate === t0 || String(t.dueAt || '').startsWith(t0));
-}
-export function isCarry(t) { return (Number(t && t.carriedFrom) || 0) > 0; }
-
-/* ISO 周（本地推算）：返回 '2026-W36' 及周一日期 */
-export function isoWeekOf(isoDate) {
-  const [y, m, d] = String(isoDate).slice(0, 10).split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  const dow = (dt.getDay() + 6) % 7; // 周一=0
-  const monday = new Date(y, m - 1, d - dow);
-  const thu = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 3);
-  const firstJan4 = new Date(thu.getFullYear(), 0, 4);
-  const jan4Dow = (firstJan4.getDay() + 6) % 7;
-  const week1Mon = new Date(firstJan4.getFullYear(), 0, 4 - jan4Dow);
-  const week = Math.floor((monday.getTime() - week1Mon.getTime()) / (7 * 86400000)) + 1;
-  const mm = String(monday.getMonth() + 1).padStart(2, '0');
-  const dd = String(monday.getDate()).padStart(2, '0');
-  return { week: `${thu.getFullYear()}-W${pad2(week)}`, monday: `${monday.getFullYear()}-${mm}-${dd}` };
-}
-export function weekWindow(which, today) {
-  const t0 = today || localToday();
-  const anchor = which === 'last' ? addDays(t0, -7) : t0;
-  const { week, monday } = isoWeekOf(anchor);
-  return { weekLabel: week, start: monday, end: addDays(monday, 6) };
-}
+/* 任务选择器与周窗口已搬到 src/kernel/selectors.js（ADR-0006）：谓词本就只有一份，
+   搬走是为了给 src-react 干净的依赖边，并让 nextReminderTime 可注入时钟做测试。
+   文件头已再导出，api.xxx 调用点不变。 */
 
 /* ---------------- 展示色：一律 token class，不硬编码任何颜色值 ---------------- */
 
@@ -231,60 +200,6 @@ export function validateReminderTime(s) {
 }
 
 /* 下一条待响时刻（float/迷你条「下一条 HH:MM」，与今天计数同源，全本地比较） */
-function dowOf(dateStr) {
-  const [y, m, d] = String(dateStr).slice(0, 10).split('-').map(Number);
-  return new Date(y, m - 1, d).getDay();
-}
-function dayFires(repeat, refWeekday, dateStr) {
-  const w = dowOf(dateStr);
-  if (repeat === 'workdays') return w >= 1 && w <= 5;
-  if (repeat === 'weekly') return refWeekday === null ? true : w === refWeekday;
-  return true; // none(不循环) 与 daily 都按当天出现
-}
-export function nextReminderTime(tasks, reminders) {
-  const today = localToday();
-  const now = localNowHHMM();
-  const cands = [];
-  const stamp = (day, time) => `${day}T${time}`;
-  for (const t of tasks || []) {
-    if (t.done || t.deletedAt) continue;
-    const r = t.remindAt ? String(t.remindAt) : '';
-    if (/^\d{2}:\d{2}$/.test(r)) { // HH:MM = 每日；仅对「今天要做/已逾期」的任务显示（迷你条语义）
-      if (isPlannedToday(t, today) && r >= now) cands.push({ day: today, time: r });
-    } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(r) && stamp(r.slice(0, 10), r.slice(11, 16)) >= stamp(today, now)) {
-      cands.push({ day: r.slice(0, 10), time: r.slice(11, 16) });
-    }
-    const d = t.dueAt ? String(t.dueAt) : '';
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(d) && stamp(d.slice(0, 10), d.slice(11, 16)) >= stamp(today, now)) {
-      cands.push({ day: d.slice(0, 10), time: d.slice(11, 16) });
-    }
-  }
-  for (const r of reminders || []) {
-    if (!r.enabled || r.completed) continue;
-    const snz = r.snoozedUntil ? String(r.snoozedUntil) : '';
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(snz) && snz >= stamp(today, now)) { cands.push({ day: snz.slice(0, 10), time: snz.slice(11, 16) }); continue; }
-    const ref = r.lastFired ? String(r.lastFired).slice(0, 10) : null;
-    const refWd = ref ? dowOf(ref) : null;
-    for (let p of String(r.time || '').split('/')) {
-      p = p.trim();
-      if (/^\d{2}:\d{2}$/.test(p)) {
-        if (r.repeat === 'none') { if (p >= now) cands.push({ day: today, time: p }); continue; }
-        for (let off = 0; off <= 7; off++) {
-          const day = addDays(today, off);
-          if (off === 0 && p < now) continue;
-          if (dayFires(r.repeat, refWd, day)) { cands.push({ day, time: p }); break; }
-        }
-      } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(p) && p >= stamp(today, now)) {
-        cands.push({ day: p.slice(0, 10), time: p.slice(11, 16) });
-      }
-    }
-  }
-  if (!cands.length) return null;
-  cands.sort((a, b) => stamp(a.day, a.time).localeCompare(stamp(b.day, b.time)));
-  const n = cands[0];
-  return n.day === today ? n.time : `${n.day.slice(5)} ${n.time}`;
-}
-
 export function debounce(fn, ms) {
   let timer = null;
   return (...a) => {
