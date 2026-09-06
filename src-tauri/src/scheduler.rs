@@ -557,7 +557,7 @@ mod tests {
       Box::new(FixedClock::at(wall(2026, 9, 5, 9, 0))),
     );
     store.data.reminders = reminders;
-    store.data.fired = fired;
+    store.runtime.fired = fired;
     store
   }
 
@@ -747,7 +747,7 @@ mod tests {
       store.data.reminders.iter().all(|item| item.completed),
       "单次提醒补发后必须置 completed，否则永远重响"
     );
-    assert_eq!(store.data.fired.len(), 2, "补发也记 fired 键");
+    assert_eq!(store.runtime.fired.len(), 2, "补发也记 fired 键");
   }
 
   #[test]

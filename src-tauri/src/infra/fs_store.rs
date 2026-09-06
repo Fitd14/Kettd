@@ -9,8 +9,9 @@ use std::path::{Path, PathBuf};
 
 pub const BACKUP_SLOTS: usize = 5;
 pub const DATA_FILE: &str = "data.json";
-pub const TMP_FILE: &str = "data.json.tmp";
 pub const ARCHIVE_FILE: &str = "data.v1.json";
+pub const RUNTIME_FILE: &str = "runtime.json";
+pub const PRE_SPLIT_FILE: &str = "data.pre-split.json";
 
 /// v1 同款目录：Windows 下 `dirs::data_dir()` == `%APPDATA%`
 pub fn default_dir() -> PathBuf {
@@ -32,8 +33,35 @@ impl FsBackend {
     self.dir.join(DATA_FILE)
   }
 
+  /// tmp + rename 原子替换；tmp 与目标同目录、同名加 .tmp，保证同盘 rename
+  fn write_data_at(&self, target: &Path, json: &str) -> Result<(), String> {
+    let mut tmp_name = target
+      .file_name()
+      .map(|value| value.to_os_string())
+      .unwrap_or_default();
+    tmp_name.push(".tmp");
+    let tmp = target.with_file_name(tmp_name);
+    if let Err(error) = fs::write(&tmp, json.as_bytes()) {
+      let _ = fs::remove_file(&tmp);
+      return Err(file_error("临时文件写入失败，本次没有保存", &error));
+    }
+    if let Err(error) = fs::rename(&tmp, target) {
+      let _ = fs::remove_file(&tmp);
+      return Err(file_error("替换数据文件失败，本次没有保存", &error));
+    }
+    Ok(())
+  }
+
   fn backup_path(&self, slot: usize) -> PathBuf {
     self.dir.join(format!("{}.bak-{}", DATA_FILE, slot))
+  }
+
+  fn runtime_path(&self) -> PathBuf {
+    self.dir.join(RUNTIME_FILE)
+  }
+
+  fn pre_split_path(&self) -> PathBuf {
+    self.dir.join(PRE_SPLIT_FILE)
   }
 
   fn archive_path(&self) -> PathBuf {
@@ -73,17 +101,8 @@ impl StoreBackend for FsBackend {
   }
 
   fn write_data(&self, json: &str) -> Result<(), String> {
-    let tmp = self.dir.join(TMP_FILE);
     let target = self.data_path();
-    if let Err(error) = fs::write(&tmp, json.as_bytes()) {
-      let _ = fs::remove_file(&tmp);
-      return Err(file_error("临时文件写入失败，本次没有保存", &error));
-    }
-    if let Err(error) = fs::rename(&tmp, &target) {
-      let _ = fs::remove_file(&tmp);
-      return Err(file_error("替换数据文件失败，本次没有保存", &error));
-    }
-    Ok(())
+    self.write_data_at(&target, json)
   }
 
   fn rotate_backups(&self) -> Result<(), String> {
@@ -206,5 +225,50 @@ impl StoreBackend for FsBackend {
       return Err(format!("备份编号 {} 不在 1..={} 内", slot, BACKUP_SLOTS));
     }
     Self::read_text(&self.backup_path(slot as usize))
+  }
+
+  fn read_runtime(&self) -> Result<Option<String>, String> {
+    let path = self.runtime_path();
+    if !path.exists() {
+      return Ok(None);
+    }
+    Self::read_text(&path).map(Some)
+  }
+
+  fn write_runtime(&self, json: &str) -> Result<(), String> {
+    self.write_data_at(&self.runtime_path(), json)
+  }
+
+  fn archive_pre_split(&self) -> Result<(), String> {
+    let target = self.pre_split_path();
+    if target.exists() {
+      return Ok(()); // 已存在不覆盖：保留最早那份（与 data.v1.json 同一承诺）
+    }
+    let source = self.data_path();
+    if !source.exists() {
+      return Ok(());
+    }
+    fs::copy(&source, &target)
+      .map(|_| ())
+      .map_err(|error| file_error("无法留存拆分前原件", &error))
+  }
+
+  fn restore_pre_split(&self) -> Result<(), String> {
+    let source = self.pre_split_path();
+    if !source.exists() {
+      return Err("拆分前原件不存在".to_string());
+    }
+    let target = self.data_path();
+    fs::copy(&source, &target)
+      .map(|_| ())
+      .map_err(|error| file_error("无法回滚数据文件", &error))
+  }
+
+  fn remove_runtime(&self) -> Result<(), String> {
+    let path = self.runtime_path();
+    if path.exists() {
+      fs::remove_file(&path).map_err(|error| file_error("无法删除运行态文件", &error))?;
+    }
+    Ok(())
   }
 }

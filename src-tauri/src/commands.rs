@@ -51,7 +51,7 @@ pub fn get_bootstrap(state: State<'_, Shared>) -> Result<Bootstrap, String> {
     reminders: store.data.reminders.clone(),
     settings: store.data.settings.clone(),
     health: store.health_view(),
-    migration: store.data.migration.clone(),
+    migration: store.runtime.migration.clone(),
   })
 }
 
@@ -602,12 +602,20 @@ pub fn clear_migration_report(
   state: State<'_, Shared>,
 ) -> Result<Option<MigrationReport>, String> {
   let mut store = lock(&state);
-  let report = store.data.migration.clone();
+  let report = store.runtime.migration.clone();
   store.clear_migration();
   if store.ensure_writable().is_ok() && store.save().is_ok() {
     emit(&app, StoreEvent::changed("data"));
   }
   Ok(report)
+}
+
+/// 调试入口（不进 UI）：回滚 schema 拆分，重启后生效
+#[tauri::command]
+pub fn rollback_schema_split(state: State<'_, Shared>) -> Result<String, String> {
+  let mut store = lock(&state);
+  store.rollback_schema_split()?;
+  Ok("已回滚到拆分前的单文件存储，重启后生效".to_string())
 }
 
 /// 一键导出本周汇总：week = current | last | YYYY-Www；format = md | csv

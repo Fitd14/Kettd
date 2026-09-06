@@ -217,7 +217,7 @@ fn center_capture(window: &Window) {
 fn place_capture(app: &AppHandle, window: &Window) {
   let stored = app
     .try_state::<Mutex<Store>>()
-    .and_then(|s| s.lock().ok().and_then(|g| g.data.settings.capture_pos));
+    .and_then(|s| s.lock().ok().and_then(|g| g.runtime.capture_pos));
   if let Some([x, y]) = stored {
     if capture_pos_on_screen(window, x, y) {
       let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
@@ -261,11 +261,11 @@ pub fn save_capture_pos_window(window: &Window) {
     return;
   };
   let next = Some([pos.x, pos.y]);
-  if store.data.settings.capture_pos == next {
+  if store.runtime.capture_pos == next {
     return;
   }
-  store.data.settings.capture_pos = next;
-  let _ = store.save_light();
+  store.runtime.capture_pos = next;
+  let _ = store.save_runtime_only();
 }
 
 /// 桌面材质：**主用 accent blur + 暖纸 tint，acrylic 退为兜底**。

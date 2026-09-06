@@ -70,7 +70,7 @@ pub fn delete(store: &mut Store, id: &str) -> Result<(), String> {
   let index = store.find_reminder_index(id).ok_or_else(not_found)?;
   store.data.reminders.remove(index);
   let prefix = reminder_key(id, "");
-  store.data.fired.retain(|key| !key.starts_with(&prefix));
+  store.runtime.fired.retain(|key| !key.starts_with(&prefix));
   Ok(())
 }
 
@@ -143,14 +143,14 @@ mod tests {
   #[test]
   fn delete_recycles_only_its_own_fired_keys() {
     let mut store = store_with(vec![reminder("r1", "09:00")]);
-    store.data.fired = vec![
+    store.runtime.fired = vec![
       reminder_key("r1", "2026-09-05T09:00"),
       reminder_key("r2", "2026-09-05T09:00"),
       "t|t9|2026-09-05T09:00".to_string(),
     ];
     delete(&mut store, "r1").unwrap();
     assert_eq!(
-      store.data.fired,
+      store.runtime.fired,
       vec![
         reminder_key("r2", "2026-09-05T09:00"),
         "t|t9|2026-09-05T09:00".to_string(),

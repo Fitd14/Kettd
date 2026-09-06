@@ -36,6 +36,22 @@ pub trait StoreBackend: Send {
 
   /// 读第 slot 份备份原文（恢复用）
   fn read_backup(&self, slot: u32) -> Result<String, String>;
+
+  /// 读 runtime.json（ADR-0005 运行态）；None = 不存在
+  fn read_runtime(&self) -> Result<Option<String>, String>;
+
+  /// 原子写 runtime.json（不轮转：运行态没有历史价值）
+  fn write_runtime(&self, json: &str) -> Result<(), String>;
+
+  /// schema 拆分留档：把当前 data.json 复制为 data.pre-split.json。
+  /// 已存在则**跳过**（保留最早那份），原件永不删除。
+  fn archive_pre_split(&self) -> Result<(), String>;
+
+  /// schema 回滚（仅调试入口）：把 data.pre-split.json 复制回 data.json
+  fn restore_pre_split(&self) -> Result<(), String>;
+
+  /// schema 回滚（仅调试入口）：删除 runtime.json
+  fn remove_runtime(&self) -> Result<(), String>;
 }
 
 #[cfg(test)]
@@ -48,8 +64,12 @@ pub mod test_double {
   pub struct InMemoryBackend {
     pub data: RefCell<Option<String>>,
     pub archive: RefCell<Option<String>>,
+    pub runtime: RefCell<Option<String>>,
+    pub pre_split: RefCell<Option<String>>,
     pub backups: RefCell<Vec<String>>,
     pub fail_writes: RefCell<bool>,
+    /// 调用序列记录（编排顺序断言用：runtime 先于 data 落盘等）
+    pub log: RefCell<Vec<String>>,
     quarantine_count: RefCell<u32>,
   }
 
@@ -58,8 +78,11 @@ pub mod test_double {
       Self {
         data: RefCell::new(None),
         archive: RefCell::new(None),
+        runtime: RefCell::new(None),
+        pre_split: RefCell::new(None),
         backups: RefCell::new(Vec::new()),
         fail_writes: RefCell::new(false),
+        log: RefCell::new(Vec::new()),
         quarantine_count: RefCell::new(0),
       }
     }
@@ -79,6 +102,10 @@ pub mod test_double {
     pub fn quarantines(&self) -> u32 {
       *self.quarantine_count.borrow()
     }
+
+    fn note(&self, what: &str) {
+      self.log.borrow_mut().push(what.to_string());
+    }
   }
 
   impl Default for InMemoryBackend {
@@ -93,6 +120,7 @@ pub mod test_double {
     }
 
     fn write_data(&self, json: &str) -> Result<(), String> {
+      self.note("write_data");
       if *self.fail_writes.borrow() {
         return Err("没有写入权限".to_string());
       }
@@ -101,6 +129,7 @@ pub mod test_double {
     }
 
     fn rotate_backups(&self) -> Result<(), String> {
+      self.note("rotate_backups");
       if *self.fail_writes.borrow() {
         return Err("备份轮转失败".to_string());
       }
@@ -176,6 +205,51 @@ pub mod test_double {
         .get(slot as usize - 1)
         .cloned()
         .ok_or_else(|| format!("备份 bak-{} 不存在", slot))
+    }
+
+    fn read_runtime(&self) -> Result<Option<String>, String> {
+      self.note("read_runtime");
+      Ok(self.runtime.borrow().clone())
+    }
+
+    fn write_runtime(&self, json: &str) -> Result<(), String> {
+      self.note("write_runtime");
+      if *self.fail_writes.borrow() {
+        return Err("没有写入权限".to_string());
+      }
+      *self.runtime.borrow_mut() = Some(json.to_string());
+      Ok(())
+    }
+
+    fn archive_pre_split(&self) -> Result<(), String> {
+      self.note("archive_pre_split");
+      if *self.fail_writes.borrow() {
+        return Err("没有写入权限".to_string());
+      }
+      let mut pre = self.pre_split.borrow_mut();
+      if pre.is_some() {
+        return Ok(()); // 已存在不覆盖：保留最早那份
+      }
+      *pre = self.data.borrow().clone();
+      Ok(())
+    }
+
+    fn restore_pre_split(&self) -> Result<(), String> {
+      self.note("restore_pre_split");
+      let pre = self.pre_split.borrow().clone();
+      match pre {
+        Some(json) => {
+          *self.data.borrow_mut() = Some(json);
+          Ok(())
+        }
+        None => Err("拆分前原件不存在".to_string()),
+      }
+    }
+
+    fn remove_runtime(&self) -> Result<(), String> {
+      self.note("remove_runtime");
+      *self.runtime.borrow_mut() = None;
+      Ok(())
     }
   }
 }

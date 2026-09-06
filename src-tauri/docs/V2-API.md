@@ -166,6 +166,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `export_weekly` | `week?: string`, `format?: 'md' \| 'csv'`, `dir?: string` | `string`（完整路径） | `week` = `current`（默认）/ `last` / `YYYY-Www`；文件名含 ISO 周（如 `周汇总-2026-W36.md`）；二次导出不覆盖（自动 `-2`/`-3`）；目标不可写 → Err「这个位置写不了，换个位置」 |
 | `get_backups` | — | `BackupInfo[]` | 含不可读备份（`readable:false` + 中文 error） |
 | `restore_backup` | `slot`（`"1".."5"`，也吃 `data.json.bak-3` 这种整名） | `RestoreResult` | 成功即解除 corrupt 封锁；损坏原件已留存为 `data.corrupt.*`，`data.v1.json` 永不删 |
+| `rollback_schema_split` | — | `String` | **调试入口，不进 UI**（ADR-0005）：把 `data.pre-split.json` 复制回 `data.json` 并删 `runtime.json`，重启生效。回滚窗口期内新增提醒的 fired 键会丢 → 后果仅是可能重复响一次 |
 | `get_data_health` | — | `DataHealthV2` | 损坏恢复页数据源 |
 | `get_hotkey_status` | — | `HotkeyStatus` | 两个全局热键的**实际注册**快照 `{capture, main}`（未绑上/已解绑为 `null`）；设置页与 `settings.captureHotkey / mainHotkey` 比对，不一致即标「未生效」（qa-1）。运行期状态，不落盘 |
 | `clear_migration_report` | — | `MigrationReport \| null` | 前端展示完迁移报告后清账，避免每次启动重复提示 |
@@ -258,7 +259,25 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 1. `Cargo.toml`：新增 `chrono = { features = ["clock","std"] }`；同时必须给 `tauri` 追加 `system-tray` feature —— `tauri` 1.0/1.8 的 `api-all` **不包含** system-tray（`Builder::system_tray`、`SystemTrayMenu`、`tray_handle_by_id` 都在该 feature 后面），不加则托盘代码无法编译。依赖版本 `tauri = "1.0.0"` 未动。
 2. 托盘 id 用代码里的 `SystemTray::new().with_id("main")`，因为 v1.8 的 `tauri-utils` 配置结构 `SystemTrayConfig` 是 `deny_unknown_fields` 且只有 `iconPath`/`iconAsTemplate`/`menuOnLeftClick`/`title`（没有 `id`，也没有 `trayIcon` 键）。故 `tauri.conf.json` 不写托盘配置，写 `trayIcon` 会让构建期配置解析直接失败。
 3. 捕获条资源：前端目录只有 `index.html` / `float.html` / `capture.html`（本次不允许改前端），所以 `capture` 窗在 `tauri.conf.json` 里按契约声明（560×112 / 无边框 / **不透明纸片卡**：原透明设计在部分 WebView2 上被合成黑边，v2.0.0 改为整窗 `--card` 底色 / 置顶 / skipTaskbar / visible:false / `capture.html`），但后端在窗口缺失或资源未就绪时不硬创建，走上面的 `open-capture` 降级事件；等前端补上 `capture.html` 后无需改后端即自动生效。
-4. 提醒落库去重新增一个内部字段 `AppData.fired: string[]`（稳定键，上限 400 条）——不加它就无法区分「应用没运行期间错过的」和「已经响过的」，会出现开机重复轰炸。前端只读不写。
+4. ~~提醒落库去重新增一个内部字段 `AppData.fired: string[]`（稳定键，上限 400 条）~~ **ADR-0005 已把它迁出 `data.json`**：运行态（`fired` / `capturePos` / `notePos` / 迁移报告）现在住 `runtime.json` —— 单文件覆盖写、不轮转、损坏静默重建（绝不进 corrupt 通道）。语义不变：稳定键上限 400 条，前端只读不写。
+
+### v2→v2.1 schema 拆分（ADR-0005，2026-09-06）
+
+```
+%APPDATA%/todo-list/
+├── data.json          用户数据（tasks / reminders / settings，已去掉 capturePos）
+│                      原子替换 + 覆盖前轮转 5 份（不变）
+├── runtime.json       运行态（fired / capturePos / notePos / migration）
+│                      原子替换、不轮转；损坏 = 静默重建为空，不传染 data.json
+├── data.pre-split.json 拆分前完整旧档（永不删除、已存在不覆盖）
+├── data.v1.json       永久留档（承诺不变）
+└── data.corrupt.<ts>  损坏原件留存（承诺不变）
+```
+
+- **触发**：启动加载时判定 `data.json` 含 `fired` / `migration` / `settings.capturePos` 任一字段 → 一次性拆分；幂等（runtime 已有 fired 取并集）。
+- **顺序**：留档 `data.pre-split.json` → `runtime.json` 先写 → `data.json` 走正常轮转原子写（bak-1 即拆分前完整旧档）。
+- **失败**：原件不动、不进 corrupt、启动不阻塞；本会话按拆分结果在内存继续，下次保存自动收敛。
+- **前端影响**：无感知。`Settings` 不再返回 `capturePos`（前端从未消费）；`get_bootstrap.migration` 改由运行态供给，契约字段不变。
 5. `Reminder.legacy`/`Task.legacy` 落盘为 `true` 时写出、`false` 时省略（`skip_serializing_if`），所以 `types.ts` 里的 `legacy?: boolean` 仍成立。
 6. `set_settings` 改 `captureHotkey` 失败时整次回滚（主题/形态一起回），保持「界面显示的热键 = 真实绑定的热键」。
 7. 系统通知 title 固定「待办提醒」，body 为 `<标题> · <YYYY-MM-DDTHH:mm>`；免打扰合并为「免打扰期间有 N 条提醒」，启动补发为「错过 N 条提醒」。深链 (`?open=`) 由前端在窗口内处理，通知不带 payload（契约允许省略）。
@@ -273,7 +292,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | 项 | 手段 | 结果 |
 | --- | --- | --- |
 | 类型检查与链接 | `cargo check` / `cargo build`（debug） | **0 error**；7 条 `dead_code` warning（`models.rs:21/187/243/385/573/748`、`store.rs:688`） |
-| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **40 ↔ 40 ↔ 40**（v2.1 新增 `get_hotkey_status`；本次补齐 `capture_start_drag` —— 它随「可拖拽」提交注册但漏了文档行，且**前端未接线**，实际拖拽走 `data-tauri-drag-region`） |
+| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **41 ↔ 41 ↔ 41**（v2.1 40 项 + ADR-0005 调试命令 `rollback_schema_split`，不进 UI） |
 | 存储安全自查 | 人工 | 无 `unwrap_or_default()` 式空库回退；无 `toISOString`/`Utc`/`naive_utc` 混入；`tauri.conf.json` JSON 合法 |
 | 提醒编辑器逻辑 | `node test/rem-editor.test.mjs`（从 `index.html` 抽真实函数源码断言，17 项） | 全绿：多时刻 round-trip 四形态、模式收敛、渲染契约、aria-label、文案不含手输格式 |
 | 时间契约 + v1 迁移十规则 | `cargo test`（**30 项** = `models` 14 时间契约 + `store` 16 迁移规则，纯内存 fixture，不碰数据目录） | 全绿。过程逼出 `parse_clock` 两处加固：带秒输入归零（否则永不命中整分 tick = 到点不响）、接受裸 `HH:MM:SS` 与单位数小时 |

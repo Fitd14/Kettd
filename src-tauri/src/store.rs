@@ -12,13 +12,14 @@ use crate::models::{
   carry_days, clocks_of, fmt_day, fmt_dt, new_id, normalize_date_text, normalize_datetime, now_text, today,
   patch_datetime, patch_text, parse_wall, to_local, AppData, BackupInfo, CATEGORIES,
   DataHealthV2, MigrationIssue, MigrationReport, Note, PRIORITIES, Reminder, ReminderPayload,
+  RuntimeState,
   Repeat, Settings, SettingsPayload, Source, Subtask, Task, TaskPayload, FLOAT_FORMS,
   TRASH_RETENTION_DAYS,
 };
 use crate::ports::clock::{Clock, SystemClock};
 use crate::ports::store_backend::StoreBackend;
 use chrono::{DateTime, Duration, Local};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 pub use crate::infra::fs_store::BACKUP_SLOTS;
 
@@ -450,14 +451,7 @@ pub fn migrate_v1(raw: &Value) -> Result<(AppData, MigrationReport), String> {
     Some(Value::Null) | None => {}
     Some(_) => return Err("旧数据里的 reminders 不是列表".to_string()),
   }
-  if let Some(value) = raw.get("fired") {
-    if let Some(items) = value.as_array() {
-      data.fired = items
-        .iter()
-        .filter_map(|item| item.as_str().map(|text| text.to_string()))
-        .collect();
-    }
-  }
+  // v1 的 fired 键不再进 AppData —— 由 from_v1 收进 RuntimeState（ADR-0005）
   if let Some(value) = raw.get("settings") {
     if value.is_object() {
       if let Ok(parsed) = serde_json::from_value::<Settings>(value.clone()) {
@@ -487,6 +481,80 @@ fn looks_like_v1(raw: &Value) -> bool {
   raw.get("tasks").is_some() || raw.get("reminders").is_some()
 }
 
+/// 判别 v2 旧 schema（ADR-0005）：运行态（fired / migration / settings.capturePos）
+/// 还混在 data.json 里 → 需要一次拆分迁移
+pub fn is_legacy_schema(raw: &Value) -> bool {
+  if raw.get("fired").is_some() || raw.get("migration").is_some() {
+    return true;
+  }
+  raw
+    .get("settings")
+    .map(|settings| settings.get("capturePos").is_some())
+    .unwrap_or(false)
+}
+
+/// schema 拆分（**纯函数**，ADR-0005 的迁移核心）：
+/// 旧 data 文档 + 已存在的 runtime 文档（可 None）→ （新 data 文档，runtime 文档）。
+/// 幂等：fired 与已存在 runtime 取**并集**（集合语义，合并无害）；
+/// 迁移报告与 capturePos 以 runtime 侧已有值为先（可能已被读后清账）。
+fn split_schema(raw: &Value, existing_runtime: Option<&Value>) -> (Value, Value) {
+  let mut data = raw.clone();
+  let mut runtime = existing_runtime.cloned().unwrap_or_else(|| json!({}));
+  if !runtime.is_object() {
+    runtime = json!({}); // 已存在的 runtime 不是对象 → 视为空（与静默重建同口径）
+  }
+
+  // fired：并集（非字符串键丢弃，与 v1 迁移同口径）
+  let mut fired: Vec<String> = runtime
+    .get("fired")
+    .and_then(|value| value.as_array())
+    .map(|items| {
+      items
+        .iter()
+        .filter_map(|value| value.as_str().map(str::to_string))
+        .collect()
+    })
+    .unwrap_or_default();
+  if let Some(items) = data.get("fired").and_then(|value| value.as_array()) {
+    for value in items.iter() {
+      if let Some(key) = value.as_str() {
+        if !fired.iter().any(|existing| existing == key) {
+          fired.push(key.to_string());
+        }
+      }
+    }
+  }
+  runtime["fired"] = Value::Array(fired.into_iter().map(Value::String).collect());
+
+  // 迁移报告：data 侧有、runtime 侧没有才搬（runtime 已有 = 已在账上）
+  if runtime.get("migration").is_none() {
+    if let Some(report) = data.get("migration").filter(|value| !value.is_null()) {
+      runtime["migration"] = report.clone();
+    }
+  }
+
+  // capturePos：settings → runtime
+  if runtime.get("capturePos").map(|value| value.is_null()).unwrap_or(true) {
+    if let Some(pos) = data
+      .get("settings")
+      .and_then(|settings| settings.get("capturePos"))
+      .filter(|value| !value.is_null())
+    {
+      runtime["capturePos"] = pos.clone();
+    }
+  }
+
+  // data 侧清干净三样
+  if let Some(object) = data.as_object_mut() {
+    object.remove("fired");
+    object.remove("migration");
+    if let Some(settings) = object.get_mut("settings").and_then(|value| value.as_object_mut()) {
+      settings.remove("capturePos");
+    }
+  }
+  (data, runtime)
+}
+
 // ---------------------------------------------------------------- Store
 
 /// 撤销栈条目
@@ -503,6 +571,8 @@ pub struct Store {
   /// 时间经端口（生产 = SystemClock，测试 = FixedClock）
   clock: Box<dyn Clock>,
   pub data: AppData,
+  /// 运行态（runtime.json）：fired / capturePos / notePos / 迁移报告（ADR-0005）
+  pub runtime: RuntimeState,
   pub health: String,
   pub corrupt_file: Option<String>,
   pub last_error: Option<String>,
@@ -516,6 +586,7 @@ impl Store {
       backend,
       clock,
       data: AppData::default(),
+      runtime: RuntimeState::default(),
       health: HEALTH_OK.to_string(),
       corrupt_file: None,
       last_error: None,
@@ -568,12 +639,20 @@ impl Store {
       }
       return store;
     }
-    let raw = match store
+    let raw_text = match store
       .backend
       .read_data()
       .and_then(|option| option.ok_or_else(|| "数据文件读不了，已停止写入".to_string()))
-      .and_then(|text| parse_value(&text))
     {
+      Ok(text) => text,
+      Err(error) => {
+        store.corrupt_file = store.backend.quarantine();
+        store.health = HEALTH_CORRUPT.to_string();
+        store.last_error = Some(error);
+        return store;
+      }
+    };
+    let raw = match parse_value(&raw_text) {
       Ok(value) => value,
       Err(error) => {
         store.corrupt_file = store.backend.quarantine();
@@ -585,7 +664,32 @@ impl Store {
     if looks_like_v1(&raw) {
       return store.from_v1(&raw, false);
     }
-    match serde_json::from_value::<AppData>(raw.clone()) {
+
+    // 已存在的 runtime.json：读失败 → 静默重建（Option::None 通道），绝不传染 data.json
+    let existing_runtime = store
+      .backend
+      .read_runtime()
+      .ok()
+      .flatten()
+      .and_then(|text| parse_value(&text).ok());
+
+    // v2 旧 schema → 一次性拆分（ADR-0005）：留档 → runtime 先写 → data 走轮转原子写
+    let (data_value, runtime_value) = if is_legacy_schema(&raw) {
+      let pair = split_schema(&raw, existing_runtime.as_ref());
+      if let Err(error) = store.persist_split(&pair.0, &pair.1) {
+        // 原件未动（pre-split 留档失败除外——那也没改 data.json）；
+        // 本会话按拆分结果在内存里继续，下次保存即收敛，启动时不阻塞用户
+        store.last_error = Some(format!(
+          "运行状态拆分将在下次保存时自动完成（本次原因：{}）",
+          error
+        ));
+      }
+      pair
+    } else {
+      (raw, existing_runtime.unwrap_or_else(|| json!({})))
+    };
+
+    match serde_json::from_value::<AppData>(data_value) {
       Ok(mut data) => {
         data.settings.coerce();
         for task in data.tasks.iter_mut() {
@@ -594,6 +698,9 @@ impl Store {
           }
         }
         store.data = data;
+        // 运行态解析失败 = 静默重建为空（重复响一次的代价，不冻结数据）
+        store.runtime = serde_json::from_value::<RuntimeState>(runtime_value)
+          .unwrap_or_default();
         store
       }
       Err(error) => {
@@ -606,6 +713,21 @@ impl Store {
         store
       }
     }
+  }
+
+  /// 把 schema 拆分结果落盘（ADR-0005 步骤 3–5）：
+  /// ① data.json 复制为 data.pre-split.json（已存在不覆盖，永不删除）
+  /// ② runtime.json **先**写（原子）
+  /// ③ data.json 走正常轮转 + 原子写 —— bak-1 就是拆分前的完整旧档
+  fn persist_split(&mut self, data: &Value, runtime: &Value) -> Result<(), String> {
+    let data_json = serde_json::to_string_pretty(data)
+      .map_err(|error| format!("数据序列化失败：{}", brief(&error.to_string())))?;
+    let runtime_json = serde_json::to_string_pretty(runtime)
+      .map_err(|error| format!("运行态序列化失败：{}", brief(&error.to_string())))?;
+    self.backend.archive_pre_split()?;
+    self.backend.write_runtime(&runtime_json)?;
+    self.backend.rotate_backups()?;
+    self.backend.write_data(&data_json)
   }
 
   fn from_v1(mut self, raw: &Value, from_archive: bool) -> Store {
@@ -621,7 +743,17 @@ impl Store {
     match migrate_v1(raw) {
       Ok((mut data, report)) => {
         data.settings.coerce();
-        data.migration = Some(report);
+        self.runtime.migration = Some(report);
+        // v1 的 fired 键是透明字符串，原样搬进运行态（跨重启不重复响）
+        if let Some(items) = raw.get("fired").and_then(|value| value.as_array()) {
+          for item in items.iter() {
+            if let Some(key) = item.as_str() {
+              if !self.runtime.fired.iter().any(|existing| existing == key) {
+                self.runtime.fired.push(key.to_string());
+              }
+            }
+          }
+        }
         self.data = data;
         if let Err(error) = self.save() {
           self.last_error = Some(error);
@@ -709,17 +841,32 @@ impl Store {
   /// 读—改—内存—序列化 tmp—fs::rename 原子替换；覆盖写前轮转备份
   pub fn save(&mut self) -> Result<(), String> {
     self.ensure_writable()?;
-    let json = self.serialized()?;
+    let data_json = self.serialized()?;
+    let runtime_json = self.serialized_runtime()?;
     self.backend.rotate_backups()?;
-    self.backend.write_data(&json)
+    self.backend.write_data(&data_json)?;
+    self.backend.write_runtime(&runtime_json)
   }
 
   /// 轻量保存：不轮转备份。只给窗口位置记忆这类高频低价值写入用，
   /// 避免把轮转历史里真正有价值的旧档顶掉。
   pub fn save_light(&mut self) -> Result<(), String> {
     self.ensure_writable()?;
-    let json = self.serialized()?;
-    self.backend.write_data(&json)
+    let data_json = self.serialized()?;
+    let runtime_json = self.serialized_runtime()?;
+    self.backend.write_data(&data_json)?;
+    self.backend.write_runtime(&runtime_json)
+  }
+
+  /// 只写运行态：窗口位置这类不改用户数据的高频写（runtime.json 不轮转）
+  pub fn save_runtime_only(&mut self) -> Result<(), String> {
+    let runtime_json = self.serialized_runtime()?;
+    self.backend.write_runtime(&runtime_json)
+  }
+
+  fn serialized_runtime(&self) -> Result<String, String> {
+    serde_json::to_string_pretty(&self.runtime)
+      .map_err(|error| format!("运行态序列化失败：{}", brief(&error.to_string())))
   }
 
   fn serialized(&self) -> Result<String, String> {
@@ -755,16 +902,12 @@ impl Store {
       .and_then(|text| parse_value(&text))
       .map_err(|_| "这个备份也读不了，换一个试试".to_string())?;
     let mut restored = if looks_like_v1(&raw) {
-      let (mut data, report) = migrate_v1(&raw).map_err(|_| "这个备份无法还原成可用数据".to_string())?;
-      data.migration = Some(report);
+      let (mut data, _report) = migrate_v1(&raw).map_err(|_| "这个备份无法还原成可用数据".to_string())?;
       data
     } else {
       serde_json::from_value::<AppData>(raw).map_err(|_| "这个备份无法还原成可用数据".to_string())?
     };
     restored.settings.coerce();
-    if restored.migration.is_none() {
-      restored.migration = self.data.migration.clone();
-    }
     self.data = restored;
     self.undo.clear();
     // 损坏原件早已另存为 data.corrupt.*，这里覆盖写但不轮转
@@ -774,7 +917,17 @@ impl Store {
 
   /// 前端读过迁移报告后清掉，避免每次启动重复弹提示
   pub fn clear_migration(&mut self) {
-    self.data.migration = None;
+    self.runtime.migration = None;
+  }
+
+  /// schema 回滚（仅调试入口，ADR-0005）：pre-split 原件回 data.json + 删 runtime.json。
+  /// 回滚窗口期内新增提醒的 fired 键会丢 → 后果仅是"可能重复响一次"。
+  pub fn rollback_schema_split(&mut self) -> Result<(), String> {
+    self.backend.restore_pre_split()?;
+    self.backend.remove_runtime()?;
+    self.health = HEALTH_OK.to_string();
+    self.last_error = None;
+    Ok(())
   }
 
   /// 启动时物理清理超过保留期的软删任务（含其子任务与备注）
@@ -796,7 +949,7 @@ impl Store {
     });
     if !purged_ids.is_empty() {
       // fired 键是 t|{id}|{stamp}，id 在第二段；只回收被清任务自己的键
-      self.data.fired.retain(|key| match key.split('|').nth(1) {
+      self.runtime.fired.retain(|key| match key.split('|').nth(1) {
         Some(id) => !purged_ids.iter().any(|value| value == id),
         None => true,
       });
@@ -921,7 +1074,7 @@ impl Store {
     let removed = self.data.tasks.remove(index);
     // 用键生成器本身造前缀，格式永远与写入侧一致（task_key 是 t|{id}|{stamp}）
     let prefix = task_key(&removed.id, "");
-    self.data.fired.retain(|key| !key.starts_with(&prefix));
+    self.runtime.fired.retain(|key| !key.starts_with(&prefix));
     self
       .undo
       .retain(|entry| !matches!(entry, Undoable::Task(boxed) if boxed.id == id));
@@ -1213,17 +1366,17 @@ impl Store {
   }
 
   pub fn remember_fired(&mut self, key: &str) {
-    if !self.data.fired.iter().any(|value| value == key) {
-      self.data.fired.push(key.to_string());
+    if !self.runtime.fired.iter().any(|value| value == key) {
+      self.runtime.fired.push(key.to_string());
     }
-    if self.data.fired.len() > 400 {
-      let excess = self.data.fired.len() - 400;
-      self.data.fired.drain(0..excess);
+    if self.runtime.fired.len() > 400 {
+      let excess = self.runtime.fired.len() - 400;
+      self.runtime.fired.drain(0..excess);
     }
   }
 
   pub fn has_fired(&self, key: &str) -> bool {
-    self.data.fired.iter().any(|value| value == key)
+    self.runtime.fired.iter().any(|value| value == key)
   }
 
   /// 触发/落库后统一走这里：写盘 + 事件由各命令层负责
@@ -1554,12 +1707,16 @@ mod tests {
   fn fired_keys_survive_migration_as_opaque_strings() {
     let mut raw = v1_doc(json!([]), json!([]));
     raw["fired"] = json!(["t|t1|2026-09-03T09:00", 42, "r|r1|2026-09-03T10:00"]);
-    let (data, _report) = migrate_v1(&raw).unwrap();
+    let mut backend = InMemoryBackend::with_data(&serde_json::to_string(&raw).unwrap());
+    backend.archive = std::cell::RefCell::new(Some(serde_json::to_string(&raw).unwrap()));
+    let store = Store::load_with(Box::new(backend), Box::new(FixedClock::at(
+      Local.with_ymd_and_hms(2026, 9, 6, 9, 0, 0).unwrap())));
     assert_eq!(
-      data.fired,
+      store.runtime.fired,
       vec!["t|t1|2026-09-03T09:00".to_string(), "r|r1|2026-09-03T10:00".to_string()],
-      "非字符串键丢弃可以，但合法键一个不能少（跨重启不重复响）"
+      "非字符串键丢弃可以，但合法键一个不能少（跨重启不重复响）；键归运行态（ADR-0005）"
     );
+    assert!(store.runtime.migration.is_some(), "迁移报告随运行态");
   }
 
   #[test]
@@ -1578,7 +1735,7 @@ mod tests {
       deleted_at: Some(fresh),
       ..Default::default()
     });
-    store.data.fired = vec![
+    store.runtime.fired = vec![
       task_key("t-old", "2026-09-01T09:00"),
       task_key("t-keep", "2026-09-01T09:00"),
       reminder_key("r-1", "2026-09-01T09:00"),
@@ -1588,13 +1745,144 @@ mod tests {
 
     assert_eq!(dropped, 1, "只应清掉过期的软删任务");
     assert_eq!(
-      store.data.fired,
+      store.runtime.fired,
       vec![
         task_key("t-keep", "2026-09-01T09:00"),
         reminder_key("r-1", "2026-09-01T09:00"),
       ],
       "只回收被清任务自己的键；在世任务与提醒的键一个不能少，否则会重复补发提醒"
     );
+  }
+
+  // ---- ADR-0005 schema 拆分：纯函数 fixture + 编排顺序（先测后写迁移） ----
+
+  /// 一份"旧 v2"文档：运行态（fired/migration/capturePos）还混在 data.json
+  fn legacy_doc() -> Value {
+    json!({
+      "tasks": [{ "id": "t1", "title": "示例", "done": false }],
+      "reminders": [],
+      "fired": ["r|r9|2026-09-01T09:00"],
+      "migration": { "taskCount": 1, "reminderCount": 0, "invalidDates": 0, "legacyDone": 0, "issues": [], "archivedTo": "data.v1.json" },
+      "settings": { "theme": "float", "capturePos": [12, 34] }
+    })
+  }
+
+  #[test]
+  fn split_moves_runtime_fields_out_of_data() {
+    let (data, runtime) = split_schema(&legacy_doc(), None);
+    assert!(data.get("fired").is_none(), "fired 必须搬出 data.json");
+    assert!(data.get("migration").is_none(), "迁移报告必须搬出 data.json");
+    assert!(
+      data.get("settings").and_then(|s| s.get("capturePos")).is_none(),
+      "capturePos 必须搬出 settings"
+    );
+    assert_eq!(data["tasks"][0]["id"], "t1", "用户数据原样保留");
+    assert_eq!(runtime["fired"][0], "r|r9|2026-09-01T09:00");
+    assert_eq!(runtime["capturePos"][0], 12);
+    assert!(runtime["migration"].is_object(), "迁移报告进 runtime");
+  }
+
+  #[test]
+  fn split_is_idempotent_on_already_split_document() {
+    let (data, runtime) = split_schema(&legacy_doc(), None);
+    let (data2, runtime2) = split_schema(&data, Some(&runtime));
+    assert_eq!(data, data2, "拆分幂等：再跑一次 data 不变");
+    assert_eq!(runtime2["fired"], runtime["fired"], "fired 并集不重复");
+  }
+
+  #[test]
+  fn split_merges_fired_with_existing_runtime_as_union() {
+    let existing = json!({ "fired": ["r|r9|2026-09-01T09:00", "r|r8|2026-09-02T09:00"] });
+    let (_, runtime) = split_schema(&legacy_doc(), Some(&existing));
+    let fired = runtime["fired"].as_array().unwrap();
+    assert_eq!(fired.len(), 2, "交集去重、并集保留");
+    assert!(fired.contains(&json!("r|r8|2026-09-02T09:00")));
+  }
+
+  #[test]
+  fn split_keeps_existing_runtime_migration_over_data_side() {
+    let mut raw = legacy_doc();
+    raw["migration"] = json!({ "taskCount": 9 });
+    let already_there = json!({ "fired": [], "migration": null });
+    let (_, runtime) = split_schema(&raw, Some(&already_there));
+    assert!(
+      runtime.get("migration").map(|value| value.is_null()).unwrap_or(false),
+      "runtime 已有 migration 键时不被 data 侧覆盖"
+    );
+  }
+
+  #[test]
+  fn split_keeps_settings_other_keys_intact() {
+    let (data, _) = split_schema(&legacy_doc(), None);
+    assert_eq!(data["settings"]["theme"], "float", "只摘 capturePos，其余不动");
+  }
+
+  #[test]
+  fn load_legacy_data_runs_the_split_end_to_end() {
+    let raw = legacy_doc();
+    let store = Store::load_with(
+      Box::new(InMemoryBackend::with_data(&serde_json::to_string(&raw).unwrap())),
+      Box::new(FixedClock::at(Local.with_ymd_and_hms(2026, 9, 6, 9, 0, 0).unwrap())),
+    );
+    assert!(store.runtime.fired.contains(&"r|r9|2026-09-01T09:00".to_string()));
+    assert_eq!(store.data.tasks.len(), 1, "用户数据完整");
+    assert!(store.last_error.is_none(), "拆分成功不报错");
+  }
+
+  #[test]
+  fn split_persists_in_order_and_archives_original() {
+    let (data, runtime) = split_schema(&legacy_doc(), None);
+    let data_json = serde_json::to_string_pretty(&data).unwrap();
+    let runtime_json = serde_json::to_string_pretty(&runtime).unwrap();
+
+    let backend = InMemoryBackend::with_data(&serde_json::to_string(&legacy_doc()).unwrap());
+    backend.archive_pre_split().unwrap();
+    backend.write_runtime(&runtime_json).unwrap();
+    backend.rotate_backups().unwrap();
+    backend.write_data(&data_json).unwrap();
+
+    let events: Vec<String> = backend.log.borrow().clone();
+    let pos = |name: &str| events.iter().position(|item| item == name).unwrap();
+    assert!(pos("archive_pre_split") < pos("write_runtime"), "留档先于 runtime");
+    assert!(pos("write_runtime") < pos("rotate_backups"), "runtime 先于 data 轮转");
+    assert!(pos("rotate_backups") < pos("write_data"), "轮转后原子写 data");
+    let pre = backend.pre_split.borrow().clone().unwrap();
+    assert!(pre.contains("fired"), "pre-split 原件是拆分前的完整旧档");
+    assert!(
+      backend.backups.borrow().first().unwrap().contains("fired"),
+      "bak-1 = 拆分前完整旧档，用户手里始终有一份什么都没丢的历史"
+    );
+  }
+
+  #[test]
+  fn split_failure_keeps_originals_and_session_continues() {
+    let raw_json = serde_json::to_string(&legacy_doc()).unwrap();
+    let backend = InMemoryBackend::with_data(&raw_json);
+    backend.set_fail_writes(true);
+    let store = Store::load_with(
+      Box::new(backend),
+      Box::new(FixedClock::at(Local.with_ymd_and_hms(2026, 9, 6, 9, 0, 0).unwrap())),
+    );
+    assert_eq!(store.health, HEALTH_OK, "拆分失败不进 corrupt、不冻结");
+    assert!(
+      store.last_error.as_deref().unwrap_or("").contains("拆分"),
+      "失败要可解释：{}",
+      store.last_error.as_deref().unwrap_or("")
+    );
+    assert_eq!(store.data.tasks.len(), 1, "本会话按拆分结果在内存中继续，用户可看");
+  }
+
+  #[test]
+  fn load_tolerates_corrupt_runtime_json_by_rebuilding() {
+    let raw = json!({ "tasks": [], "reminders": [], "settings": { "theme": "float" } });
+    let backend = InMemoryBackend::with_data(&serde_json::to_string(&raw).unwrap());
+    *backend.runtime.borrow_mut() = Some("{截断的垃圾".to_string());
+    let store = Store::load_with(
+      Box::new(backend),
+      Box::new(FixedClock::at(Local.with_ymd_and_hms(2026, 9, 6, 9, 0, 0).unwrap())),
+    );
+    assert_eq!(store.health, HEALTH_OK, "运行态损坏绝不传染用户数据");
+    assert!(store.runtime.fired.is_empty(), "静默重建为空");
   }
 
   #[test]
@@ -1605,7 +1893,7 @@ mod tests {
       deleted_at: Some("2026-09-01T10:00".to_string()),
       ..Default::default()
     });
-    store.data.fired = vec![
+    store.runtime.fired = vec![
       task_key("t-gone", "2026-09-01T09:00"),
       reminder_key("r-1", "2026-09-01T09:00"),
     ];
@@ -1614,7 +1902,7 @@ mod tests {
 
     assert_eq!(removed.id, "t-gone");
     assert_eq!(
-      store.data.fired,
+      store.runtime.fired,
       vec![reminder_key("r-1", "2026-09-01T09:00")],
       "彻底清除后该任务的 fired 键必须回收"
     );

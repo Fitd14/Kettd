@@ -287,9 +287,6 @@ pub struct Settings {
   /// 本地度量埋点开关（默认开；纯本机、绝不出网）
   #[serde(default = "telemetry_default")]
   pub telemetry_enabled: bool,
-  /// 快速记录条记忆位置（物理坐标 [x,y]）；None=未移动过用默认居中
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub capture_pos: Option<[i32; 2]>,
 }
 
 fn telemetry_default() -> bool {
@@ -308,7 +305,6 @@ impl Default for Settings {
       onboarded: false,
       export_dir: None,
       telemetry_enabled: true,
-      capture_pos: None,
     }
   }
 }
@@ -349,11 +345,6 @@ pub struct AppData {
   pub tasks: Vec<Task>,
   pub reminders: Vec<Reminder>,
   pub settings: Settings,
-  /// 已处理提醒的稳定键（重启后不重复补发）
-  pub fired: Vec<String>,
-  /// 首次加载执行的 v1→v2 迁移报告，前端读取后可清除
-  #[serde(skip_serializing_if = "is_absent")]
-  pub migration: Option<MigrationReport>,
 }
 
 impl Default for AppData {
@@ -362,10 +353,25 @@ impl Default for AppData {
       tasks: Vec::new(),
       reminders: Vec::new(),
       settings: Settings::default(),
-      fired: Vec::new(),
-      migration: None,
     }
   }
+}
+
+/// 运行态（ADR-0005）：住在 runtime.json，与用户数据物理隔离。
+/// 丢了只是体验退化（个别提醒重响一次、窗口回默认位），绝不值得冻结用户数据，
+/// 因此损坏时静默重建、**绝不**进 corrupt 通道；单文件覆盖写、不轮转。
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct RuntimeState {
+  /// 已处理提醒的稳定键（t|id|stamp / r|id|stamp），上限 400，重启后不重复补发
+  pub fired: Vec<String>,
+  /// 快录条窗口位置
+  pub capture_pos: Option<[i32; 2]>,
+  /// 便签位置 map（ADR-0007 预留：noteId → [x,y]）
+  pub note_pos: std::collections::HashMap<String, [i32; 2]>,
+  /// v1→v2 迁移报告（前端读过即清）
+  #[serde(skip_serializing_if = "is_absent")]
+  pub migration: Option<MigrationReport>,
 }
 
 // ---------------------------------------------------------------- 命令入参（patch）

@@ -82,6 +82,7 @@ fn main() {
       commands::register_main_hotkey,
       commands::open_data_folder,
       commands::restore_backup,
+      commands::rollback_schema_split,
       commands::clear_migration_report,
       commands::export_weekly
     ])
