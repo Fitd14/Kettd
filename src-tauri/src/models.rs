@@ -153,6 +153,9 @@ pub struct Task {
   /// 挂载的知识条目 id（**单向** task→KB，H2 验证后才有反向/活引用）
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub kb_refs: Vec<String>,
+  /// 用户主动钉上便签的单条（便签规格 D2：默认镜像今天 + 可钉单条）
+  #[serde(default, skip_serializing_if = "is_false")]
+  pub sticky_pinned: bool,
   pub subtasks: Vec<Subtask>,
   pub notes: Vec<Note>,
   pub source: Source,
@@ -177,6 +180,7 @@ impl Default for Task {
       deleted_at: None,
       legacy: false,
             kb_refs: Vec::new(),
+            sticky_pinned: false,
       subtasks: Vec::new(),
       notes: Vec::new(),
       source: Source::Manual,
@@ -280,6 +284,9 @@ pub struct Settings {
   /// 便签固定 = 置顶（便签规格 §1：三形态收敛为单一便签，仅剩置顶开关；旧 floatForm 忽略即归一）
   #[serde(default = "bool_true")]
   pub sticky_pinned: bool,
+  /// 便签纸色（便签规格 §12.1：warm 暖白纸 | kraft 牛皮纸 | cyan 淡青 | ink 暗墨，预设四选一非取色器）
+  #[serde(default = "default_sticky_paper")]
+  pub sticky_paper: String,
   pub capture_hotkey: String,
   /// None = 未绑定全局快捷键
   pub main_hotkey: Option<String>,
@@ -302,6 +309,7 @@ impl Default for Settings {
     Self {
       theme: "float".to_string(),
       sticky_pinned: true,
+      sticky_paper: "warm".to_string(),
       capture_hotkey: DEFAULT_HOTKEY.to_string(),
       main_hotkey: Some(DEFAULT_MAIN_HOTKEY.to_string()),
       dnd: Dnd::default(),
@@ -321,6 +329,9 @@ impl Settings {
     }
     if self.capture_hotkey.trim().is_empty() {
       self.capture_hotkey = DEFAULT_HOTKEY.to_string();
+    }
+    if !STICKY_PAPERS.contains(&self.sticky_paper.as_str()) {
+      self.sticky_paper = "warm".to_string();
     }
     if let Some(value) = self.main_hotkey.as_deref() {
       if value.trim().is_empty() {
@@ -365,6 +376,12 @@ pub struct KbPayload {
   pub title: Option<String>,
   pub body_md: Option<String>,
   pub tags: Option<Vec<String>>,
+}
+
+pub const STICKY_PAPERS: [&str; 4] = ["warm", "kraft", "cyan", "ink"];
+
+fn default_sticky_paper() -> String {
+  "warm".to_string()
 }
 
 /// 知识条目（frame H1b 最小地基）：flomo 式片段，Markdown 正文，不做长文档编辑器。
@@ -432,6 +449,8 @@ pub struct TaskPayload {
   pub subtasks: Option<Vec<Subtask>>,
   pub notes: Option<Vec<Note>>,
   pub kb_refs: Option<Vec<String>>,
+  pub sticky_pinned: Option<bool>,
+  pub sticky_paper: Option<String>,
   pub source: Option<Source>,
   pub created_at: Option<String>,
 }
@@ -476,6 +495,7 @@ pub struct DndPayload {
 pub struct SettingsPayload {
   pub theme: Option<String>,
   pub sticky_pinned: Option<bool>,
+  pub sticky_paper: Option<String>,
   pub capture_hotkey: Option<String>,
   pub main_hotkey: Option<String>,
   pub dnd: Option<DndPayload>,

@@ -114,3 +114,51 @@ export function nextReminderTime(tasks, reminders, clock) {
   const n = cands[0];
   return n.day === today ? n.time : `${n.day.slice(5)} ${n.time}`;
 }
+
+/**
+ * 「今天」视图三段式（PRD 6.3 / today-list-ui-spec）：今日到期 / 已拖到今天 / 逾期折叠。
+ * 逾期项不混入主体，收进折叠行由视图渲染计数；全部输入排除回收站与已完成。
+ * @param {Array} tasks
+ * @param {string} today 注入今天（YYYY-MM-DD），测试必传；缺省取本地
+ * @returns {{ due: Array, carried: Array, overdue: Array }}
+ */
+export function todaySections(tasks, today) {
+  const t0 = today || localToday();
+  const live = (t) => !t.done && !t.deletedAt;
+  const due = [];
+  const carried = [];
+  const overdue = [];
+  for (const t of tasks || []) {
+    if (!live(t)) continue;
+    if (isOverdue(t, t0)) { overdue.push(t); continue; }
+    // 顺延优先于今日段：自动粘留的条目 plannedDate 已是今天，但「拖了 N 天」必须可见（PRD 6.3 AC）
+    const onToday = t.plannedDate === t0 || String(t.dueAt || '').startsWith(t0);
+    if ((Number(t.carriedFrom) || 0) > 0) { carried.push(t); continue; }
+    if (onToday) { due.push(t); continue; }
+  }
+  return { due, carried, overdue };
+}
+
+/**
+ * 收件箱老化分组（inbox-ui-spec ③）：今天进的 / 本周 / 更早（≥5 天滞留）。
+ * 收件箱定义沿用现状锚点：未完成、无 plannedDate、无 dueAt、不在回收站。
+ *滞留天数 = today − createdAt（按日差，当天为 0）。
+ * @returns {{ fresh: Array, week: Array, older: Array }} 每项为 { task, age }
+ */
+export function inboxGroups(tasks, today) {
+  const t0 = today || localToday();
+  const live = (t) => !t.done && !t.deletedAt && !t.plannedDate && !t.dueAt;
+  const groups = { fresh: [], week: [], older: [] };
+  for (const t of tasks || []) {
+    if (!live(t)) continue;
+    const created = String(t.createdAt || '').slice(0, 10);
+    const age = created && created < t0
+      ? Math.round((new Date(t0) - new Date(created)) / 86400000)
+      : 0;
+    const entry = { task: t, age };
+    if (age <= 0) groups.fresh.push(entry);
+    else if (age < 5) groups.week.push(entry);
+    else groups.older.push(entry);
+  }
+  return groups;
+}

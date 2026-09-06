@@ -40,6 +40,7 @@ pub fn apply_with_hotkeys(
 fn restore(store: &mut Store, snapshot: &Settings) {
   store.data.settings.theme = snapshot.theme.clone();
   store.data.settings.sticky_pinned = snapshot.sticky_pinned;
+  store.data.settings.sticky_paper = snapshot.sticky_paper.clone();
   store.data.settings.capture_hotkey = snapshot.capture_hotkey.clone();
   store.data.settings.main_hotkey = snapshot.main_hotkey.clone();
 }

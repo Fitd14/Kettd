@@ -13,7 +13,8 @@ use crate::models::{
   patch_datetime, patch_text, parse_wall, to_local, AppData, BackupInfo, CATEGORIES,
   DataHealthV2, KbItem, MigrationIssue, MigrationReport, Note, PRIORITIES, Reminder, ReminderPayload,
   RuntimeState,
-  Repeat, Settings, SettingsPayload, Source, Subtask, Task, TaskPayload, TRASH_RETENTION_DAYS,
+  Repeat, Settings, SettingsPayload, Source, STICKY_PAPERS, Subtask, Task, TaskPayload,
+  TRASH_RETENTION_DAYS,
 };
 use crate::ports::clock::{Clock, SystemClock};
 use crate::ports::store_backend::StoreBackend;
@@ -311,6 +312,7 @@ fn migrate_task(object: &Value, report: &mut MigrationReport) -> Task {
     planned_date,
     carried_from,
     kb_refs: Vec::new(),
+    sticky_pinned: false,
     done,
     done_at,
     deleted_at,
@@ -1145,6 +1147,9 @@ impl Store {
       // 单向引用集合整体替换（前端以「当前挂载列表」提交，避免增量同步复杂度）
       task.kb_refs = value.clone();
     }
+    if let Some(value) = patch.sticky_pinned {
+      task.sticky_pinned = value;
+    }
     if let Some(value) = &patch.priority {
       if !PRIORITIES.contains(&value.as_str()) {
         return Err("优先级只能是 high / med / low".to_string());
@@ -1306,6 +1311,13 @@ impl Store {
       }
       if let Some(value) = patch.sticky_pinned {
         settings.sticky_pinned = value;
+      }
+      if let Some(value) = &patch.sticky_paper {
+        let trimmed = value.trim();
+        if !STICKY_PAPERS.contains(&trimmed) {
+          return Err("便签纸色只能是 warm / kraft / cyan / ink".to_string());
+        }
+        settings.sticky_paper = trimmed.to_string();
       }
       if let Some(value) = &patch.capture_hotkey {
         let trimmed = value.trim();
