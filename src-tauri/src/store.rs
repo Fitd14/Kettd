@@ -848,16 +848,6 @@ impl Store {
     self.backend.write_runtime(&runtime_json)
   }
 
-  /// 轻量保存：不轮转备份。只给窗口位置记忆这类高频低价值写入用，
-  /// 避免把轮转历史里真正有价值的旧档顶掉。
-  pub fn save_light(&mut self) -> Result<(), String> {
-    self.ensure_writable()?;
-    let data_json = self.serialized()?;
-    let runtime_json = self.serialized_runtime()?;
-    self.backend.write_data(&data_json)?;
-    self.backend.write_runtime(&runtime_json)
-  }
-
   /// 只写运行态：窗口位置这类不改用户数据的高频写（runtime.json 不轮转）
   pub fn save_runtime_only(&mut self) -> Result<(), String> {
     let runtime_json = self.serialized_runtime()?;
@@ -901,11 +891,12 @@ impl Store {
       .read_backup(number as u32)
       .and_then(|text| parse_value(&text))
       .map_err(|_| "这个备份也读不了，换一个试试".to_string())?;
-    let mut restored = if looks_like_v1(&raw) {
-      let (mut data, _report) = migrate_v1(&raw).map_err(|_| "这个备份无法还原成可用数据".to_string())?;
-      data
-    } else {
-      serde_json::from_value::<AppData>(raw).map_err(|_| "这个备份无法还原成可用数据".to_string())?
+    let mut restored = match looks_like_v1(&raw) {
+      true => {
+        let (data, _report) = migrate_v1(&raw).map_err(|_| "这个备份无法还原成可用数据".to_string())?;
+        data
+      }
+      false => serde_json::from_value::<AppData>(raw).map_err(|_| "这个备份无法还原成可用数据".to_string())?,
     };
     restored.settings.coerce();
     self.data = restored;

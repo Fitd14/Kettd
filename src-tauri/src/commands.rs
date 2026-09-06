@@ -37,10 +37,6 @@ fn task_error() -> String {
   "找不到这条待办，可能已经被删除".to_string()
 }
 
-fn reminder_error() -> String {
-  "找不到这条提醒，可能已经被删除".to_string()
-}
-
 // ---------------------------------------------------------------- 引导 / 读取
 
 #[tauri::command]
