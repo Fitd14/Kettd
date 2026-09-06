@@ -608,10 +608,8 @@ pub fn open_in_folder(path: &Path) -> Result<(), String> {
 
 // ---------------------------------------------------------------- 系统通知
 
-/// 到点的系统通知；点击后的深链由前端窗口处理（不带 payload）
-pub fn notify(app: &AppHandle, body: &str) -> bool {
-  notify_title(app, "待办提醒", body)
-}
+/// 到点提醒的统一标题（调度器 deliver 与托盘共用）
+pub const NOTIFY_TITLE: &str = "待办提醒";
 
 pub fn notify_title(app: &AppHandle, title: &str, body: &str) -> bool {
   let identifier = app.config().tauri.bundle.identifier.clone();

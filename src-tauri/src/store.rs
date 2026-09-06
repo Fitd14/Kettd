@@ -7,60 +7,30 @@
 //!
 //! 数据目录沿用 v1 的 `%APPDATA%/todo-list`（兼容发现）。
 
+use crate::infra::fs_store::{default_dir, FsBackend, ARCHIVE_FILE};
 use crate::models::{
-  carry_days, clocks_of, fmt_day, fmt_dt, new_id, normalize_date_text, normalize_datetime,
-  patch_datetime, patch_text, parse_wall, to_local, today, AppData, BackupInfo, CATEGORIES,
+  carry_days, clocks_of, fmt_day, fmt_dt, new_id, normalize_date_text, normalize_datetime, now_text, today,
+  patch_datetime, patch_text, parse_wall, to_local, AppData, BackupInfo, CATEGORIES,
   DataHealthV2, MigrationIssue, MigrationReport, Note, PRIORITIES, Reminder, ReminderPayload,
   Repeat, Settings, SettingsPayload, Source, Subtask, Task, TaskPayload, FLOAT_FORMS,
   TRASH_RETENTION_DAYS,
 };
+use crate::ports::clock::{Clock, SystemClock};
+use crate::ports::store_backend::StoreBackend;
 use chrono::{DateTime, Duration, Local};
 use serde_json::Value;
-use std::fs;
-use std::path::{Path, PathBuf};
 
-pub const BACKUP_SLOTS: usize = 5;
+pub use crate::infra::fs_store::BACKUP_SLOTS;
+
 pub const HEALTH_OK: &str = "ok";
 pub const HEALTH_CORRUPT: &str = "corrupt";
 pub const HEALTH_WRITE_FAILED: &str = "writeFailed";
 
-const DATA_FILE: &str = "data.json";
-const TMP_FILE: &str = "data.json.tmp";
-const V1_ARCHIVE: &str = "data.v1.json";
-
-// ---------------------------------------------------------------- 路径
-
-/// v1 同款目录：Windows 下 `dirs::data_dir()` == `%APPDATA%`
-pub fn data_dir() -> PathBuf {
-  dirs::data_dir()
-    .unwrap_or_else(|| PathBuf::from("."))
-    .join("todo-list")
-}
-
-pub fn data_path(dir: &Path) -> PathBuf {
-  dir.join(DATA_FILE)
-}
-
-fn backup_path(dir: &Path, slot: usize) -> PathBuf {
-  dir.join(format!("{}.bak-{}", DATA_FILE, slot))
-}
-
-fn stamp_text(value: &DateTime<Local>) -> String {
-  value.format("%Y-%m-%dT%H-%M-%S").to_string()
-}
-
-/// 把不可用文件另存为 data.corrupt.<ISO时间>（永不删除原件）
-fn quarantine(dir: &Path, source: &Path) -> Option<String> {
-  let name = format!("data.corrupt.{}", stamp_text(&Local::now()));
-  let target = dir.join(&name);
-  if fs::rename(source, &target).is_ok() {
-    return Some(name);
-  }
-  if fs::copy(source, &target).is_ok() {
-    let _ = fs::remove_file(source);
-    return Some(name);
-  }
-  None
+/// v1 同款目录：Windows 下 `dirs::data_dir()` == `%APPDATA%`。
+/// 只给"打开数据文件夹 / 导出目录 / 埋点落盘"这类**知道路径**的场景用；
+/// Store 的读写一律走 StoreBackend，不再直接碰这个路径。
+pub fn data_dir() -> std::path::PathBuf {
+  default_dir()
 }
 
 // ---------------------------------------------------------------- 读盘与迁移
@@ -498,7 +468,7 @@ pub fn migrate_v1(raw: &Value) -> Result<(AppData, MigrationReport), String> {
   migrate_settings(raw, &mut data.settings, &mut report);
   report.task_count = data.tasks.len() as u32;
   report.reminder_count = data.reminders.len() as u32;
-  report.archived_to = V1_ARCHIVE.to_string();
+  report.archived_to = ARCHIVE_FILE.to_string();
   Ok((data, report))
 }
 
@@ -528,7 +498,10 @@ pub enum Undoable {
 }
 
 pub struct Store {
-  pub dir: PathBuf,
+  /// 物理读写经端口（生产 = FsBackend，测试 = InMemoryBackend）
+  backend: Box<dyn StoreBackend>,
+  /// 时间经端口（生产 = SystemClock，测试 = FixedClock）
+  clock: Box<dyn Clock>,
   pub data: AppData,
   pub health: String,
   pub corrupt_file: Option<String>,
@@ -537,9 +510,11 @@ pub struct Store {
 }
 
 impl Store {
-  fn new(dir: &Path) -> Self {
+  /// 组合点：测试注入 InMemoryBackend + FixedClock，即不碰磁盘、不等真实时间
+  pub fn with_backend(backend: Box<dyn StoreBackend>, clock: Box<dyn Clock>) -> Self {
     Self {
-      dir: dir.to_path_buf(),
+      backend,
+      clock,
       data: AppData::default(),
       health: HEALTH_OK.to_string(),
       corrupt_file: None,
@@ -548,22 +523,37 @@ impl Store {
     }
   }
 
+  /// 当前时刻（Store 内一切"现在"的唯一来源）
+  fn clock_now(&self) -> DateTime<Local> {
+    self.clock.now()
+  }
+
+  /// 用户可见时刻文本（updated_at / deleted_at 等戳）
+  fn stamp(&self) -> String {
+    fmt_dt(self.clock_now())
+  }
+
   /// 启动加载：任何失败都进 corrupt 通道，绝不返回空集合
   pub fn load() -> Store {
-    let dir = data_dir();
-    let mut store = Store::new(&dir);
-    if let Err(error) = fs::create_dir_all(&dir) {
+    let dir = default_dir();
+    if let Err(error) = std::fs::create_dir_all(&dir) {
+      let mut store =
+        Store::with_backend(Box::new(FsBackend::new(dir)), Box::new(SystemClock));
       store.health = HEALTH_WRITE_FAILED.to_string();
-      store.last_error = Some(file_error("无法创建数据文件夹", &error));
+      store.last_error = Some(format!("无法创建数据文件夹：{}", brief_io(&error)));
       return store;
     }
-    let path = data_path(&dir);
-    if !path.exists() {
-      let archive = dir.join(V1_ARCHIVE);
-      if archive.exists() {
+    Self::load_with(Box::new(FsBackend::new(dir)), Box::new(SystemClock))
+  }
+
+  pub fn load_with(backend: Box<dyn StoreBackend>, clock: Box<dyn Clock>) -> Store {
+    let mut store = Store::with_backend(backend, clock);
+    if !store.backend.data_exists() {
+      if store.backend.archive_exists() {
         // 上次迁移中途失败：从永久留档的 v1 原件重来
-        return match read_value(&archive) {
-          Ok(raw) => store.from_v1(&raw, true),
+        let raw = store.backend.read_archive().and_then(|text| parse_value(&text));
+        return match raw {
+          Ok(value) => store.from_v1(&value, true),
           Err(error) => {
             store.health = HEALTH_CORRUPT.to_string();
             store.last_error = Some(error);
@@ -578,10 +568,15 @@ impl Store {
       }
       return store;
     }
-    let raw = match read_value(&path) {
+    let raw = match store
+      .backend
+      .read_data()
+      .and_then(|option| option.ok_or_else(|| "数据文件读不了，已停止写入".to_string()))
+      .and_then(|text| parse_value(&text))
+    {
       Ok(value) => value,
       Err(error) => {
-        store.corrupt_file = quarantine(&dir, &path);
+        store.corrupt_file = store.backend.quarantine();
         store.health = HEALTH_CORRUPT.to_string();
         store.last_error = Some(error);
         return store;
@@ -602,7 +597,7 @@ impl Store {
         store
       }
       Err(error) => {
-        store.corrupt_file = quarantine(&dir, &path);
+        store.corrupt_file = store.backend.quarantine();
         store.health = HEALTH_CORRUPT.to_string();
         store.last_error = Some(format!(
           "数据文件格式不对，已停止写入：{}",
@@ -614,14 +609,12 @@ impl Store {
   }
 
   fn from_v1(mut self, raw: &Value, from_archive: bool) -> Store {
-    let path = data_path(&self.dir);
-    let archive = self.dir.join(V1_ARCHIVE);
-    if !from_archive && !archive.exists() {
+    if !from_archive && !self.backend.archive_exists() {
       // 迁移前原件永久留档（已存在则保留最早那份，绝不覆盖）
-      if let Err(error) = fs::copy(&path, &archive) {
+      if let Err(error) = self.backend.copy_data_to_archive() {
         self.health = HEALTH_CORRUPT.to_string();
-        self.corrupt_file = quarantine(&self.dir, &path);
-        self.last_error = Some(file_error("无法留存 v1 原件", &error));
+        self.corrupt_file = self.backend.quarantine();
+        self.last_error = Some(error);
         return self;
       }
     }
@@ -638,7 +631,7 @@ impl Store {
       }
       Err(error) => {
         if !from_archive {
-          self.corrupt_file = quarantine(&self.dir, &path);
+          self.corrupt_file = self.backend.quarantine();
         }
         self.health = HEALTH_CORRUPT.to_string();
         self.last_error = Some(error);
@@ -698,51 +691,7 @@ impl Store {
   }
 
   pub fn backups(&self) -> Vec<BackupInfo> {
-    let mut out: Vec<BackupInfo> = Vec::new();
-    for slot in 1..=BACKUP_SLOTS {
-      let path = backup_path(&self.dir, slot);
-      if !path.exists() {
-        continue;
-      }
-      let meta = fs::metadata(&path).ok();
-      let created_at = meta
-        .as_ref()
-        .and_then(|value| value.modified().ok())
-        .map(|time| {
-          let local: DateTime<Local> = time.into();
-          fmt_dt(local)
-        })
-        .unwrap_or_else(|| "未知时间".to_string());
-      let size_kb = meta.map(|value| (value.len() + 1023) / 1024).unwrap_or(0);
-      match read_value(&path) {
-        Ok(raw) => {
-          let task_count = raw
-            .get("tasks")
-            .and_then(|value| value.as_array())
-            .map(|items| items.len() as u32)
-            .unwrap_or(0);
-          out.push(BackupInfo {
-            slot: slot.to_string(),
-            name: format!("{}.bak-{}", DATA_FILE, slot),
-            created_at,
-            size_kb,
-            task_count,
-            readable: true,
-            error: None,
-          });
-        }
-        Err(error) => out.push(BackupInfo {
-          slot: slot.to_string(),
-          name: format!("{}.bak-{}", DATA_FILE, slot),
-          created_at,
-          size_kb,
-          task_count: 0,
-          readable: false,
-          error: Some(error),
-        }),
-      }
-    }
-    out
+    self.backend.list_backups()
   }
 
   pub fn health_view(&self) -> DataHealthV2 {
@@ -761,11 +710,8 @@ impl Store {
   pub fn save(&mut self) -> Result<(), String> {
     self.ensure_writable()?;
     let json = self.serialized()?;
-    let dir = self.dir.clone();
-    if let Err(error) = rotate_backups(&dir) {
-      return Err(file_error("备份轮转失败，本次没有保存", &error));
-    }
-    write_json(&dir, TMP_FILE, DATA_FILE, &json)
+    self.backend.rotate_backups()?;
+    self.backend.write_data(&json)
   }
 
   /// 轻量保存：不轮转备份。只给窗口位置记忆这类高频低价值写入用，
@@ -773,8 +719,7 @@ impl Store {
   pub fn save_light(&mut self) -> Result<(), String> {
     self.ensure_writable()?;
     let json = self.serialized()?;
-    let dir = self.dir.clone();
-    write_json(&dir, TMP_FILE, DATA_FILE, &json)
+    self.backend.write_data(&json)
   }
 
   fn serialized(&self) -> Result<String, String> {
@@ -784,10 +729,8 @@ impl Store {
 
   /// 只写不轮转（回滚备份时使用，避免挤掉刚选中的备份）
   fn write_in_place(&mut self) -> Result<(), String> {
-    let json = serde_json::to_string_pretty(&self.data)
-      .map_err(|error| format!("数据序列化失败：{}", brief(&error.to_string())))?;
-    let dir = self.dir.clone();
-    write_json(&dir, TMP_FILE, DATA_FILE, &json)?;
+    let json = self.serialized()?;
+    self.backend.write_data(&json)?;
     self.health = HEALTH_OK.to_string();
     self.last_error = None;
     Ok(())
@@ -806,11 +749,11 @@ impl Store {
     if number == 0 || number > BACKUP_SLOTS {
       return Err("备份只有 1 到 5 号，请重新选择".to_string());
     }
-    let path = backup_path(&self.dir, number);
-    if !path.exists() {
-      return Err("这个备份不存在，换一个试试".to_string());
-    }
-    let raw = read_value(&path).map_err(|_| "这个备份也读不了，换一个试试".to_string())?;
+    let raw = self
+      .backend
+      .read_backup(number as u32)
+      .and_then(|text| parse_value(&text))
+      .map_err(|_| "这个备份也读不了，换一个试试".to_string())?;
     let mut restored = if looks_like_v1(&raw) {
       let (mut data, report) = migrate_v1(&raw).map_err(|_| "这个备份无法还原成可用数据".to_string())?;
       data.migration = Some(report);
@@ -836,7 +779,7 @@ impl Store {
 
   /// 启动时物理清理超过保留期的软删任务（含其子任务与备注）
   pub fn purge_expired(&mut self, days: i64) -> usize {
-    let limit = now() - Duration::days(days);
+    let limit = self.clock_now() - Duration::days(days);
     let mut purged_ids: Vec<String> = Vec::new();
     self.data.tasks.retain(|task| {
       let keep = match &task.deleted_at {
@@ -878,7 +821,7 @@ impl Store {
     if self.data.tasks[index].in_trash() {
       return Err("这条待办已经在回收站里".to_string());
     }
-    let stamp = now_text();
+    let stamp = self.stamp();
     {
       let task = &mut self.data.tasks[index];
       task.deleted_at = Some(stamp.clone());
@@ -909,7 +852,7 @@ impl Store {
     };
     match entry {
       Undoable::Task(snapshot) => {
-        let stamp = now_text();
+        let stamp = self.stamp();
         let index = self.find_index(&snapshot.id);
         match index {
           Some(position) => {
@@ -939,7 +882,7 @@ impl Store {
         {
           self.data.tasks[index].subtasks.push(subtask);
         }
-        self.data.tasks[index].updated_at = now_text();
+        self.data.tasks[index].updated_at = self.stamp();
         Ok(Some(self.data.tasks[index].clone()))
       }
       Undoable::Note { task_id, note } => {
@@ -949,7 +892,7 @@ impl Store {
         if !self.data.tasks[index].notes.iter().any(|item| item.id == note.id) {
           self.data.tasks[index].notes.push(note);
         }
-        self.data.tasks[index].updated_at = now_text();
+        self.data.tasks[index].updated_at = self.stamp();
         Ok(Some(self.data.tasks[index].clone()))
       }
     }
@@ -962,7 +905,7 @@ impl Store {
       return Err("这条待办不在回收站".to_string());
     }
     self.data.tasks[index].deleted_at = None;
-    self.data.tasks[index].updated_at = now_text();
+    self.data.tasks[index].updated_at = self.stamp();
     self
       .undo
       .retain(|entry| !matches!(entry, Undoable::Task(boxed) if boxed.id == id));
@@ -993,7 +936,7 @@ impl Store {
     if self.data.tasks[index].in_trash() {
       return Err("回收站里的待办不能勾选，请先恢复".to_string());
     }
-    let stamp = now_text();
+    let stamp = self.stamp();
     {
       let task = &mut self.data.tasks[index];
       task.done = !task.done;
@@ -1016,7 +959,7 @@ impl Store {
       .position(|item| item.id == subtask_id)
       .ok_or_else(|| "找不到这个子任务".to_string())?;
     self.data.tasks[index].subtasks[position].done = !self.data.tasks[index].subtasks[position].done;
-    self.data.tasks[index].updated_at = now_text();
+    self.data.tasks[index].updated_at = self.stamp();
     Ok(self.data.tasks[index].clone())
   }
 
@@ -1264,7 +1207,7 @@ impl Store {
   pub fn consume_task_remind(&mut self, id: &str, key: &str) {
     if let Some(index) = self.find_index(id) {
       self.data.tasks[index].remind_at = None;
-      self.data.tasks[index].updated_at = now_text();
+      self.data.tasks[index].updated_at = self.stamp();
     }
     self.remember_fired(key);
   }
@@ -1286,7 +1229,7 @@ impl Store {
   /// 触发/落库后统一走这里：写盘 + 事件由各命令层负责
   pub fn touch_task_time(&mut self, id: &str) {
     if let Some(index) = self.find_index(id) {
-      let stamp = now_text();
+      let stamp = self.stamp();
       self.data.tasks[index].updated_at = stamp;
     }
   }
@@ -1298,12 +1241,16 @@ impl Store {
 
 // ---------------------------------------------------------------- 工具
 
-pub fn now() -> DateTime<Local> {
-  Local::now()
-}
-
-fn now_text() -> String {
-  fmt_dt(Local::now())
+/// JSON 字符串 → Value（保留原 corrupt 通道的两种用户可见文案）
+fn parse_value(text: &str) -> Result<Value, String> {
+  serde_json::from_str::<Value>(text).map_err(|error| {
+    let text = error.to_string();
+    if text.contains("EOF") || text.contains("expected") {
+      "数据文件被截断或格式不对，已停止写入".to_string()
+    } else {
+      "数据文件读不了，已停止写入".to_string()
+    }
+  })
 }
 
 /// 只给用户看短句，不泄露路径/堆栈
@@ -1318,18 +1265,15 @@ pub fn brief(text: &str) -> String {
   out
 }
 
-fn io_kind_text(error: &std::io::Error) -> &'static str {
-  match error.kind() {
+/// 启动目录创建失败时的用户可见短句
+fn brief_io(error: &std::io::Error) -> String {
+  let kind = match error.kind() {
     std::io::ErrorKind::PermissionDenied => "没有写入权限",
     std::io::ErrorKind::NotFound => "找不到文件",
     std::io::ErrorKind::ReadOnlyFilesystem => "目录是只读的",
     _ => "磁盘或路径不可用",
-  }
-}
-
-/// 面向 UI 的中文短句（不含路径与堆栈）
-fn file_error(prefix: &str, error: &std::io::Error) -> String {
-  format!("{}：{}", prefix, io_kind_text(error))
+  };
+  kind.to_string()
 }
 
 fn write_error(detail: Option<&str>) -> String {
@@ -1337,57 +1281,6 @@ fn write_error(detail: Option<&str>) -> String {
     Some(text) if !text.trim().is_empty() => text.to_string(),
     _ => "本地数据保存失败，请检查磁盘空间或目录权限".to_string(),
   }
-}
-
-fn write_json(dir: &Path, tmp_name: &str, final_name: &str, json: &str) -> Result<(), String> {
-  let tmp = dir.join(tmp_name);
-  let target = dir.join(final_name);
-  if let Err(error) = fs::write(&tmp, json.as_bytes()) {
-    let _ = fs::remove_file(&tmp);
-    return Err(file_error("临时文件写入失败，本次没有保存", &error));
-  }
-  if let Err(error) = fs::rename(&tmp, &target) {
-    let _ = fs::remove_file(&tmp);
-    return Err(file_error("替换数据文件失败，本次没有保存", &error));
-  }
-  Ok(())
-}
-
-/// data.json.bak-1 ← 当前 data.json，旧档顺移，保留 5 份
-fn rotate_backups(dir: &Path) -> Result<(), std::io::Error> {
-  let mut slot = BACKUP_SLOTS;
-  while slot > 1 {
-    let from = backup_path(dir, slot - 1);
-    let to = backup_path(dir, slot);
-    if from.exists() {
-      if to.exists() {
-        let _ = fs::remove_file(&to);
-      }
-      fs::rename(&from, &to)?;
-    }
-    slot -= 1;
-  }
-  let current = data_path(dir);
-  if current.exists() {
-    let first = backup_path(dir, 1);
-    if first.exists() {
-      let _ = fs::remove_file(&first);
-    }
-    fs::copy(&current, &first)?;
-  }
-  Ok(())
-}
-
-pub fn read_value(path: &Path) -> Result<Value, String> {
-  let raw = fs::read_to_string(path).map_err(|error| file_error("读不到数据文件", &error))?;
-  serde_json::from_str::<Value>(&raw).map_err(|error| {
-    let text = error.to_string();
-    if text.contains("EOF") || text.contains("expected") {
-      "数据文件被截断或格式不对，已停止写入".to_string()
-    } else {
-      "数据文件读不了，已停止写入".to_string()
-    }
-  })
 }
 
 /// 文件名字符串净化（保留中文与字母数字）
@@ -1427,7 +1320,18 @@ pub fn task_key(id: &str, stamp: &str) -> String {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::ports::clock::test_double::FixedClock;
+  use crate::ports::store_backend::test_double::InMemoryBackend;
+  use chrono::TimeZone;
   use serde_json::json;
+
+  /// 内存库 + 固定时钟（2026-09-05 09:00）：不碰磁盘、不等真实时间
+  fn mem_store() -> Store {
+    Store::with_backend(
+      Box::new(InMemoryBackend::new()),
+      Box::new(FixedClock::at(Local.with_ymd_and_hms(2026, 9, 5, 9, 0, 0).unwrap())),
+    )
+  }
 
   /// 一份最小 v1 文档（顶层 theme 是字符串 = v1 特征）
   fn v1_doc(tasks: Value, reminders: Value) -> Value {
@@ -1642,8 +1546,8 @@ mod tests {
   #[test]
   fn report_points_at_the_immutable_v1_archive_name() {
     let (_data, report) = migrate(json!([]), json!([]));
-    assert_eq!(report.archived_to, V1_ARCHIVE);
-    assert_eq!(V1_ARCHIVE, "data.v1.json", "原件留档名是对用户的承诺");
+    assert_eq!(report.archived_to, ARCHIVE_FILE);
+    assert_eq!(ARCHIVE_FILE, "data.v1.json", "原件留档名是对用户的承诺");
   }
 
   #[test]
@@ -1660,9 +1564,10 @@ mod tests {
 
   #[test]
   fn purge_expired_recycles_only_purged_task_keys_and_keeps_the_rest() {
-    let mut store = Store::new(Path::new("unused"));
-    let old = fmt_dt(now() - Duration::days(TRASH_RETENTION_DAYS + 1));
-    let fresh = fmt_dt(now() - Duration::days(1));
+    let mut store = mem_store();
+    // 固定时钟 = 2026-09-05 09:00；31 天前已超 30 天保留期，1 天前未超
+    let old = "2026-07-05T09:00".to_string();
+    let fresh = "2026-09-04T09:00".to_string();
     store.data.tasks.push(Task {
       id: "t-old".to_string(),
       deleted_at: Some(old),
@@ -1694,7 +1599,7 @@ mod tests {
 
   #[test]
   fn purge_task_recycles_its_own_fired_keys() {
-    let mut store = Store::new(Path::new("unused"));
+    let mut store = mem_store();
     store.data.tasks.push(Task {
       id: "t-gone".to_string(),
       deleted_at: Some("2026-09-01T10:00".to_string()),

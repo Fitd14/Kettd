@@ -13,6 +13,8 @@ use crate::models::{
   clocks_of, fmt_dt, now_text, parse_clock, parse_wall, repeat_allows, to_local, Reminder, Settings,
   StoreEvent, MISSED_GRACE_HOURS,
 };
+use crate::ports::clock::Clock;
+use crate::ports::notifier::Notifier;
 use crate::runtime;
 use crate::store::{reminder_key, task_key, Store};
 use crate::telemetry;
@@ -65,6 +67,9 @@ impl NightState {
 /// 磁盘写有意留在 ③ 的锁内：读-改-写必须原子，移出锁会引入并发写风险，
 /// 且它远快于 OS 通知 IPC —— 这不是"没做完"。
 pub fn start(app: AppHandle) {
+  let notifier = Box::new(crate::infra::tauri_notifier::TauriNotifier::new(app.clone()))
+    as Box<dyn Notifier>;
+  let clock = Box::new(crate::ports::clock::SystemClock) as Box<dyn Clock>;
   std::thread::spawn(move || {
     let mut state = NightState::new();
     loop {
@@ -79,20 +84,20 @@ pub fn start(app: AppHandle) {
           Ok(guard) => guard,
           Err(poisoned) => poisoned.into_inner(),
         };
-        match plan_tick(&mut store, &mut state) {
+        match plan_tick(&mut store, &mut state, clock.as_ref()) {
           Some(plan) => plan,
           None => continue,
         }
       }; // ← 锁在此释放
       // ② 锁外通知 + 遥测
-      let outcome = deliver(&app, plan);
+      let outcome = deliver(notifier.as_ref(), plan);
       // ③ 短锁落库
       let events = {
         let mut store = match slot.lock() {
           Ok(guard) => guard,
           Err(poisoned) => poisoned.into_inner(),
         };
-        apply(&mut store, &mut state, outcome)
+        apply(&mut store, &mut state, outcome, clock.as_ref())
       };
       // ④ 锁外广播
       broadcast(&app, events);
@@ -122,11 +127,12 @@ struct Outcome {
 }
 
 /// ① 持短锁决策：只读 Store、只改线程内的 NightState，**不写库、不发通知**
-fn plan_tick(store: &mut Store, state: &mut NightState) -> Option<Plan> {
+/// 时钟经端口注入（ADR-0002）：DND 跨午夜、24h 降级等时间边界因此可表驱动测试
+fn plan_tick(store: &mut Store, state: &mut NightState, clock: &dyn Clock) -> Option<Plan> {
   if store.is_corrupt() {
     return None; // corrupt 状态下不发通知也不写库（等用户恢复）
   }
-  let at = Local::now();
+  let at = clock.now();
   let dnd = in_dnd(&store.data.settings, &at);
   let mut candidates: Vec<Due> = Vec::new();
   collect(store, &at, &mut candidates);
@@ -230,15 +236,15 @@ fn plan_tick(store: &mut Store, state: &mut NightState) -> Option<Plan> {
   Some(plan)
 }
 
-/// ② 锁外执行：发系统通知 + 记逐条遥测（这两样都不碰 Store）
-fn deliver(app: &AppHandle, plan: Plan) -> Outcome {
+/// ② 锁外执行：发系统通知 + 记逐条遥测（这两样都不碰 Store）。通知经端口注入
+fn deliver(notifier: &dyn Notifier, plan: Plan) -> Outcome {
   for body in plan.batches.iter() {
-    runtime::notify(app, body);
+    notifier.notify(runtime::NOTIFY_TITLE, body);
   }
   let mut shown = 0usize;
   for due in plan.fires.iter() {
     // 通知失败也照样落库记 fired —— 保持既有语义：不重复打扰，但也不静默漏记
-    if runtime::notify(app, &body_of(due)) {
+    if notifier.notify(runtime::NOTIFY_TITLE, &body_of(due)) {
       shown += 1;
       telemetry::record_str("reminder_shown", &[("id", due.id.as_str())]);
     } else {
@@ -260,11 +266,16 @@ fn deliver(app: &AppHandle, plan: Plan) -> Outcome {
 }
 
 /// ③ 持短锁落库：幂等重校验 → settle → save（磁盘写有意留在锁内）
-fn apply(store: &mut Store, state: &mut NightState, outcome: Outcome) -> Vec<StoreEvent> {
+fn apply(
+  store: &mut Store,
+  state: &mut NightState,
+  outcome: Outcome,
+  clock: &dyn Clock,
+) -> Vec<StoreEvent> {
   if !outcome.dirty {
     return Vec::new();
   }
-  let now = Local::now();
+  let now = clock.now();
   let mut events: Vec<StoreEvent> = Vec::new();
   for (due, quiet) in outcome.settles.iter() {
     // 幂等重校验：①–③ 之间这条若已被别处记过，就不再重复落库与广播
@@ -539,18 +550,20 @@ mod tests {
   }
 
   fn store_with(reminders: Vec<Reminder>, fired: Vec<String>) -> Store {
-    Store {
-      dir: PathBuf::from("."),
-      data: AppData {
-        reminders,
-        fired,
-        ..Default::default()
-      },
-      health: "ok".to_string(),
-      corrupt_file: None,
-      last_error: None,
-      undo: Vec::new(),
-    }
+    use crate::ports::clock::test_double::FixedClock;
+    use crate::ports::store_backend::test_double::InMemoryBackend;
+    let mut store = Store::with_backend(
+      Box::new(InMemoryBackend::new()),
+      Box::new(FixedClock::at(wall(2026, 9, 5, 9, 0))),
+    );
+    store.data.reminders = reminders;
+    store.data.fired = fired;
+    store
+  }
+
+  /// 决策/落库用的注入时钟（与 store_with 同一时刻；要推进时另建再 advance）
+  fn tick_clock() -> crate::ports::clock::test_double::FixedClock {
+    crate::ports::clock::test_double::FixedClock::at(wall(2026, 9, 5, 9, 0))
   }
 
   fn keys(dues: &[Due]) -> Vec<String> {
@@ -647,7 +660,7 @@ mod tests {
     );
     let mut state = NightState::new();
     state.warmed_up = true;
-    let plan = plan_tick(&mut store, &mut state).expect("非 corrupt 应返回计划");
+    let plan = plan_tick(&mut store, &mut state, &tick_clock()).expect("非 corrupt 应返回计划");
     assert!(plan.fires.is_empty(), "已 fired 的键不该再进通知队列");
     assert!(plan.settles.is_empty(), "已 fired 的键不该再落库");
     assert!(!plan.dirty);
@@ -658,7 +671,7 @@ mod tests {
     let mut store = store_with(vec![reminder("r1", "09:00")], vec![]);
     store.health = crate::store::HEALTH_CORRUPT.to_string();
     let mut state = NightState::new();
-    assert!(plan_tick(&mut store, &mut state).is_none(), "corrupt 时不发通知也不写库");
+    assert!(plan_tick(&mut store, &mut state, &tick_clock()).is_none(), "corrupt 时不发通知也不写库");
   }
 
   #[test]
@@ -667,7 +680,7 @@ mod tests {
     store.data.settings.remind_cap_per_hour = 2;
     let mut state = NightState::new();
     state.warmed_up = true;
-    let plan = plan_tick(&mut store, &mut state).unwrap();
+    let plan = plan_tick(&mut store, &mut state, &tick_clock()).unwrap();
     assert_eq!(plan.fires.len(), 2, "上限 2 就只放行 2 条，宁少不超");
     assert_eq!(state.queue.len(), 1, "第 3 条应留在队列里等下个 tick");
   }
@@ -694,9 +707,133 @@ mod tests {
       shown: 0,
       dirty: true,
     };
-    let events = apply(&mut store, &mut state, outcome);
+    let events = apply(&mut store, &mut state, outcome, &tick_clock());
     assert!(events.is_empty(), "已 fired 的键不该重复产生事件");
     assert_eq!(state.sent.len(), 0);
+  }
+
+  // ---- ADR-0002 出口判据的收益面：完整 tick（①决策→②通知→③落库）在
+  // ---- 不建窗、不碰 %APPDATA%、不等真实时间的前提下可测。以下规则此前一行都测不了。
+
+  use crate::ports::notifier::test_double::RecordingNotifier;
+
+  fn clock_at(y: i32, mo: u32, d: u32, h: u32, mi: u32) -> crate::ports::clock::test_double::FixedClock {
+    crate::ports::clock::test_double::FixedClock::at(wall(y, mo, d, h, mi))
+  }
+
+  #[test]
+  fn first_tick_merges_missed_into_one_batch_notification() {
+    let mut store = store_with(
+      vec![
+        reminder("r1", "2026-09-04T10:00"),
+        reminder("r2", "2026-09-04T12:00"),
+      ],
+      vec![],
+    );
+    let mut state = NightState::new();
+    let clock = clock_at(2026, 9, 5, 9, 0); // 两条都错过但未超 24h
+    let notifier = RecordingNotifier::new();
+
+    let plan = plan_tick(&mut store, &mut state, &clock).unwrap();
+    assert!(plan.fires.is_empty(), "启动补发合并成一条，不逐条轰炸");
+    assert_eq!(plan.batches, vec!["错过 2 条提醒".to_string()]);
+
+    let outcome = deliver(&notifier, plan);
+    assert_eq!(notifier.bodies(), vec!["错过 2 条提醒".to_string()]);
+    let events = apply(&mut store, &mut state, outcome, &clock);
+    assert_eq!(events.len(), 2);
+    assert!(events.iter().all(|event| event.kind == "missed"));
+    assert!(
+      store.data.reminders.iter().all(|item| item.completed),
+      "单次提醒补发后必须置 completed，否则永远重响"
+    );
+    assert_eq!(store.data.fired.len(), 2, "补发也记 fired 键");
+  }
+
+  #[test]
+  fn dnd_silences_then_merges_after_window_ends() {
+    let mut store = store_with(vec![reminder("r1", "23:10")], vec![]);
+    // 默认免打扰 23:00–07:30 已开启（Dnd::default）
+    let mut state = NightState::new();
+    let clock = clock_at(2026, 9, 5, 10, 0);
+    let notifier = RecordingNotifier::new();
+
+    // 预热：空 tick，让 warmed_up 置位（首 tick 的补发语义不掺和本用例）
+    let warm = plan_tick(&mut store, &mut state, &clock).unwrap();
+    apply(&mut store, &mut state, deliver(&notifier, warm), &clock);
+    assert!(notifier.bodies().is_empty());
+
+    // 23:30：到点但落在免打扰窗口 → 静默入账，不发通知
+    clock.advance(chrono::Duration::hours(13) + chrono::Duration::minutes(30));
+    let plan = plan_tick(&mut store, &mut state, &clock).unwrap();
+    assert!(plan.fires.is_empty(), "免打扰期间不得逐条发");
+    apply(&mut store, &mut state, deliver(&notifier, plan), &clock);
+    assert!(notifier.bodies().is_empty(), "免打扰期间零通知");
+    assert_eq!(state.quiet, 1, "应静默入账 1 条");
+    assert!(store.has_fired("r|r1|2026-09-05T23:10"), "入账也记 fired");
+
+    // 次日 07:31：窗口结束 → 合并补一条
+    clock.advance(chrono::Duration::hours(8) + chrono::Duration::minutes(1));
+    let plan = plan_tick(&mut store, &mut state, &clock).unwrap();
+    assert_eq!(plan.batches, vec!["免打扰期间有 1 条提醒".to_string()]);
+    deliver(&notifier, plan);
+    assert_eq!(
+      notifier.bodies(),
+      vec!["免打扰期间有 1 条提醒".to_string()],
+      "跨午夜出窗后只补一条汇总"
+    );
+  }
+
+  #[test]
+  fn hourly_cap_queues_beyond_budget_and_releases_next_window() {
+    let mut store = store_with(
+      vec![reminder("r1", "09:01"), reminder("r2", "09:02")],
+      vec![],
+    );
+    store.data.settings.remind_cap_per_hour = 1;
+    let mut state = NightState::new();
+    state.warmed_up = true; // 绕开首 tick 补发语义，专测上限
+    let clock = clock_at(2026, 9, 5, 9, 5);
+    let notifier = RecordingNotifier::new();
+
+    let plan = plan_tick(&mut store, &mut state, &clock).unwrap();
+    assert_eq!(plan.fires.len(), 1, "上限 1 就只放行 1 条，宁少不超");
+    assert_eq!(state.queue.len(), 1, "第 2 条留在队列里");
+    apply(&mut store, &mut state, deliver(&notifier, plan), &clock);
+    assert_eq!(notifier.bodies().len(), 1);
+
+    // 55 分钟后：仍在滑窗内 → 继续等
+    clock.advance(chrono::Duration::minutes(55));
+    let plan = plan_tick(&mut store, &mut state, &clock).unwrap();
+    assert!(plan.fires.is_empty(), "一小时内不得突破上限");
+    apply(&mut store, &mut state, deliver(&notifier, plan), &clock);
+
+    // 满 61 分钟：滑窗放开 → 队列里的那条补发
+    clock.advance(chrono::Duration::minutes(6));
+    let plan = plan_tick(&mut store, &mut state, &clock).unwrap();
+    assert_eq!(plan.fires.len(), 1, "窗口放开后补发排队的那条");
+    assert_eq!(plan.fires[0].id, "r2");
+    apply(&mut store, &mut state, deliver(&notifier, plan), &clock);
+    assert_eq!(notifier.bodies().len(), 2);
+  }
+
+  #[test]
+  fn missed_beyond_24h_settles_quiet_without_notification() {
+    let mut store = store_with(vec![reminder("r1", "2026-09-03T08:00")], vec![]);
+    let mut state = NightState::new();
+    state.warmed_up = true;
+    let clock = clock_at(2026, 9, 6, 9, 0); // 错过超过 24h
+    let notifier = RecordingNotifier::new();
+
+    let plan = plan_tick(&mut store, &mut state, &clock).unwrap();
+    assert!(plan.fires.is_empty() && plan.batches.is_empty(), "过期不再打扰");
+    assert_eq!(plan.settles.len(), 1);
+
+    let events = apply(&mut store, &mut state, deliver(&notifier, plan), &clock);
+    assert!(notifier.bodies().is_empty(), "过期提醒零通知");
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].kind, "missed", "以 missed 语义告知前端");
+    assert!(store.has_fired("r|r1|2026-09-03T08:00"), "清账记 fired，不再重响");
   }
 }
 
