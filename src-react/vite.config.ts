@@ -28,6 +28,7 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         capture: fileURLToPath(new URL('./capture.html', import.meta.url)),
+        sticky: fileURLToPath(new URL('./sticky.html', import.meta.url)),
       },
     },
   },

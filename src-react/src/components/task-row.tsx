@@ -18,6 +18,8 @@ export interface TaskRowProps {
   onDelete?: (id: string) => void
   onOpen?: (id: string) => void
   onSelect?: (id: string, checked: boolean) => void
+  /** 钉到/取下便签（便签规格 D2：镜像今天 + 可钉单条） */
+  onPinSticky?: (id: string, pinned: boolean) => void
 }
 
 /**
@@ -38,6 +40,7 @@ export function TaskRow({
   onDelete,
   onOpen,
   onSelect,
+  onPinSticky,
 }: TaskRowProps) {
   const [scheduling, setScheduling] = useState(false)
   const [scheduleValue, setScheduleValue] = useState('')
@@ -120,6 +123,16 @@ export function TaskRow({
           )}
           {actions !== 'none' && onSchedule && (
             <button className="btn ghost xs" title="排期（E）" onClick={() => setScheduling((v) => !v)}>排期…</button>
+          )}
+          {onPinSticky && (
+            <button
+              className="btn ghost xs"
+              title={task.stickyPinned ? '从便签取下' : '钉到便签'}
+              aria-pressed={!!task.stickyPinned}
+              onClick={() => onPinSticky(task.id, !task.stickyPinned)}
+            >
+              {task.stickyPinned ? '📌已钉' : '📌'}
+            </button>
           )}
           {onDelete && (
             <button className="btn ghost xs" title="删除（X）" onClick={() => onDelete(task.id)}>⋯</button>

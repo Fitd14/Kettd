@@ -1,0 +1,203 @@
+/* 便签视觉（便签规格 §5 + §12.1）：现代便签——暖纸、圆角、柔和阴影、小图钉、右下折角。
+   纸色只改 --sticky-paper / --sticky-strip / --sticky-ink 三个变量；
+   分类色 --cat-* 与强调 --sticky-accent 不随纸色变（信息一致）。
+   暗色保持暖纸调不转冷灰；paper=ink 为暗色默认，亮色下也可手选。 */
+
+.sticky-note {
+  --sticky-accent: hsl(38 62% 55%);
+  --sticky-paper: hsl(44 40% 96%);
+  --sticky-strip: hsl(44 32% 92%);
+  --sticky-ink: hsl(30 10% 15%);
+  --sticky-muted: hsl(30 8% 40%);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 456px;
+  border-radius: var(--r-lg, 12px);
+  background: var(--sticky-paper);
+  color: var(--sticky-ink);
+  box-shadow: 0 6px 24px hsl(30 10% 20% / 0.18), 0 1px 3px hsl(30 10% 20% / 0.12);
+  font-family: 'Microsoft YaHei', system-ui, sans-serif;
+  overflow: hidden;
+  transition: opacity 180ms ease-out;
+}
+
+/* 移出淡化 ≈38%（AC4）：仍可扫读、不拦截语义——这里窗口整体弱化 */
+.sticky-note.faded {
+  opacity: 0.38;
+}
+
+/* 四套预设纸色（规格 §12.1） */
+.sticky-note.paper-kraft {
+  --sticky-paper: hsl(34 45% 78%);
+  --sticky-strip: hsl(33 38% 72%);
+  --sticky-ink: hsl(28 30% 18%);
+}
+.sticky-note.paper-cyan {
+  --sticky-paper: hsl(190 45% 88%);
+  --sticky-strip: hsl(190 32% 82%);
+  --sticky-ink: hsl(200 25% 18%);
+}
+/* 暗墨：低光/夜间，文字转浅（独立于 light/dark 系统主题） */
+.sticky-note.paper-ink {
+  --sticky-paper: hsl(40 12% 16%);
+  --sticky-strip: hsl(40 10% 21%);
+  --sticky-ink: hsl(40 20% 88%);
+  --sticky-muted: hsl(40 12% 62%);
+  box-shadow: 0 6px 24px hsl(0 0% 0% / 0.45), 0 1px 3px hsl(0 0% 0% / 0.3);
+}
+.dark .sticky-note {
+  --sticky-accent: hsl(38 45% 45%);
+  --sticky-paper: hsl(40 12% 16%);
+  --sticky-strip: hsl(40 10% 21%);
+  --sticky-ink: hsl(40 20% 88%);
+  --sticky-muted: hsl(40 12% 62%);
+}
+
+/* 顶部胶条：自绘标题（无边框窗），可拖拽 */
+.sticky-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--sticky-strip);
+  cursor: grab;
+  user-select: none;
+}
+.sticky-head {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--sticky-muted);
+  letter-spacing: 0.02em;
+}
+.sticky-head b {
+  color: var(--sticky-ink);
+}
+
+.sticky-btn {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--sticky-muted);
+  border-radius: 8px;
+  padding: 3px 7px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.sticky-btn:hover {
+  background: hsl(0 0% 50% / 0.14);
+  color: var(--sticky-ink);
+}
+.sticky-btn.pin.on {
+  color: var(--sticky-accent);
+}
+
+.sticky-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  overflow-y: auto;
+}
+
+.sticky-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 4px;
+  border-radius: 8px;
+}
+.sticky-row:hover {
+  background: hsl(0 0% 50% / 0.08);
+}
+.sticky-row .tcheck {
+  accent-color: var(--sticky-accent);
+  width: 15px;
+  height: 15px;
+  flex: none;
+  cursor: pointer;
+}
+
+.sticky-title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  color: var(--sticky-ink);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sticky-title:hover {
+  text-decoration: underline;
+}
+.sticky-carry {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--sticky-accent);
+  border: 1px solid color-mix(in srgb, var(--sticky-accent) 40%, transparent);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+.sticky-unpin {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--sticky-muted);
+  cursor: pointer;
+  font-size: 13px;
+  border-radius: 6px;
+  padding: 0 5px;
+}
+.sticky-unpin:hover {
+  background: hsl(0 0% 50% / 0.14);
+  color: var(--sticky-ink);
+}
+
+.sticky-gap {
+  border-top: 1px dashed color-mix(in srgb, var(--sticky-ink) 22%, transparent);
+  margin: 6px 0;
+}
+
+.sticky-empty {
+  margin: auto;
+  text-align: center;
+  font-size: 13px;
+  color: var(--sticky-muted);
+  line-height: 1.9;
+}
+.sticky-empty kbd {
+  border: 1px solid color-mix(in srgb, var(--sticky-ink) 25%, transparent);
+  border-radius: 6px;
+  padding: 1px 6px;
+  background: hsl(0 0% 50% / 0.08);
+}
+
+/* 右下折角：轻隐喻（规格 §5），非复古铺陈 */
+.sticky-fold {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(315deg, transparent 50%, color-mix(in srgb, var(--sticky-strip) 80%, hsl(0 0% 0% / 0.1)) 50%);
+  border-bottom-right-radius: var(--r-lg, 12px);
+}
+
+/* 完成 = 置灰删除线（规格 §4） */
+.sticky-row:has(.tcheck:checked) .sticky-title {
+  color: var(--sticky-muted);
+  text-decoration: line-through;
+}
+
+body {
+  margin: 0;
+  background: transparent;
+}
