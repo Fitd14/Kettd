@@ -13,6 +13,7 @@
     windows_subsystem = "windows"
 )]
 
+mod app;
 mod commands;
 mod infra;
 mod export;

@@ -436,6 +436,15 @@ fn read_hotkey(app: &AppHandle, action: HotkeyAction) -> Option<String> {
   }
 }
 
+/// 槽位当前真正生效的组合键（设置页「当前绑定」的事实来源）
+pub fn bound_combo(app: &AppHandle, slot: crate::ports::hotkeys::HotkeySlot) -> Option<String> {
+  let action = match slot {
+    crate::ports::hotkeys::HotkeySlot::Capture => HotkeyAction::Capture,
+    crate::ports::hotkeys::HotkeySlot::Main => HotkeyAction::OpenMain,
+  };
+  read_hotkey(app, action)
+}
+
 fn store_hotkey(app: &AppHandle, action: HotkeyAction, value: Option<String>) {
   if let Some(state) = app.try_state::<HotkeyLock>() {
     match state.0.lock() {

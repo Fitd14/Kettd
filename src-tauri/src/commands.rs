@@ -2,7 +2,7 @@
 
 use crate::export;
 use crate::models::{
-  carry_days, clocks_of, fmt_dt, is_valid_choice, new_id, normalize_datetime, now_text,
+  clocks_of, is_valid_choice, new_id, normalize_datetime, now_text,
   Bootstrap, CATEGORIES, DataHealthV2, DEFAULT_HOTKEY, FLOAT_FORMS,
   HotkeyStatus, MigrationReport, Note, NotePayload, PRIORITIES, REMINDER_CAP_DEFAULT, Reminder, ReminderPayload,
   RestoreResult, Settings, SettingsPayload, Source, StoreEvent, Subtask, Task, TaskPayload,
@@ -112,26 +112,10 @@ pub fn add_task(
   state: State<'_, Shared>,
   args: TaskPayload,
 ) -> Result<Task, String> {
-  if args.title.as_deref().unwrap_or("").trim().is_empty() {
-    return Err("标题不能为空".to_string());
-  }
   let mut store = lock(&state);
   store.ensure_writable()?;
-  let stamp = now_text();
-  let mut task = Task {
-    id: new_id("t"),
-    created_at: stamp.clone(),
-    updated_at: stamp,
-    source: args.source.unwrap_or(Source::Manual),
-    ..Default::default()
-  };
-  Store::apply_task_patch(&mut task, &args)?;
-  task.carried_from = if task.done {
-    0
-  } else {
-    carry_days(&task.due_at.clone())
-  };
-  store.data.tasks.push(task.clone());
+  // 规则在 app/tasks：标题非空、默认值、拖留初值
+  let task = crate::app::tasks::add(&mut store, args, &now_text(), today())?;
   save_and_emit(&mut store, &app, &task.id.clone())?;
   if matches!(task.source, Source::Capture) {
     crate::telemetry::capture_commit();
@@ -148,16 +132,8 @@ pub fn update_task(
 ) -> Result<Task, String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
-  let index = store.find_index(&id).ok_or_else(task_error)?;
-  let mut next = store.data.tasks[index].clone();
-  Store::apply_task_patch(&mut next, &patch)?;
-  next.updated_at = now_text();
-  next.carried_from = if next.done || next.in_trash() {
-    next.carried_from
-  } else {
-    next.carried_from.max(carry_days(&next.due_at.clone()))
-  };
-  store.data.tasks[index] = next.clone();
+  // 规则在 app/tasks：拖留只增不减
+  let next = crate::app::tasks::update(&mut store, &id, patch, &now_text(), today())?;
   save_and_emit(&mut store, &app, &id)?;
   Ok(next)
 }
@@ -399,15 +375,8 @@ pub fn update_reminder(
 ) -> Result<Reminder, String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
-  let index = store
-    .find_reminder_index(&id)
-    .ok_or_else(reminder_error)?;
-  let mut next = store.data.reminders[index].clone();
-  Store::apply_reminder_patch(&mut next, &patch)?;
-  if Some(true) == patch.enabled {
-    next.completed = false;
-  }
-  store.data.reminders[index] = next.clone();
+  // 重新启用自动置未完成的互逆规则在 app/reminders
+  let next = crate::app::reminders::apply_patch(&mut store, &id, &patch)?;
   save_and_emit(&mut store, &app, &id)?;
   Ok(next)
 }
@@ -420,13 +389,8 @@ pub fn delete_reminder(
 ) -> Result<(), String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
-  let index = store
-    .find_reminder_index(&id)
-    .ok_or_else(reminder_error)?;
-  store.data.reminders.remove(index);
-  // 用键生成器本身造前缀，格式永远与写入侧一致（reminder_key 是 r|{id}|{stamp}）
-  let prefix = crate::store::reminder_key(&id, "");
-  store.data.fired.retain(|key| !key.starts_with(&prefix));
+  // 删除并回收自己的 fired 键（键格式唯一生产者，规则在 app/reminders）
+  crate::app::reminders::delete(&mut store, &id)?;
   save_and_emit(&mut store, &app, &id)?;
   Ok(())
 }
@@ -439,19 +403,8 @@ pub fn toggle_reminder(
 ) -> Result<Reminder, String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
-  let index = store
-    .find_reminder_index(&id)
-    .ok_or_else(reminder_error)?;
-  let completed = store.data.reminders[index].completed;
-  {
-    let item = &mut store.data.reminders[index];
-    item.completed = !completed;
-    item.enabled = completed;
-    if item.enabled {
-      item.snoozed_until = None;
-    }
-  }
-  let updated = store.data.reminders[index].clone();
+  // enabled/completed 互逆规则在 app/reminders
+  let updated = crate::app::reminders::toggle(&mut store, &id)?;
   save_and_emit(&mut store, &app, &id)?;
   Ok(updated)
 }
@@ -463,22 +416,10 @@ pub fn snooze_reminder(
   id: String,
   minutes: u32,
 ) -> Result<Reminder, String> {
-  if minutes == 0 || minutes > 720 {
-    return Err("稍后提醒只能设 1 到 720 分钟".to_string());
-  }
   let mut store = lock(&state);
   store.ensure_writable()?;
-  let index = store
-    .find_reminder_index(&id)
-    .ok_or_else(reminder_error)?;
-  let target = fmt_dt(crate::models::now() + chrono::Duration::minutes(minutes as i64));
-  {
-    let item = &mut store.data.reminders[index];
-    item.snoozed_until = Some(target);
-    item.completed = false;
-    item.enabled = true;
-  }
-  let updated = store.data.reminders[index].clone();
+  // 1..=720 边界规则在 app/reminders；时刻 = 当前 + minutes
+  let updated = crate::app::reminders::snooze(&mut store, &id, minutes, crate::models::now())?;
   save_and_emit(&mut store, &app, &id)?;
   Ok(updated)
 }
@@ -495,29 +436,9 @@ pub fn set_settings(
   store.ensure_writable()?;
   let old_theme = store.data.settings.theme.clone();
   let old_form = store.data.settings.float_form.clone();
-  let old_hotkey = store.data.settings.capture_hotkey.clone();
-  let old_main_hotkey = store.data.settings.main_hotkey.clone();
-  store.apply_settings_patch(&patch)?;
-  let next_hotkey = store.data.settings.capture_hotkey.clone();
-  if next_hotkey != old_hotkey && runtime::register_capture_hotkey(&app, &next_hotkey).is_err() {
-    // 注册失败：整次回滚，避免界面热键与实际绑定不一致
-    store.data.settings.capture_hotkey = old_hotkey;
-    store.data.settings.main_hotkey = old_main_hotkey;
-    store.data.settings.float_form = old_form;
-    store.data.settings.theme = old_theme;
-    return Err("快捷键被占用，请用备用入口".to_string());
-  }
-  let next_main_hotkey = store.data.settings.main_hotkey.clone();
-  if next_main_hotkey != old_main_hotkey
-    && runtime::register_main_hotkey(&app, &next_main_hotkey).is_err()
-  {
-    store.data.settings.capture_hotkey = old_hotkey.clone();
-    store.data.settings.main_hotkey = old_main_hotkey;
-    store.data.settings.float_form = old_form;
-    store.data.settings.theme = old_theme;
-    let _ = runtime::register_capture_hotkey(&app, &old_hotkey);
-    return Err("快捷键被占用，请用备用入口".to_string());
-  }
+  // 两槽位热键事务：任一换绑失败，主题/形态/键位整批回滚（规则在 app/settings）
+  let mut hotkeys = crate::infra::tauri_hotkeys::TauriHotkeys::new(&app);
+  crate::app::settings::apply_with_hotkeys(&mut store, &patch, &mut hotkeys)?;
   let next_form = store.data.settings.float_form.clone();
   let next_theme = store.data.settings.theme.clone();
   store.save()?;

@@ -727,6 +727,11 @@ pub fn to_local(wall: &NaiveDateTime) -> Option<chrono::DateTime<Local>> {
 
 /// 逾期粘留天数：dueAt 到今天（date-only 与完整时刻同日不算拖）
 pub fn carry_days(due_at: &Option<String>) -> u32 {
+  carry_days_from(due_at, today())
+}
+
+/// 纯核心：「今天」由调用方注入（ADR-0002），规则可固定日期测试
+pub fn carry_days_from(due_at: &Option<String>, now_date: NaiveDate) -> u32 {
   let raw = match due_at {
     Some(value) => value,
     None => return 0,
@@ -736,7 +741,6 @@ pub fn carry_days(due_at: &Option<String>) -> u32 {
     None => return 0,
   };
   let due_date = wall.date();
-  let now_date = today();
   if due_date >= now_date {
     return 0;
   }
