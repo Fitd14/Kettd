@@ -146,22 +146,30 @@ export default function StickyWindow() {
           e.dataTransfer.effectAllowed = 'move'
           e.dataTransfer.setData('text/kettd-order', String(start + i))
         }}
+        onDragEnd={(e) => { e.preventDefault() }}
       >
         <input
           type="checkbox"
           className="tcheck"
           aria-label={`完成 ${t.title}`}
           checked={!!t.done}
+          onMouseDown={(e) => e.preventDefault()}
           onChange={() => { void toggleDone(t.id, !t.done) }}
         />
-        <button className="sticky-title" onClick={openMain}>
+        <button className="sticky-title" onClick={openMain} onMouseDown={(e) => e.stopPropagation()}>
           {t.title}
           {(Number(t.carriedFrom) || 0) > 0 && (
             <span className="sticky-carry">顺延 {t.carriedFrom} 天</span>
           )}
         </button>
         {removable && (
-          <button className="sticky-unpin" aria-label={`从便签取下：${t.title}`} title="取下" onClick={() => { void unpin(t.id) }}>
+          <button
+            className="sticky-unpin"
+            aria-label={`从便签取下：${t.title}`}
+            title="取下"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => { void unpin(t.id) }}
+          >
             ×
           </button>
         )}
@@ -181,7 +189,7 @@ export default function StickyWindow() {
       onMouseEnter={() => setFaded(false)}
     >
       <PaperPattern pattern={pattern} />
-      <div className="sticky-strip" data-tauri-drag-region title="按住拖动">
+      <div className="sticky-strip">
         <button
           className={`sticky-btn pin${pinnedOn ? ' on' : ''}`}
           title={pinnedOn ? '取消固定（沉到普通层）' : '固定（置顶）'}
@@ -191,7 +199,7 @@ export default function StickyWindow() {
         >
           {pinnedOn ? <Pin size={14} aria-hidden /> : <PinOff size={14} aria-hidden />}
         </button>
-        <span className="sticky-head" data-tauri-drag-region>
+        <span className="sticky-head" data-tauri-drag-region title="按住拖动">
           {isFree ? (
             <>自由便签{freeText.trim() && ' · 已保存'}</>
           ) : (

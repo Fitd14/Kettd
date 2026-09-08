@@ -62,6 +62,20 @@
   --sticky-muted: hsl(40 12% 62%);
 }
 
+/* Bug① 修复：透明窗内点击后按钮失效的根因 —— 交互层与装饰层的事件归属。
+   显式声明：容器/按钮/输入 auto，花纹与折角层 none，杜绝兄弟层吞 mousedown。 */
+.sticky-note,
+.sticky-strip,
+.sticky-body,
+.sticky-btn,
+.sticky-title,
+.sticky-unpin,
+.sticky-free,
+.tcheck,
+.sticky-row {
+  pointer-events: auto;
+}
+
 /* 纸面花纹（sticky-background-pattern.md）：水印级 SVG，贴纸面、不随列表滚动、永不抢文字 */
 .sticky-pattern {
   position: absolute;
@@ -111,6 +125,7 @@
 }
 .sticky-fold {
   z-index: 2;
+  pointer-events: none;
 }
 
 /* 顶部胶条：自绘标题（无边框窗），可拖拽 */
@@ -252,7 +267,7 @@
   background: hsl(0 0% 50% / 0.08);
 }
 
-/* 右下折角：轻隐喻（规格 §5），非复古铺陈 */
+/* 右下折角：轻隐喻（规格 §5），非复古铺陈；折角阴影用 strip 深一档而非白 */
 .sticky-fold {
   position: absolute;
   right: 0;
@@ -269,6 +284,9 @@
   text-decoration: line-through;
 }
 
+/* Bug② 修复：html 必须同 body 一起透明 —— WebView 默认白底会透过
+   圆角外缘露出，暗色模式下就是一圈白边框（与 capture.css 写法对齐） */
+html,
 body {
   margin: 0;
   background: transparent;
@@ -290,6 +308,11 @@ body {
 }
 .sticky-free::placeholder {
   color: var(--sticky-muted);
+}
+/* 点击文本区外部 = 先 blur 再放行给按钮：编辑后按钮立即可点 */
+.sticky-free:focus {
+  outline: 1px solid color-mix(in srgb, var(--sticky-accent) 55%, transparent);
+  outline-offset: -1px;
 }
 .sticky-count {
   display: block;
