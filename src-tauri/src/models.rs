@@ -372,6 +372,41 @@ impl Settings {
   }
 }
 
+/// 便签（多便签 H1，multi-sticky-spec）：todo=镜像今天分页 / free=自由便签。
+/// 内容归 data.json（用户数据，ADR-0005）；位置归 runtime.json note_pos（ADR-0007）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct StickyNote {
+  pub id: String,
+  /// "todo" | "free"
+  pub kind: String,
+  /// 自由便签正文（纯文本 ≤500 字）；待办便签恒空
+  #[serde(skip_serializing_if = "String::is_empty")]
+  pub content: String,
+  #[serde(default = "bool_true")]
+  pub pinned: bool,
+  /// 收起（窗口隐藏但数据保留，清单可再展开）
+  #[serde(default, skip_serializing_if = "is_false")]
+  pub hidden: bool,
+  pub created_at: String,
+  pub updated_at: String,
+}
+
+impl Default for StickyNote {
+  fn default() -> Self {
+    let stamp = now_text();
+    Self {
+      id: String::new(),
+      kind: "free".to_string(),
+      content: String::new(),
+      pinned: true,
+      hidden: false,
+      created_at: stamp.clone(),
+      updated_at: stamp,
+    }
+  }
+}
+
 /// 落盘的数据文件（data.json 的根结构）
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -379,6 +414,9 @@ pub struct AppData {
   pub tasks: Vec<Task>,
   pub reminders: Vec<Reminder>,
   pub settings: Settings,
+  /// 额外便签（多便签 H1）：1 号待办便签 = conf 声明的 float 窗（id "sticky"），不入此数组
+  #[serde(default)]
+  pub stickies: Vec<StickyNote>,
 }
 
 impl Default for AppData {
@@ -387,6 +425,7 @@ impl Default for AppData {
       tasks: Vec::new(),
       reminders: Vec::new(),
       settings: Settings::default(),
+      stickies: Vec::new(),
     }
   }
 }
@@ -403,6 +442,8 @@ pub struct KbPayload {
 pub const STICKY_PAPERS: [&str; 4] = ["warm", "kraft", "cyan", "ink"];
 /// 纸面花纹（sticky-background-pattern.md 定稿：无 / 墨竹 / 远山；选竹或山时朱印自动伴随）
 pub const STICKY_PATTERNS: [&str; 3] = ["none", "bamboo", "mountain"];
+/// 便签总数上限（含 float 主便签）——防「贴满废纸」，对应 metric Counter 壁纸化
+pub const STICKY_CAP: usize = 6;
 
 fn default_sticky_fade_opacity() -> u32 {
   38

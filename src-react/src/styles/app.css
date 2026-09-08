@@ -726,3 +726,10 @@ details.overdue[open] summary::before {
   width: 120px;
   accent-color: hsl(var(--primary));
 }
+
+/* 清单徽章实底变体（便签清单：待办/自由） */
+.badge.badge-solid {
+  background: hsl(var(--secondary));
+  border-color: transparent;
+  color: hsl(var(--secondary-foreground));
+}

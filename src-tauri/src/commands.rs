@@ -5,7 +5,7 @@ use crate::models::{
   clocks_of, new_id, normalize_datetime, now_text,
   Bootstrap, CATEGORIES, DataHealthV2, DEFAULT_HOTKEY, KbItem, KbPayload,
   HotkeyStatus, MigrationReport, Note, NotePayload, PRIORITIES, REMINDER_CAP_DEFAULT, Reminder, ReminderPayload,
-  RestoreResult, Settings, SettingsPayload, Source, StoreEvent, Subtask, Task, TaskPayload,
+  RestoreResult, Settings, SettingsPayload, Source, StickyNote, StoreEvent, Subtask, Task, TaskPayload,
   TRASH_RETENTION_DAYS, today,
 };
 use crate::runtime;
@@ -482,6 +482,186 @@ pub fn set_settings(
 #[tauri::command]
 pub fn clear_events() -> Result<(), String> {
   crate::telemetry::clear_events()
+}
+
+// ---------------------------------------------------------------- 便签（多便签 H1 · multi-sticky-spec）
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StickySelf {
+  pub id: String,
+  pub kind: String,
+  pub page: usize,
+  pub content: String,
+  pub pinned: bool,
+  pub hidden: bool,
+}
+
+fn sticky_kind_of(kind: &str) -> Result<(), String> {
+  if kind != "todo" && kind != "free" {
+    return Err("便签类型只能是 todo / free".to_string());
+  }
+  Ok(())
+}
+
+/// 新建一张便签（todo=镜像今天分页 / free=自由便签）；总数含 float 主便签 ≤ STICKY_CAP。
+#[tauri::command]
+pub fn create_sticky(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  kind: String,
+) -> Result<StickyNote, String> {
+  sticky_kind_of(kind.trim())?;
+  let mut store = lock(&state);
+  store.ensure_writable()?;
+  if 1 + store.data.stickies.len() >= crate::models::STICKY_CAP {
+    return Err("便签最多 6 张，先收起或删除一张".to_string());
+  }
+  let note = crate::models::StickyNote {
+    id: new_id("n"),
+    kind: kind.trim().to_string(),
+    ..Default::default()
+  };
+  let note = store.add_sticky(note);
+  store.save()?;
+  let index = store.data.stickies.len();
+  drop(store);
+  // 级联错位：从 float 主便签位置向右下偏移，避免完全重叠
+  let mut pos: Option<[i32; 2]> = None;
+  if let Some(float) = app.get_window(runtime::FLOAT_LABEL) {
+    if let Ok(p) = float.outer_position() {
+      pos = Some([p.x + 32 * index as i32, p.y + 32 * index as i32]);
+    }
+  }
+  runtime::open_note_window(&app, &note.id, note.pinned, true)?;
+  if let (Some([x, y]), Some(w)) = (pos, app.get_window(&runtime::note_label(&note.id))) {
+    let _ = w.set_position(tauri::Position::Physical(tauri::PhysicalPosition::new(x, y)));
+    // 级联位置即刻入档
+    runtime::save_sticky_pos_window(&w);
+  }
+  crate::telemetry::record_str("sticky_create", &[("type", kind.trim())]);
+  emit(&app, StoreEvent::changed("stickies"));
+  Ok(note)
+}
+
+#[tauri::command]
+pub fn list_stickies(state: State<'_, Shared>) -> Result<Vec<StickyNote>, String> {
+  let store = lock(&state);
+  Ok(store.stickies())
+}
+
+/// 便签自述：前端窗启动时调一次，拿到 身份/类型/分页/内容（float = 1 号待办便签）。
+#[tauri::command]
+pub fn sticky_self(
+  window: tauri::Window,
+  state: State<'_, Shared>,
+) -> Result<StickySelf, String> {
+  let label = window.label().to_string();
+  let store = lock(&state);
+  if label == runtime::FLOAT_LABEL {
+    return Ok(StickySelf {
+      id: "sticky".to_string(),
+      kind: "todo".to_string(),
+      page: 0,
+      content: String::new(),
+      pinned: store.data.settings.sticky_pinned,
+      hidden: false,
+    });
+  }
+  let id = label
+    .strip_prefix("note:")
+    .ok_or_else(|| "不是便签窗口".to_string())?
+    .to_string();
+  let note = store
+    .find_sticky(&id)
+    .ok_or_else(|| "找不到这张便签".to_string())?;
+  let page = 1 + store
+    .data
+    .stickies
+    .iter()
+    .filter(|s| s.kind == "todo")
+    .position(|s| s.id == id)
+    .unwrap_or(0);
+  Ok(StickySelf {
+    id,
+    kind: note.kind,
+    page,
+    content: note.content,
+    pinned: note.pinned,
+    hidden: note.hidden,
+  })
+}
+
+/// 更新便签：内容（free，≤500 字）/ 收起展开（联动窗口）/ 置顶（联动 always_on_top）。
+#[tauri::command]
+pub fn update_sticky(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  id: String,
+  content: Option<String>,
+  hidden: Option<bool>,
+  pinned: Option<bool>,
+) -> Result<StickyNote, String> {
+  let mut store = lock(&state);
+  store.ensure_writable()?;
+  {
+    let note = store
+      .find_sticky_mut(&id)
+      .ok_or_else(|| "找不到这张便签，可能已经被删除".to_string())?;
+    if let Some(c) = &content {
+      let c = c.trim();
+      if c.chars().count() > 500 {
+        return Err("自由便签最多 500 字".to_string());
+      }
+      note.content = c.to_string();
+    }
+    if let Some(h) = hidden {
+      note.hidden = h;
+    }
+    if let Some(p) = pinned {
+      note.pinned = p;
+    }
+    note.updated_at = now_text();
+  }
+  let note = store.find_sticky(&id).ok_or_else(|| "找不到这张便签".to_string())?;
+  store.save()?;
+  let label = runtime::note_label(&id);
+  if let Some(h) = hidden {
+    if h {
+      // 收起 = 记 sticky_close（metric：多张便签使用强度）
+      crate::telemetry::record_str("sticky_close", &[("type", note.kind.as_str())]);
+      runtime::hide_window(&app, &label)?;
+    } else {
+      runtime::open_note_window(&app, &id, note.pinned, true)?;
+    }
+  }
+  if let Some(p) = pinned {
+    if let Some(w) = app.get_window(&label) {
+      let _ = w.set_always_on_top(p);
+    }
+  }
+  emit(&app, StoreEvent::changed("stickies"));
+  Ok(note)
+}
+
+/// 删除便签：待办便签数据无损；自由便签内容销毁（前端二次确认）。
+#[tauri::command]
+pub fn delete_sticky(app: AppHandle, state: State<'_, Shared>, id: String) -> Result<(), String> {
+  let mut store = lock(&state);
+  store.ensure_writable()?;
+  let kind = store
+    .find_sticky(&id)
+    .ok_or_else(|| "找不到这张便签，可能已经被删除".to_string())?
+    .kind;
+  store.delete_sticky(&id)?;
+  store.save()?;
+  store.save_runtime_only()?;
+  if let Some(w) = app.get_window(&runtime::note_label(&id)) {
+    let _ = w.close();
+  }
+  crate::telemetry::record_str("sticky_delete", &[("type", kind.as_str())]);
+  emit(&app, StoreEvent::changed("stickies"));
+  Ok(())
 }
 
 /// 通用前端埋点通道（metric 蓝图：weekly_open 等 UI 侧事件）。仅落本机 events.jsonl，绝不出网。

@@ -273,3 +273,26 @@ body {
   margin: 0;
   background: transparent;
 }
+
+/* 自由便签：一张纸，点击即写（multi-sticky-spec §2） */
+.sticky-free {
+  width: 100%;
+  min-height: 300px;
+  border: 0;
+  background: transparent;
+  resize: none;
+  padding: 4px 2px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--sticky-ink);
+  outline: none;
+}
+.sticky-free::placeholder {
+  color: var(--sticky-muted);
+}
+.sticky-count {
+  display: block;
+  text-align: right;
+  color: var(--sticky-muted);
+}

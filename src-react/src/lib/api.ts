@@ -285,6 +285,44 @@ export const clearEvents = () => call<void>('clear_events')
 /** 通用前端埋点（metric 蓝图：weekly_open 等 UI 侧事件），仅落本机 events.jsonl */
 export const trackEvent = (name: string, props?: Record<string, unknown>) =>
   call<void>('track_event', { name, props: props ? JSON.stringify(props) : null })
+
+/* ---------------------------------------------------------------- 多便签（H1 · multi-sticky-spec） */
+
+export interface StickyNoteItem {
+  id: string
+  kind: 'todo' | 'free'
+  content: string
+  pinned: boolean
+  hidden: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StickySelf {
+  id: string
+  kind: 'todo' | 'free'
+  /** 待办便签的分页页码（0 起）：显示 todayList 的第 page*7 起 7 条 */
+  page: number
+  content: string
+  pinned: boolean
+  hidden: boolean
+}
+
+export const createSticky = (kind: 'todo' | 'free') => call<StickyNoteItem>('create_sticky', { kind })
+export const listStickies = () => call<StickyNoteItem[]>('list_stickies')
+export const updateSticky = (
+  id: string,
+  patch: { content?: string; hidden?: boolean; pinned?: boolean },
+) =>
+  call<StickyNoteItem>('update_sticky', {
+    id,
+    content: patch.content ?? null,
+    hidden: patch.hidden ?? null,
+    pinned: patch.pinned ?? null,
+  })
+export const deleteSticky = (id: string) => call<void>('delete_sticky', { id })
+/** 便签窗启动时调一次：拿到自己是谁（label → id/kind/分页/内容） */
+export const stickySelf = () => call<StickySelf>('sticky_self')
 export const openMainWindow = (route?: string) => call<void>('open_main_window', route ? { route } : undefined)
 export const showFloat = () => call<void>('show_float')
 export const hideFloat = () => call<void>('hide_float')

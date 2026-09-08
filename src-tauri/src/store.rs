@@ -841,6 +841,38 @@ impl Store {
     Ok(moved)
   }
 
+  // ---------------------------------------------------------------- 便签（多便签 H1）
+
+  pub fn stickies(&self) -> Vec<crate::models::StickyNote> {
+    self.data.stickies.clone()
+  }
+
+  pub fn find_sticky(&self, id: &str) -> Option<crate::models::StickyNote> {
+    self.data.stickies.iter().find(|s| s.id == id).cloned()
+  }
+
+  pub fn add_sticky(&mut self, mut note: crate::models::StickyNote) -> crate::models::StickyNote {
+    note.created_at = crate::models::now_text();
+    note.updated_at = note.created_at.clone();
+    self.data.stickies.push(note.clone());
+    note
+  }
+
+  pub fn find_sticky_mut(&mut self, id: &str) -> Option<&mut crate::models::StickyNote> {
+    self.data.stickies.iter_mut().find(|s| s.id == id)
+  }
+
+  pub fn delete_sticky(&mut self, id: &str) -> Result<(), String> {
+    let before = self.data.stickies.len();
+    self.data.stickies.retain(|s| s.id != id);
+    if self.data.stickies.len() == before {
+      return Err("找不到这张便签，可能已经被删除".to_string());
+    }
+    // 位置记录一并回收（ADR-0007：runtime.json 不无限增长）
+    self.runtime.note_pos.remove(id);
+    Ok(())
+  }
+
   pub fn find_reminder(&self, id: &str) -> Option<&Reminder> {
     self
       .data

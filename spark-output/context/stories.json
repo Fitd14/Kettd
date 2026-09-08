@@ -2,7 +2,7 @@
   "skill": "stories",
   "generated_at": "2026-09-02T12:30:00+08:00",
   "project_name": "Kettd v2 · 个人待办记录汇总",
-  "direction": "按 journey 断点把 v2 重构拆为设计可执行的用户故事",
+  "direction": "按 journey 断点把 v2 重构拆为设计可执行的用户故事 ｜ H1 增量：多便签（待办便签 + 自由便签，桌面可贴 N 张）",
   "persona": {
     "name": "小柯",
     "description": "上班族/备考学生，Windows 笔电（1366×768），反感云账号与订阅，怕忘事、周末要回看汇总",
@@ -199,6 +199,111 @@
       "risk": "零截图亮点，但它是两条blocker的药；用户只在被救回那刻想起它",
       "priority": "p0",
       "critical_assumption": false
+    },
+    {
+      "id": "sticky-m1",
+      "title": "再贴一张：第二张便签与各自记位",
+      "size": "story",
+      "persona": "小柯",
+      "scenario": "写作/网课时任务与零碎信息随机冒出，桌面是他第一块视野",
+      "acceptance_criteria": [
+        "设置便签卡或托盘一键「新建待办便签」，出现第二张且与第一张并存",
+        "两张便签各自拖动记位，重启后各自回原位（互不串位）",
+        "关闭其中一张不影响另一张；托盘「便签置顶」对每张独立生效"
+      ],
+      "design_touchpoints": [
+        "screen:设置-便签卡",
+        "screen:托盘菜单",
+        "component:便签窗(多实例)",
+        "state:并存/独立记位"
+      ],
+      "related_strategy_dimension": "视觉设计（便签是统一界面层）",
+      "risk": "窗口生命周期管理是本迭代唯一硬骨头；ADR-0007 已给模板，风险可控",
+      "priority": "p0",
+      "critical_assumption": true
+    },
+    {
+      "id": "sticky-m2",
+      "title": "随手写一张自由便签：不是待办，就是一张纸",
+      "size": "story",
+      "persona": "小柯",
+      "scenario": "写作/网课时任务与零碎信息随机冒出，桌面是他第一块视野",
+      "acceptance_criteria": [
+        "新建时可选类型：待办便签（镜像今天）/ 自由便签（空白随手写）",
+        "自由便签点击纸面即编辑、失焦自动保存，重启内容原样还在",
+        "自由便签不进今天列表、不触发提醒——它就是一张贴着的纸"
+      ],
+      "design_touchpoints": [
+        "screen:新建便签入口",
+        "component:自由便签编辑态(点击即写)",
+        "state:空/编辑/保存成功"
+      ],
+      "related_strategy_dimension": "视觉设计（便签是统一界面层）",
+      "risk": "自由便签内容是新增用户数据，需落 stickies.json 并过一遍零丢失迁移口径",
+      "priority": "p0",
+      "critical_assumption": true
+    },
+    {
+      "id": "sticky-m3",
+      "title": "便签都管理起来：一张清单看清贴了什么",
+      "size": "story",
+      "persona": "小柯",
+      "scenario": "写作/网课时任务与零碎信息随机冒出，桌面是他第一块视野",
+      "acceptance_criteria": [
+        "设置便签卡出现便签清单：每张显示类型 + 首行摘要",
+        "清单里可对每张 显示/收起/删除；删除自由便签有二次确认",
+        "清单状态与桌面实际便签实时一致"
+      ],
+      "design_touchpoints": [
+        "screen:设置-便签卡(清单)",
+        "component:清单行",
+        "state:删除确认"
+      ],
+      "related_strategy_dimension": "视觉设计（便签是统一界面层）",
+      "risk": "清单是防「贴满废纸」的操作入口，与埋点 sticky_count 快照同源",
+      "priority": "p1",
+      "critical_assumption": false
+    },
+    {
+      "id": "sticky-m4",
+      "title": "防贴满废纸：上限与清理提示",
+      "size": "story",
+      "persona": "小柯",
+      "scenario": "写作/网课时任务与零碎信息随机冒出，桌面是他第一块视野",
+      "acceptance_criteria": [
+        "便签总数到上限（6 张）时新建被温和拦下，提示先收起或删除",
+        "连续 14 天未编辑且未钉的自由便签，清单里给「建议清理」标记（可忽略）",
+        "上限提示不弹系统通知，只在新建入口处就地说明"
+      ],
+      "design_touchpoints": [
+        "screen:新建入口(达上限态)",
+        "screen:便签清单(清理建议)",
+        "state:达上限/清理建议"
+      ],
+      "related_strategy_dimension": "视觉设计（便签是统一界面层）",
+      "risk": "直接回应 metric 蓝图 Counter「便签壁纸化」；清理建议的阈值偏保守，先观察",
+      "priority": "p1",
+      "critical_assumption": false
+    },
+    {
+      "id": "sticky-m5",
+      "title": "外观随全局：换纸色所有便签一起换",
+      "size": "story",
+      "persona": "小柯",
+      "scenario": "写作/网课时任务与零碎信息随机冒出，桌面是他第一块视野",
+      "acceptance_criteria": [
+        "切换纸色/花纹/淡化透明度，所有便签同步变化",
+        "按张设置外观不做（避免设置爆炸，规格 §12.1 口径）"
+      ],
+      "design_touchpoints": [
+        "screen:设置-外观",
+        "component:便签窗(主题广播)",
+        "state:同步"
+      ],
+      "related_strategy_dimension": "视觉设计（便签是统一界面层）",
+      "risk": "n/a",
+      "priority": "p2",
+      "critical_assumption": false
     }
   ],
   "upstream_refs": [
@@ -209,5 +314,6 @@
   ],
   "markdown_report": "spark-output/stories/kettd-v2.md",
   "writeback_note": null,
-  "story_writeback": "2026-09-07 设计走查回写：story-4 术语与 story-5 便签形态 AC 对齐 v3 六份定稿规格（sticky-note-component-spec / today-list-ui-spec）"
+  "story_writeback": "2026-09-07 设计走查回写：story-4 术语与 story-5 便签形态 AC 对齐 v3 六份定稿规格（sticky-note-component-spec / today-list-ui-spec）",
+  "multi_sticky_note": "2026-09-08 H1 增量：sticky-m1..m5 依 roadmap H1 与 ADR-0007 拆解；规格增量见 spark-output/design/multi-sticky-spec.md；埋点事件表见该规格 §7"
 }

@@ -179,6 +179,11 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `reorder_tasks` | `idsInOrder: string[]` | `usize`（实际移动条数） | 同列表手动排序（便签规格 §12.2）：按传入顺序整表落 `sort_order`（v3/M3）；`sortOrder` 缺省 = 未手动排过，展示按 `createdAt` 兜底 |
 | `clear_events` | — | `void` | 清空本地统计（planned-settings B.5★）：重置 `events.jsonl` 为空并记一条 `events_cleared`；写线程在途一批（≤64 条）可随后落盘，属可接受残留 |
 | `track_event` | `name: string`, `props?: string`（JSON 文本） | `void` | 通用前端埋点通道（metric 蓝图：weekly_open 等 UI 侧事件）；仅落本机 `events.jsonl` 绝不出网；name ≤48 字符非空，props 需为合法 JSON |
+| `create_sticky` | `kind: "todo" \| "free"` | `StickyNote` | 新建便签（multi-sticky-spec）：总数含 float 主便签 ≤6，超限 Err「便签最多 6 张」；窗口按 ADR-0007 动态创建（label `note:<id>`）；记 `sticky_create` |
+| `list_stickies` | — | `StickyNote[]` | 额外便签清单（1 号 float 主便签不在其中）；设置页便签清单数据源 |
+| `update_sticky` | `id`, `content?`, `hidden?`, `pinned?` | `StickyNote` | 内容（free，≤500 字）/ 收起展开（联动窗口显隐，hidden=true 记 `sticky_close`）/ 置顶（联动 always_on_top） |
+| `delete_sticky` | `id` | `void` | 删除便签并回收窗口与 `note_pos` 记录；自由便签内容销毁（前端二次确认）；记 `sticky_delete` |
+| `sticky_self` | — | `{ id, kind, page, content, pinned, hidden }` | 便签窗启动自述：label（float / `note:<id>`）→ 身份；待办便签 page=镜像今天第 N 页（0 起） |
 | `get_form_hints` | — | `{ categories, priorities, sources, repeat, defaultHotkey, defaultCap, retentionDays, today }` | 表单常量，避免前端硬编码 |
 
 参数名映射：Rust 侧 `snake_case` 形参由 Tauri v1 宏自动转成 camelCase（`task_id` → `taskId`，`include_deleted` → `includeDeleted`）。结构体入参（`TaskPayload` 等）本身带 `rename_all = "camelCase"`。
@@ -301,7 +306,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | 项 | 手段 | 结果 |
 | --- | --- | --- |
 | 类型检查与链接 | `cargo check` / `cargo build`（debug） | **0 error**；7 条 `dead_code` warning（`models.rs:21/187/243/385/573/748`、`store.rs:688`） |
-| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **49 ↔ 49 ↔ 49**（v2.1 40 项 + ADR-0005 调试命令 `rollback_schema_split` + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event`） |
+| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **54 ↔ 54 ↔ 54**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + H1 多便签 5 项） |
 | 存储安全自查 | 人工 | 无 `unwrap_or_default()` 式空库回退；无 `toISOString`/`Utc`/`naive_utc` 混入；`tauri.conf.json` JSON 合法 |
 | 提醒编辑器逻辑 | `node test/rem-editor.test.mjs`（从 `index.html` 抽真实函数源码断言，17 项） | 全绿：多时刻 round-trip 四形态、模式收敛、渲染契约、aria-label、文案不含手输格式 |
 | 时间契约 + v1 迁移十规则 | `cargo test`（**30 项** = `models` 14 时间契约 + `store` 16 迁移规则，纯内存 fixture，不碰数据目录） | 全绿。过程逼出 `parse_clock` 两处加固：带秒输入归零（否则永不命中整分 tick = 到点不响）、接受裸 `HH:MM:SS` 与单位数小时 |

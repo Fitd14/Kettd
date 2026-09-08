@@ -93,7 +93,12 @@ fn main() {
       commands::export_weekly,
       commands::reorder_tasks,
       commands::clear_events,
-      commands::track_event
+      commands::track_event,
+      commands::create_sticky,
+      commands::list_stickies,
+      commands::update_sticky,
+      commands::delete_sticky,
+      commands::sticky_self
     ])
     .system_tray(runtime::build_tray(sticky_pinned))
     .setup(|app| {
@@ -120,9 +125,16 @@ fn main() {
           .map(|g| g.data.settings.telemetry_enabled)
           .unwrap_or(true),
       );
+      let sticky_count = state
+        .lock()
+        .map(|g| 1 + g.data.stickies.len())
+        .unwrap_or(1);
       telemetry::record(
         "app_launch",
-        serde_json::json!({ "version": env!("CARGO_PKG_VERSION") }),
+        serde_json::json!({
+          "version": env!("CARGO_PKG_VERSION"),
+          "sticky_count": sticky_count
+        }),
       );
       // 捕获热键：窗口全部就绪后注册一次；失败重试 3 次（失败时前端可仍用悬浮面板输入框）
       let hotkey_app = handle.clone();
@@ -172,6 +184,16 @@ fn main() {
       };
       let _ = runtime::set_sticky_pinned(&handle, pinned);
       runtime::restore_sticky_pos(&handle);
+      // 多便签：恢复额外便签窗（收起态隐藏创建，清单可再展开）
+      {
+        let stickies = state
+          .lock()
+          .map(|g| g.data.stickies.clone())
+          .unwrap_or_default();
+        for note in &stickies {
+          let _ = runtime::open_note_window(&handle, &note.id, note.pinned, !note.hidden);
+        }
+      }
       if let Some(tray) = handle.tray_handle_by_id(runtime::TRAY_ID) {
         let _ = tray.set_tooltip("待办列表 · 常驻托盘");
       }
@@ -198,8 +220,10 @@ fn main() {
           runtime::save_capture_pos_window(event.window());
           let _ = event.window().hide();
         }
-        // 便签拖动即记位（位置归 runtime.json，不轮转）
-        tauri::WindowEvent::Moved(_) if label == runtime::FLOAT_LABEL => {
+        // 便签拖动即记位（位置归 runtime.json，不轮转；float 主便签 + note:* 动态便签）
+        tauri::WindowEvent::Moved(_)
+          if label == runtime::FLOAT_LABEL || label.starts_with("note:") =>
+        {
           runtime::save_sticky_pos_window(event.window());
         }
         _ => {}

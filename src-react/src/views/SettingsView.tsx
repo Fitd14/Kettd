@@ -2,11 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import type { Bootstrap, HotkeyStatus } from '@/lib/api'
 import {
   clearEvents,
+  createSticky,
+  deleteSticky,
   getHotkeyStatus,
   hideFloat,
+  listStickies,
   openDataFolder,
   setSettings,
   showFloat,
+  updateSticky,
+  type StickyNoteItem,
 } from '@/lib/api'
 import { STICKY_PAPERS } from '@/views/sticky-labels'
 import { TimeText } from '@/components/time-text'
@@ -30,11 +35,18 @@ export function SettingsView({ boot, refresh }: Props) {
   const [mainCombo, setMainCombo] = useState(s.mainHotkey ?? '')
   const [fadeOpacity, setFadeOpacity] = useState(s.stickyFadeOpacity)
   const [confirmClear, setConfirmClear] = useState(false)
+  const [confirmDel, setConfirmDel] = useState<string | null>(null)
+  const [stickyList, setStickyList] = useState<StickyNoteItem[]>([])
   const clearTimer = useRef<number | null>(null)
 
   useEffect(() => {
     void getHotkeyStatus().then((r) => { if (!r.err && r.data) setHotkeys(r.data) })
+    void loadStickies()
   }, [])
+
+  const loadStickies = () => {
+    void listStickies().then((r) => { if (!r.err && r.data) setStickyList(r.data) })
+  }
 
   // 滑杆本地值跟随后端（他窗改动/回滚时回正）
   useEffect(() => { setFadeOpacity(s.stickyFadeOpacity) }, [s.stickyFadeOpacity])
@@ -57,6 +69,30 @@ export function SettingsView({ boot, refresh }: Props) {
     if (r.err) { setErr(r.err); return }
     const st = await getHotkeyStatus()
     if (!st.err && st.data) setHotkeys(st.data)
+    await refresh()
+  }
+
+  const doCreateSticky = async (kind: 'todo' | 'free') => {
+    const r = await createSticky(kind)
+    if (r.err) { setErr(r.err); return }
+    setErr(null)
+    loadStickies()
+    await refresh()
+  }
+
+  const doToggleSticky = async (st: StickyNoteItem) => {
+    const r = await updateSticky(st.id, { hidden: !st.hidden })
+    if (r.err) { setErr(r.err); return }
+    setErr(null)
+    loadStickies()
+  }
+
+  const doDeleteSticky = async (st: StickyNoteItem) => {
+    const r = await deleteSticky(st.id)
+    if (r.err) { setErr(r.err); return }
+    setErr(null)
+    setConfirmDel(null)
+    loadStickies()
     await refresh()
   }
 
@@ -174,13 +210,47 @@ export function SettingsView({ boot, refresh }: Props) {
           </span>
         </div>
         <div className="set-row"><span>显示 / 收起
-          <div className="tiny text-muted">收起 = 收进托盘，进程常驻（便签规格 §4）</div>
+          <div className="tiny text-muted">1 号待办便签；收起 = 收进托盘，进程常驻</div>
         </span>
           <span className="row-flex items-center gap-1.5">
             <button className="btn xs outline" onClick={() => { void showFloat() }}>显示便签</button>
             <button className="btn xs outline" onClick={() => { void hideFloat() }}>收起便签</button>
           </span>
         </div>
+        <div className="set-row"><span>新建便签
+          <div className="tiny text-muted">待办=镜像今天分页；自由=随手写一张纸（≤500 字）· 上限 6 张</div>
+        </span>
+          <span className="row-flex items-center gap-1.5">
+            <button className="btn xs outline" onClick={() => { void doCreateSticky('todo') }}>待办便签</button>
+            <button className="btn xs outline" onClick={() => { void doCreateSticky('free') }}>自由便签</button>
+          </span>
+        </div>
+        {stickyList.length > 0 && (
+          <div className="set-row" style={{ alignItems: 'flex-start' }}><span>便签清单
+            <div className="tiny text-muted">收起的可再展开；删除自由便签不可恢复</div>
+          </span>
+            <span className="row-flex" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+              {stickyList.map((st) => (
+                <span key={st.id} className="row-flex items-center gap-1.5">
+                  <span className={`badge ${st.kind === 'free' ? 'badge-solid' : ''}`}>{st.kind === 'free' ? '自由' : '待办'}</span>
+                  <span className="tiny grow truncate" style={{ maxWidth: 200 }}>
+                    {st.kind === 'free' ? (st.content.split('\n')[0] || '（空）') : '镜像今天'}
+                  </span>
+                  {st.hidden && <span className="tiny text-muted">已收起</span>}
+                  <button className="btn ghost xs" onClick={() => { void doToggleSticky(st) }}>{st.hidden ? '显示' : '收起'}</button>
+                  {confirmDel === st.id ? (
+                    <span className="row-flex items-center gap-1">
+                      <button className="btn xs danger" onClick={() => { void doDeleteSticky(st) }}>确认删除</button>
+                      <button className="btn ghost xs" onClick={() => setConfirmDel(null)}>取消</button>
+                    </span>
+                  ) : (
+                    <button className="btn ghost xs" onClick={() => setConfirmDel(st.id)}>删除</button>
+                  )}
+                </span>
+              ))}
+            </span>
+          </div>
+        )}
       </section>
 
       <section className="section" aria-label="快捷键">

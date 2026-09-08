@@ -80,7 +80,17 @@ pub fn set_sticky_pinned(app: &AppHandle, pinned: bool) -> Result<(), String> {
   Ok(())
 }
 
-/// 便签位置记忆（ADR-0007 H0 约束：位置归 runtime.json 的 note_pos map，不进用户数据）
+/// 便签位置 key：float 主便签沿用历史键 "sticky"，动态窗用自身 id（ADR-0007）
+fn sticky_pos_key(window: &Window) -> String {
+  let label = window.label();
+  if label == FLOAT_LABEL {
+    "sticky".to_string()
+  } else {
+    label.strip_prefix("note:").unwrap_or(label).to_string()
+  }
+}
+
+/// 便签位置记忆（ADR-0007 约束：位置归 runtime.json 的 note_pos map，不进用户数据）
 pub fn save_sticky_pos_window(window: &Window) {
   let Ok(pos) = window.outer_position() else {
     return;
@@ -91,12 +101,53 @@ pub fn save_sticky_pos_window(window: &Window) {
   let Ok(mut store) = state.lock() else {
     return;
   };
+  let key = sticky_pos_key(window);
   let next = [pos.x, pos.y];
-  if store.runtime.note_pos.get("sticky") == Some(&next) {
+  if store.runtime.note_pos.get(&key) == Some(&next) {
     return; // 位置没变不落盘
   }
-  store.runtime.note_pos.insert("sticky".to_string(), next);
+  store.runtime.note_pos.insert(key, next);
   let _ = store.save_runtime_only();
+}
+
+pub fn note_label(id: &str) -> String {
+  format!("note:{id}")
+}
+
+/// 打开（或创建）动态便签窗；show=false 时隐藏创建（收起态重启恢复）。
+/// 已存在则仅按需显示。位置：有存档且在屏内则恢复。
+pub fn open_note_window(app: &AppHandle, id: &str, pinned: bool, show: bool) -> Result<(), String> {
+  let label = note_label(id);
+  if let Some(existing) = app.get_window(&label) {
+    if show {
+      let _ = existing.show();
+    }
+    return Ok(());
+  }
+  let stored = app.try_state::<Mutex<Store>>().and_then(|s| {
+    let g = s.lock().ok()?;
+    g.runtime.note_pos.get(id).copied()
+  });
+  let window = WindowBuilder::new(app, &label, WindowUrl::App("float.html".into()))
+    .title("便签")
+    .inner_size(380.0, 456.0)
+    .resizable(false)
+    .decorations(false)
+    .transparent(true)
+    .always_on_top(pinned)
+    .skip_taskbar(true)
+    .visible(false)
+    .build()
+    .map_err(|_| "便签窗口创建失败".to_string())?;
+  if let Some([x, y]) = stored {
+    if capture_pos_on_screen(&window, x, y) {
+      let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+    }
+  }
+  if show {
+    let _ = window.show();
+  }
+  Ok(())
 }
 
 /// 启动恢复便签记位；不在任何屏内则保持默认位置
