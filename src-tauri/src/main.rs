@@ -90,7 +90,10 @@ fn main() {
       commands::delete_kb_item,
       commands::search_kb,
       commands::clear_migration_report,
-      commands::export_weekly
+      commands::export_weekly,
+      commands::reorder_tasks,
+      commands::clear_events,
+      commands::track_event
     ])
     .system_tray(runtime::build_tray(sticky_pinned))
     .setup(|app| {

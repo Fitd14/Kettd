@@ -156,6 +156,9 @@ pub struct Task {
   /// 用户主动钉上便签的单条（便签规格 D2：默认镜像今天 + 可钉单条）
   #[serde(default, skip_serializing_if = "is_false")]
   pub sticky_pinned: bool,
+  /// 同列表内手动排序位（便签规格 §12.2）；None = 未手动排过，按 created_at 兜底
+  #[serde(skip_serializing_if = "is_absent")]
+  pub sort_order: Option<i64>,
   pub subtasks: Vec<Subtask>,
   pub notes: Vec<Note>,
   pub source: Source,
@@ -179,8 +182,9 @@ impl Default for Task {
       done_at: None,
       deleted_at: None,
       legacy: false,
-            kb_refs: Vec::new(),
-            sticky_pinned: false,
+      kb_refs: Vec::new(),
+      sticky_pinned: false,
+      sort_order: None,
       subtasks: Vec::new(),
       notes: Vec::new(),
       source: Source::Manual,
@@ -287,6 +291,15 @@ pub struct Settings {
   /// 便签纸色（便签规格 §12.1：warm 暖白纸 | kraft 牛皮纸 | cyan 淡青 | ink 暗墨，预设四选一非取色器）
   #[serde(default = "default_sticky_paper")]
   pub sticky_paper: String,
+  /// 移出淡化开关（planned-settings-ui-spec B.1★：默认开，关则便签移出鼠标不淡化）
+  #[serde(default = "bool_true")]
+  pub sticky_fade: bool,
+  /// 移出淡化后的不透明度（百分比 10-100，默认 38≈融入桌面仍可扫读；100 等于不淡）
+  #[serde(default = "default_sticky_fade_opacity")]
+  pub sticky_fade_opacity: u32,
+  /// 纸面花纹（sticky-background-pattern.md：none 无 | bamboo 墨竹 | mountain 远山，选后两者时朱印伴随）
+  #[serde(default = "default_sticky_pattern")]
+  pub sticky_pattern: String,
   pub capture_hotkey: String,
   /// None = 未绑定全局快捷键
   pub main_hotkey: Option<String>,
@@ -310,6 +323,9 @@ impl Default for Settings {
       theme: "float".to_string(),
       sticky_pinned: true,
       sticky_paper: "warm".to_string(),
+      sticky_fade: true,
+      sticky_fade_opacity: 38,
+      sticky_pattern: "none".to_string(),
       capture_hotkey: DEFAULT_HOTKEY.to_string(),
       main_hotkey: Some(DEFAULT_MAIN_HOTKEY.to_string()),
       dnd: Dnd::default(),
@@ -332,6 +348,12 @@ impl Settings {
     }
     if !STICKY_PAPERS.contains(&self.sticky_paper.as_str()) {
       self.sticky_paper = "warm".to_string();
+    }
+    if !STICKY_PATTERNS.contains(&self.sticky_pattern.as_str()) {
+      self.sticky_pattern = "none".to_string();
+    }
+    if !(10..=100).contains(&self.sticky_fade_opacity) {
+      self.sticky_fade_opacity = 38;
     }
     if let Some(value) = self.main_hotkey.as_deref() {
       if value.trim().is_empty() {
@@ -379,6 +401,16 @@ pub struct KbPayload {
 }
 
 pub const STICKY_PAPERS: [&str; 4] = ["warm", "kraft", "cyan", "ink"];
+/// 纸面花纹（sticky-background-pattern.md 定稿：无 / 墨竹 / 远山；选竹或山时朱印自动伴随）
+pub const STICKY_PATTERNS: [&str; 3] = ["none", "bamboo", "mountain"];
+
+fn default_sticky_fade_opacity() -> u32 {
+  38
+}
+
+fn default_sticky_pattern() -> String {
+  "none".to_string()
+}
 
 fn default_sticky_paper() -> String {
   "warm".to_string()
@@ -496,6 +528,10 @@ pub struct SettingsPayload {
   pub theme: Option<String>,
   pub sticky_pinned: Option<bool>,
   pub sticky_paper: Option<String>,
+  pub sticky_fade: Option<bool>,
+  pub sticky_fade_opacity: Option<u32>,
+  pub sticky_pattern: Option<String>,
+  pub telemetry_enabled: Option<bool>,
   pub capture_hotkey: Option<String>,
   pub main_hotkey: Option<String>,
   pub dnd: Option<DndPayload>,
@@ -597,6 +633,8 @@ pub struct Bootstrap {
   pub settings: Settings,
   pub health: DataHealthV2,
   pub migration: Option<MigrationReport>,
+  /// 应用版本（设置页「版本 vN」展示；取自 Cargo.toml）
+  pub version: String,
 }
 
 /// `store-changed` 事件负载

@@ -46,6 +46,88 @@
   font-size: 11px;
 }
 
+/* ---------------- 基础控件族（vanilla styles.css 移植补齐——M3 React 移植时遗漏，2026-09-08 真机暴露） ---------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--r-sm);
+  border: 1px solid hsl(var(--input));
+  background: transparent;
+  color: hsl(var(--foreground));
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: background 150ms ease-out, box-shadow 150ms ease-out;
+  white-space: nowrap;
+}
+.btn:hover { background: hsl(var(--muted)); }
+.btn:active { transform: translateY(1px) scale(0.985); }
+.btn.ghost { background: transparent; color: hsl(var(--muted-foreground)); border-color: transparent; }
+.btn.ghost:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.btn.danger { color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.4); }
+.btn.danger:hover { background: hsl(var(--destructive) / 0.08); }
+.btn.sm { font-size: 11px; padding: 3px 9px; }
+.btn.xs { font-size: 11px; padding: 2px 7px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+:where(button, [tabindex]):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 1px;
+  border-radius: var(--r-sm);
+}
+
+.input {
+  font: inherit;
+  font-size: 13px;
+  min-width: 0;
+  padding: 6px 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid hsl(var(--input));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+.input::placeholder { color: hsl(var(--muted-foreground)); }
+.input:focus {
+  border-color: hsl(var(--ring));
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.18);
+}
+.input.invalid { border-color: hsl(var(--destructive)); box-shadow: 0 0 0 2px hsl(var(--destructive) / 0.18); }
+.input.xs { font-size: 12px; padding: 3px 7px; }
+.input.sm { font-size: 13px; padding: 6px 10px; }
+
+.inline-err { color: hsl(var(--destructive)); font-size: 11px; margin-top: var(--sp-1); }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  border-radius: var(--r-pill);
+  padding: 1px 8px;
+  border: 1px solid hsl(var(--input));
+  color: hsl(var(--muted-foreground));
+  background: transparent;
+  white-space: nowrap;
+}
+.tiny { font-size: 11px; }
+.sm { font-size: 12px; }
+.mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace; }
+.tmeta { font-size: 11px; color: hsl(var(--muted-foreground)); flex: none; }
+.text-muted { color: hsl(var(--muted-foreground)); }
+.row-flex { display: flex; align-items: center; gap: var(--sp-3); }
+kbd {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 10px;
+  border: 1px solid hsl(var(--input));
+  background: hsl(var(--muted));
+  border-radius: var(--r-sm);
+  padding: 1px 5px;
+}
+
+
 .tcheck {
   flex: none;
   width: 15px;
@@ -161,15 +243,15 @@
   }
 }
 
-/* 逾期折叠行 */
+/* 逾期折叠行：琥珀温和压力（today-list §B.3/AC3——非红、可见、不隐身） */
 details.overdue {
-  border: 1px solid hsl(var(--border));
+  border: 1px solid hsl(var(--pri-med) / 0.45);
   border-radius: var(--r-lg);
   padding: 8px 12px;
 }
 details.overdue summary {
   cursor: pointer;
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--pri-med));
   font-size: 13px;
   list-style: none;
 }
@@ -306,7 +388,8 @@ details.overdue[open] summary::before {
   flex-direction: column;
 }
 
-@media (max-width: 1280px) {
+/* 仅在贴近最小窗宽（minWidth 1024）时才收侧栏（story-7 AC）；原 1280 会在常规窗口宽吞掉菜单文字 */
+@media (max-width: 1040px) {
   .shell-side {
     width: 56px;
   }
@@ -368,7 +451,7 @@ details.overdue[open] summary::before {
 }
 .paper-warm { background: hsl(44 40% 96%); }
 .paper-kraft { background: hsl(34 45% 78%); }
-.paper-cyan { background: hsl(190 45% 86%); }
+.paper-cyan { background: hsl(190 45% 88%); }
 .paper-ink { background: hsl(40 12% 16%); }
 
 /* ---------------- 回顾：KPI + 热力图 ---------------- */
@@ -404,7 +487,242 @@ details.overdue[open] summary::before {
   background: hsl(var(--muted));
 }
 .heat-cell.lv-0 { background: hsl(var(--muted)); }
-.heat-cell.lv-1 { background: hsl(var(--pri-low) / 0.45); }
-.heat-cell.lv-2 { background: hsl(var(--pri-low) / 0.75); }
-.heat-cell.lv-3 { background: hsl(var(--pri-med) / 0.85); }
-.heat-cell.lv-4 { background: hsl(var(--pri-med)); }
+/* 热力 5 档绿（review-redesign-spec §7 定稿口径）：0 灰底 + 四档绿 */
+.heat-cell.lv-1 { background: var(--heat-1); }
+.heat-cell.lv-2 { background: var(--heat-2); }
+.heat-cell.lv-3 { background: var(--heat-3); }
+.heat-cell.lv-4 { background: var(--heat-4); }
+
+/* ---------------- 计划页 Tabs + 提醒编辑（planned-settings §A） ---------------- */
+.tabs {
+  display: inline-flex;
+  gap: 2px;
+  border-bottom: 1px solid hsl(var(--border));
+}
+.tab {
+  border: 0;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+  padding: 6px 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.tab:hover {
+  color: hsl(var(--foreground));
+}
+.tab.on {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+  border-bottom-color: hsl(var(--primary));
+}
+.add-rem summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  padding: 6px 0;
+}
+.add-rem[open] summary {
+  color: hsl(var(--foreground));
+}
+.rem-edit {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* 时刻输入：非法值红边（TimeText） */
+.time-text.bad {
+  border-color: hsl(var(--destructive));
+  color: hsl(var(--destructive));
+}
+
+/* ---------------- 行尾「⋯」菜单 + 任务详情层（today-list §A.2） ---------------- */
+.menu-pop {
+  position: absolute;
+  right: 8px;
+  top: calc(100% - 2px);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--r-md);
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-md);
+}
+.trow .menu-pop .btn {
+  justify-content: flex-start;
+}
+.row-icon-btn {
+  display: inline-flex;
+  align-items: center;
+}
+
+.detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: hsl(0 0% 0% / 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+}
+.detail-card {
+  width: min(520px, 100%);
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--r-lg);
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  box-shadow: var(--shadow-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  font-size: 13px;
+}
+.detail-grid > span:first-child {
+  color: hsl(var(--muted-foreground));
+}
+.detail-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  border-top: 1px dashed hsl(var(--border));
+  padding-top: 8px;
+  white-space: pre-wrap;
+}
+.detail-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.detail-list .did {
+  color: hsl(var(--muted-foreground));
+  text-decoration: line-through;
+}
+.detail-meta {
+  font-size: 12px;
+}
+.detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---------------- 今天：捕获入口 + 下一条提醒（today-list §B.1/§B.4） ---------------- */
+.capture-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 2px;
+}
+.next-remind {
+  margin-top: 4px;
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+}
+.next-remind b {
+  color: hsl(var(--foreground));
+}
+.inline-note {
+  border: 1px solid hsl(var(--pri-med) / 0.4);
+  color: hsl(var(--pri-med));
+  border-radius: var(--r-md);
+  padding: 6px 10px;
+  font-size: 13px;
+  margin: 6px 0;
+}
+.btn.danger {
+  border-color: hsl(var(--destructive));
+  color: hsl(var(--destructive));
+}
+.version-line {
+  margin-top: 18px;
+  font-size: 12px;
+}
+
+/* ---------------- 回顾：横向完成时间轴（timeline-component-spec） ---------------- */
+.ctl {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+  padding: 8px 2px 10px;
+}
+.ctl-item {
+  position: relative;
+  flex: none;
+  width: 118px;
+  padding: 22px 8px 4px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* 轨道线：穿过每格圆点 */
+.ctl-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 34px;
+  height: 2px;
+  background: hsl(var(--border));
+}
+.ctl-item:first-child::before {
+  left: 14px;
+}
+.ctl-time {
+  position: absolute;
+  top: 2px;
+  left: 16px;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+.ctl-dot {
+  position: absolute;
+  left: 10px;
+  top: 29px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid hsl(var(--background));
+  padding: 0;
+  cursor: pointer;
+}
+.ctl-dot.ghost {
+  background: hsl(var(--muted));
+  border-color: hsl(var(--border));
+}
+/* 分类色圆点：cat-chip 的底色变量（工作红/学习绿/生活蓝） */
+.ctl-dot.cat-work { background: hsl(var(--cat-work)); }
+.ctl-dot.cat-study { background: hsl(var(--cat-study)); }
+.ctl-dot.cat-life { background: hsl(var(--cat-life)); }
+.ctl-title {
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+/* 淡化透明度滑杆（设置页便签卡） */
+.fade-slider {
+  width: 120px;
+  accent-color: hsl(var(--primary));
+}

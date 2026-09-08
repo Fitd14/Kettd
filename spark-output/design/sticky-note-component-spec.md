@@ -68,7 +68,7 @@
 |---|---|
 | 便签容器 | 自研 `StickyNote`（复古 CSS，非 shadcn Card） |
 | 固定/关闭 | 图标按钮（shadcn Button ghost + lucide `Pin`/`PinOff`/`X`） |
-| 待办行 | 自研（方框 checkbox + 宋体标题 + 分类 chip） |
+| 待办行 | 自研（方框 checkbox + 无衬线标题 + 分类 chip） |
 | 进度 | shadcn Progress（复古描边覆盖） |
 > 便签是独立 Tauri 窗，`float.html` → M3 重写为 React `StickyNote`；拖拽/记位/淡化/固定主要落在 **Rust 窗口层 + CSS**（与框架无关，可先在 v2.1 vanilla 做，React 化时继承，同 capture 便签套路）。
 

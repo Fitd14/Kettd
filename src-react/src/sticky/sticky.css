@@ -13,6 +13,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  height: 100vh;
   min-height: 456px;
   border-radius: var(--r-lg, 12px);
   background: var(--sticky-paper);
@@ -23,9 +24,15 @@
   transition: opacity 180ms ease-out;
 }
 
-/* 移出淡化 ≈38%（AC4）：仍可扫读、不拦截语义——这里窗口整体弱化 */
+/* 移出淡化（AC4）：不透明度由设置 stickyFadeOpacity 驱动（CSS 变量注入，默认 38%），
+   仍可扫读、不拦截语义——窗口整体弱化。设置 sticky_fade=false 时前端不加 .faded */
 .sticky-note.faded {
-  opacity: 0.38;
+  opacity: var(--sticky-fade-opacity, 38%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sticky-note {
+    transition: none;
+  }
 }
 
 /* 四套预设纸色（规格 §12.1） */
@@ -53,6 +60,57 @@
   --sticky-strip: hsl(40 10% 21%);
   --sticky-ink: hsl(40 20% 88%);
   --sticky-muted: hsl(40 12% 62%);
+}
+
+/* 纸面花纹（sticky-background-pattern.md）：水印级 SVG，贴纸面、不随列表滚动、永不抢文字 */
+.sticky-pattern {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  color: var(--sticky-ink);
+  overflow: hidden;
+  border-radius: inherit;
+}
+.pattern-bamboo {
+  position: absolute;
+  left: 10px;
+  bottom: 16px;
+  width: 88px;
+  height: 205px;
+  opacity: 0.16;
+}
+.pattern-mountain {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 92px;
+}
+.pattern-seal {
+  position: absolute;
+  right: 12px;
+  bottom: 26px;
+  width: 16px;
+  height: 16px;
+  opacity: 0.88;
+}
+.sticky-note {
+  --sticky-seal: hsl(4 62% 44%);
+}
+.sticky-note.paper-ink,
+.dark .sticky-note {
+  --sticky-seal: hsl(4 72% 62%);
+}
+/* 列表层抬到花纹之上 */
+.sticky-strip,
+.sticky-body {
+  position: relative;
+  z-index: 1;
+}
+.sticky-fold {
+  z-index: 2;
 }
 
 /* 顶部胶条：自绘标题（无边框窗），可拖拽 */
@@ -91,7 +149,9 @@
   color: var(--sticky-ink);
 }
 .sticky-btn.pin.on {
-  color: var(--sticky-accent);
+  /* 固定态：琥珀底 chip + 墨色图标——纯琥珀 icon 对暖纸仅 ~2.2:1，不达 1.4.11 */
+  color: var(--sticky-ink);
+  background: color-mix(in srgb, var(--sticky-accent) 38%, transparent);
 }
 
 .sticky-body {
@@ -107,11 +167,20 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 4px;
+  padding: 6px 6px;
   border-radius: 8px;
 }
 .sticky-row:hover {
-  background: hsl(0 0% 50% / 0.08);
+  background: hsl(0 0% 50% / 0.10);
+}
+/* 行间发丝线（sticky-row-ui-polish 方案 A）：相邻行才有，首上/末下自然无线 */
+.sticky-row + .sticky-row {
+  border-top: 1px solid color-mix(in srgb, var(--sticky-ink) 9%, transparent);
+}
+/* 完成态行的分割线淡至 6%：已完成行整体更「退后」（两侧任一为完成态即生效） */
+.sticky-row:has(.tcheck:checked) + .sticky-row,
+.sticky-row + .sticky-row:has(.tcheck:checked) {
+  border-top-color: color-mix(in srgb, var(--sticky-ink) 6%, transparent);
 }
 .sticky-row .tcheck {
   accent-color: var(--sticky-accent);
@@ -136,13 +205,16 @@
   white-space: nowrap;
 }
 .sticky-title:hover {
-  text-decoration: underline;
+  /* hover 反馈由整行淡底色承担；下划线与「现代便签」纸面语言不符，已移除 */
+  text-decoration: none;
 }
 .sticky-carry {
   margin-left: 6px;
   font-size: 11px;
-  color: var(--sticky-accent);
-  border: 1px solid color-mix(in srgb, var(--sticky-accent) 40%, transparent);
+  /* 琥珀文字对纸面最低仅 1.5:1 → 文字用墨色 + 琥珀浅底徽章（1.4.3） */
+  color: var(--sticky-ink);
+  background: color-mix(in srgb, var(--sticky-accent) 26%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sticky-accent) 55%, transparent);
   border-radius: 999px;
   padding: 0 6px;
 }

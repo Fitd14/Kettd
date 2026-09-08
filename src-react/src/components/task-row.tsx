@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Pin, PinOff } from 'lucide-react'
 import type { Task } from '@/lib/api'
 import { formatDue, getCategoryColor } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -12,6 +13,10 @@ export interface TaskRowProps {
   /** hover 动作集：today 页=排期/⋯；inbox 页=→今天/排期/⋯（spec §A.2） */
   actions?: RowActions
   selected?: boolean
+  /** 列表内序号：启用 j/k 焦点导航（容器级 hook 依赖 data-row-index） */
+  rowIndex?: number
+  /** 启用整行拖拽排序（便签规格 §12.2，数据键 text/kettd-order） */
+  dragEnabled?: boolean
   onToggle?: (id: string) => void
   onPlanToday?: (id: string) => void
   onSchedule?: (id: string, dueAt: string | null) => void
@@ -25,15 +30,17 @@ export interface TaskRowProps {
 /**
  * 统一列表行组件（today-list-ui-spec §A）：今天/收件箱/便签共用一套「行语言」。
  * - 默认态只保留读元素：勾选框 · 标题 · badge · 分类 chip（动作不占位）
- * - hover/focus 行尾浮出紧凑动作；触屏/无 hover 点行展开详情承载（外层职责）
+ * - hover/focus 行尾浮出紧凑动作；触屏/无 hover 点行展开详情承载（onOpen）
  * - 顺延/滞留 = 琥珀竖条 + 行内 badge（--pri-med 系，非红——守「安静文具」调性）
- * - 键盘：Space 勾选 · T 加入今天 · E 排期 · X 删除 · Enter 打开
+ * - 键盘：Space 勾选 · T 加入今天 · E 排期 · X 删除 · Enter 打开详情 · j/k 行间移动
  */
 export function TaskRow({
   task,
   today,
   actions = 'none',
   selected,
+  rowIndex,
+  dragEnabled,
   onToggle,
   onPlanToday,
   onSchedule,
@@ -44,6 +51,7 @@ export function TaskRow({
 }: TaskRowProps) {
   const [scheduling, setScheduling] = useState(false)
   const [scheduleValue, setScheduleValue] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const carried = (Number(task.carriedFrom) || 0) > 0
   const done = !!task.done
@@ -60,11 +68,13 @@ export function TaskRow({
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (scheduling) return
+    if (e.altKey) return // Alt+↑/↓ 交给容器排序
     if (e.key === ' ') { e.preventDefault(); onToggle?.(task.id) }
-    else if (e.key === 'Enter') { onOpen?.(task.id) }
+    else if (e.key === 'Enter') { e.preventDefault(); onOpen?.(task.id) }
     else if (e.key.toLowerCase() === 't' && onPlanToday) { e.preventDefault(); onPlanToday(task.id) }
     else if (e.key.toLowerCase() === 'e' && onSchedule) { e.preventDefault(); setScheduling(true) }
     else if (e.key.toLowerCase() === 'x' && onDelete) { e.preventDefault(); onDelete(task.id) }
+    else if (e.key === 'Escape') { setMenuOpen(false) }
   }
 
   return (
@@ -76,10 +86,17 @@ export function TaskRow({
         selected && 'trow-selected',
       )}
       tabIndex={0}
-      role="row"
+      role="listitem"
       aria-selected={selected}
       onKeyDown={onKeyDown}
       data-id={task.id}
+      data-row-index={rowIndex}
+      draggable={!!dragEnabled}
+      onDragStart={(e) => {
+        if (!dragEnabled || rowIndex === undefined) return
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('text/kettd-order', String(rowIndex))
+      }}
     >
       {onSelect ? (
         <input
@@ -126,19 +143,47 @@ export function TaskRow({
           )}
           {onPinSticky && (
             <button
-              className="btn ghost xs"
+              className="btn ghost xs row-icon-btn"
               title={task.stickyPinned ? '从便签取下' : '钉到便签'}
+              aria-label={task.stickyPinned ? `从便签取下：${task.title}` : `钉到便签：${task.title}`}
               aria-pressed={!!task.stickyPinned}
               onClick={() => onPinSticky(task.id, !task.stickyPinned)}
             >
-              {task.stickyPinned ? '📌已钉' : '📌'}
+              {task.stickyPinned ? <PinOff size={13} aria-hidden /> : <Pin size={13} aria-hidden />}
             </button>
           )}
           {onDelete && (
-            <button className="btn ghost xs" title="删除（X）" onClick={() => onDelete(task.id)}>⋯</button>
+            <button
+              className="btn ghost xs"
+              title="详情 / 删除"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              ⋯
+            </button>
           )}
         </span>
       </span>
+
+      {menuOpen && (
+        <span className="menu-pop" role="menu" aria-label="更多动作">
+          <button
+            className="btn ghost xs"
+            role="menuitem"
+            onClick={() => { setMenuOpen(false); onOpen?.(task.id) }}
+          >
+            详情（Enter）
+          </button>
+          <button
+            className="btn ghost xs"
+            role="menuitem"
+            onClick={() => { setMenuOpen(false); onDelete?.(task.id) }}
+          >
+            删除（X）
+          </button>
+        </span>
+      )}
 
       {scheduling && (
         <span className="schedule-pop">

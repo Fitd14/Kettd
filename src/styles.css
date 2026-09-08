@@ -21,7 +21,7 @@
   --destructive: 0 72% 45%;
   --destructive-foreground: 0 0% 98%;
   --border: 40 15% 88%;
-  --input: 40 15% 86%;
+  --input: 40 12% 56%;
   --ring: 240 6% 10%;
   --radius: 0.75rem;
 
@@ -39,8 +39,13 @@
   --cat-study: 158 45% 30%;
   --cat-life: 214 55% 42%;
   --pri-high: 0 72% 45%;
-  --pri-med: 32 85% 38%;
+  --pri-med: 32 85% 34%;
   --pri-low: 240 4% 55%;
+  /* 回顾热力 5 档绿（review-redesign-spec §7；与 src-react/index.css 双栈对齐） */
+  --heat-1: hsl(140 38% 78%);
+  --heat-2: hsl(142 48% 58%);
+  --heat-3: hsl(143 52% 46%);
+  --heat-4: hsl(145 58% 30%);
 
   /* ---- 材质令牌：硫酸纸（capture 快速记录条专用，唯一真相源，组件层禁裸 hex）----
      方向不是「iOS 玻璃」，是文具店里盖在笔记本上那张描图纸：物理透光、边缘反光、仍然是纸。
@@ -76,7 +81,7 @@
   --destructive: 0 62% 40%;
   --destructive-foreground: 0 0% 98%;
   --border: 240 4% 20%;
-  --input: 240 4% 22%;
+  --input: 240 4% 45%;
   --ring: 40 33% 98%;
 
   --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.30), 0 1px 3px hsl(0 0% 0% / 0.22);
@@ -88,6 +93,11 @@
   --pri-high: 0 75% 65%;
   --pri-med: 34 85% 62%;
   --pri-low: 240 4% 55%;
+  /* 热力 5 档绿（暗色：整体提亮一档保持可辨；lv1/2 提升以改善 1.4.11 可辨性） */
+  --heat-1: hsl(140 32% 30%);
+  --heat-2: hsl(142 40% 46%);
+  --heat-3: hsl(143 45% 55%);
+  --heat-4: hsl(145 50% 72%);
 
   /* 硫酸纸 · 暗色覆盖。--vellum-tint 沿用 --background 会自动翻成石墨色，无需重述；
      这里只改遮光浓度与反光强度：暗色要更厚（等效 α 0.78，实算最差 6.43:1），

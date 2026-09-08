@@ -313,6 +313,7 @@ fn migrate_task(object: &Value, report: &mut MigrationReport) -> Task {
     carried_from,
     kb_refs: Vec::new(),
     sticky_pinned: false,
+    sort_order: None,
     done,
     done_at,
     deleted_at,
@@ -820,6 +821,26 @@ impl Store {
     self.data.tasks.iter().position(|task| task.id == id)
   }
 
+  /// 同列表手动排序（便签规格 §12.2）：按传入顺序落 sort_order = 下标。
+  /// 只动列表里出现的 id；未传到的条目保持原值（前端整表传，天然全覆盖）。
+  pub fn reorder_tasks(&mut self, ids_in_order: &[String]) -> Result<usize, String> {
+    if ids_in_order.is_empty() {
+      return Err("没有要排序的条目".to_string());
+    }
+    let mut moved = 0usize;
+    for (index, id) in ids_in_order.iter().enumerate() {
+      if let Some(task) = self.data.tasks.iter_mut().find(|t| &t.id == id) {
+        task.sort_order = Some(index as i64);
+        task.updated_at = crate::models::now_text();
+        moved += 1;
+      }
+    }
+    if moved == 0 {
+      return Err("没有匹配到任何条目，可能已被删除".to_string());
+    }
+    Ok(moved)
+  }
+
   pub fn find_reminder(&self, id: &str) -> Option<&Reminder> {
     self
       .data
@@ -1318,6 +1339,25 @@ impl Store {
           return Err("便签纸色只能是 warm / kraft / cyan / ink".to_string());
         }
         settings.sticky_paper = trimmed.to_string();
+      }
+      if let Some(value) = patch.sticky_fade {
+        settings.sticky_fade = value;
+      }
+      if let Some(value) = patch.sticky_fade_opacity {
+        if !(10..=100).contains(&value) {
+          return Err("淡化透明度要在 10 到 100 之间".to_string());
+        }
+        settings.sticky_fade_opacity = value;
+      }
+      if let Some(value) = &patch.sticky_pattern {
+        let trimmed = value.trim();
+        if !crate::models::STICKY_PATTERNS.contains(&trimmed) {
+          return Err("纸面花纹只能是 none / bamboo / mountain".to_string());
+        }
+        settings.sticky_pattern = trimmed.to_string();
+      }
+      if let Some(value) = patch.telemetry_enabled {
+        settings.telemetry_enabled = value;
       }
       if let Some(value) = &patch.capture_hotkey {
         let trimmed = value.trim();

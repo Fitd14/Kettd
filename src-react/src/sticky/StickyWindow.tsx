@@ -1,28 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Pin, PinOff, X } from 'lucide-react'
 import {
   applyTheme,
   getBootstrap,
   onEvent,
+  reorderTasks,
   setStickyPinned,
   updateTask,
   type Bootstrap,
   type Task,
 } from '@/lib/api'
-import { todaySections } from '../../../src/kernel/selectors.js'
+import { todayList } from '../../../src/kernel/selectors.js'
 import { localToday } from '../../../src/kernel/time.js'
+import { useRowNav } from '@/lib/list-nav'
+import { PaperPattern } from './paper-patterns'
 import './sticky.css'
 
 /**
  * 便签（便签规格 / sticky-note-component-spec · M3 React 落地）：
  * - 单一便签，顶部仅 固定/关闭 两键（AC2）；固定 = 只切置顶，位置始终可拖（AC3）
- * - 移出鼠标淡化 ≈38%、移入恢复（AC4），装饰性弱化不承担常态可读
- * - 内容 = 镜像「今天」（零维护）+ 用户钉上的单条（D2：镜像今天 + 可钉单条）
- * - 空态：今天没有待办 → 提示 Alt+Shift+A（AC 便签 §4）
- * - 录入不在便签内：完全走捕获条（AC5）
+ * - 移出鼠标淡化 ≈38%（AC4；设置 sticky_fade 可关）——装饰性弱化不承担常态可读
+ * - 内容 = 镜像「今天」（零维护）+ 用户钉上的单条（D2）；清单支持拖拽/Alt+↑↓ 排序（§12.2）
+ * - 空态：今天没有待办 → 提示 Alt+Shift+A；录入完全走捕获条（AC5）
  */
 export default function StickyWindow() {
   const [boot, setBoot] = useState<Bootstrap | null>(null)
   const [faded, setFaded] = useState(false)
+  const bodyRef = useRef<HTMLDivElement>(null)
 
   const refresh = useCallback(async () => {
     const r = await getBootstrap()
@@ -40,13 +44,9 @@ export default function StickyWindow() {
   }, [refresh])
 
   const today = localToday()
-  const sections = useMemo(
-    () => (boot ? todaySections(boot.tasks, today) : null),
+  const mirror = useMemo(
+    () => (boot ? todayList(boot.tasks, today).slice(0, 7) : []),
     [boot, today],
-  )
-  const mirror: Task[] = useMemo(
-    () => (sections ? [...sections.due, ...sections.carried].slice(0, 7) : []),
-    [sections],
   )
   const pinned: Task[] = useMemo(
     () =>
@@ -56,8 +56,20 @@ export default function StickyWindow() {
     [boot, mirror],
   )
 
+  const { containerProps } = useRowNav({
+    containerRef: bodyRef,
+    ids: mirror.map((t) => t.id),
+    onReorder: async (ids) => {
+      await reorderTasks(ids)
+      await refresh()
+    },
+  })
+
   const paper = boot?.settings.stickyPaper ?? 'warm'
   const pinnedOn = boot?.settings.stickyPinned ?? true
+  const fadeOn = boot?.settings.stickyFade ?? true
+  const fadeOpacity = boot?.settings.stickyFadeOpacity ?? 38
+  const pattern = boot?.settings.stickyPattern ?? 'none'
 
   const togglePin = useCallback(async () => {
     const r = await setStickyPinned(!pinnedOn)
@@ -83,9 +95,19 @@ export default function StickyWindow() {
     await import('@/lib/api').then((m) => m.hideFloat())
   }, [])
 
-  const rows = (list: Task[], removable: boolean) =>
-    list.map((t) => (
-      <div key={t.id} className="sticky-row">
+  const rows = (list: Task[], start: number, removable: boolean) =>
+    list.map((t, i) => (
+      <div
+        key={t.id}
+        className="sticky-row"
+        role="listitem"
+        data-row-index={start + i}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = 'move'
+          e.dataTransfer.setData('text/kettd-order', String(start + i))
+        }}
+      >
         <input
           type="checkbox"
           className="tcheck"
@@ -96,11 +118,11 @@ export default function StickyWindow() {
         <button className="sticky-title" onClick={openMain}>
           {t.title}
           {(Number(t.carriedFrom) || 0) > 0 && (
-            <span className="sticky-carry">拖了 {t.carriedFrom} 天</span>
+            <span className="sticky-carry">顺延 {t.carriedFrom} 天</span>
           )}
         </button>
         {removable && (
-          <button className="sticky-unpin" aria-label="从便签取下" title="取下" onClick={() => { void unpin(t.id) }}>
+          <button className="sticky-unpin" aria-label={`从便签取下：${t.title}`} title="取下" onClick={() => { void unpin(t.id) }}>
             ×
           </button>
         )}
@@ -114,10 +136,12 @@ export default function StickyWindow() {
 
   return (
     <div
-      className={`sticky-note paper-${paper}${faded ? ' faded' : ''}${pinnedOn ? ' is-pinned' : ''}`}
+      className={`sticky-note paper-${paper}${faded && fadeOn ? ' faded' : ''}${pinnedOn ? ' is-pinned' : ''}`}
+      style={{ '--sticky-fade-opacity': `${fadeOpacity}%` } as React.CSSProperties}
       onMouseLeave={() => setFaded(true)}
       onMouseEnter={() => setFaded(false)}
     >
+      <PaperPattern pattern={pattern} />
       <div className="sticky-strip" data-tauri-drag-region title="按住拖动">
         <button
           className={`sticky-btn pin${pinnedOn ? ' on' : ''}`}
@@ -126,17 +150,23 @@ export default function StickyWindow() {
           aria-pressed={pinnedOn}
           onClick={() => { void togglePin() }}
         >
-          {pinnedOn ? '📌' : '📍'}
+          {pinnedOn ? <Pin size={14} aria-hidden /> : <PinOff size={14} aria-hidden />}
         </button>
         <span className="sticky-head" data-tauri-drag-region>
           今天要做的 · <b>{total}</b>{doneToday > 0 && ` · 做完 ${doneToday}`}
         </span>
         <button className="sticky-btn" title="关闭（收进托盘）" aria-label="关闭" onClick={() => { void close() }}>
-          ✕
+          <X size={14} aria-hidden />
         </button>
       </div>
 
-      <div className="sticky-body">
+      <div
+        className="sticky-body"
+        ref={bodyRef}
+        role={total > 0 ? 'list' : undefined}
+        aria-label="便签待办"
+        {...containerProps}
+      >
         {total === 0 ? (
           <div className="sticky-empty">
             今天没有待办 ·<br />
@@ -144,11 +174,11 @@ export default function StickyWindow() {
           </div>
         ) : (
           <>
-            {rows(mirror, false)}
+            {rows(mirror, 0, false)}
             {pinned.length > 0 && (
               <>
                 <div className="sticky-gap" />
-                {rows(pinned, true)}
+                {rows(pinned, mirror.length, true)}
               </>
             )}
           </>

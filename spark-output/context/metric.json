@@ -1,0 +1,222 @@
+{
+ "skill": "metric",
+ "generated_at": "2026-09-08T19:17:20+08:00",
+ "project_name": "Kettd v2 · 个人待办记录汇总",
+ "analytics_baseline": {
+  "tool": "自建本地埋点（events.jsonl，绝不出网）",
+  "existing_events_count": 11,
+  "coverage_estimate": "partial",
+  "existing_events": [
+   "app_launch",
+   "capture_open",
+   "capture_commit",
+   "capture_commit_fail(新)",
+   "reminder_shown",
+   "reminder_missed(expired/app_not_running/dnd)",
+   "weekly_export",
+   "weekly_open(新)",
+   "sticky_pin(新)",
+   "data_health_fail",
+   "events_cleared"
+  ]
+ },
+ "north_star_metric": {
+  "name": "4 周留存（单人工具核心健康值）",
+  "formula": "连续第 4 周仍为「有效使用周」（周内 capture_commit ≥5 条或完成 ≥3 件）",
+  "target": "达成（PRD ≥45% 的单人口径 = 0/1 判据）",
+  "timeframe": "上线后 4-6 周窗口（= roadmap H1 验证门）",
+  "business_alignment": "PRD 成功度量表「4 周留存 ≥45%」+ roadmap H1 门「持续用才有 H2 投入」",
+  "why_this_one": "兑现『安静文具被持续用』是价值成立的最直接行为信号；比捕获量抗噪、比满意度可测、直接裁决 H2 是否投入——是路线图的闸门而非虚荣指标"
+ },
+ "driver_metrics": [
+  {
+   "name": "捕获频次",
+   "relation_to_nsm": "先有『随手记』才有持续使用；频次塌了留存必塌",
+   "formula": "周 capture_commit 条数",
+   "target": "≥25 条/周（PRD 🥈）",
+   "slice_dimensions": [
+    "source=capture/manual",
+    "小时分布"
+   ],
+   "events_needed": [
+    "capture_open",
+    "capture_commit"
+   ],
+   "instrumentation_status": "exists"
+  },
+  {
+   "name": "捕获时延 P50",
+   "relation_to_nsm": ">3s 捕获即失去对手机备忘录的优势，频次与留存的前提",
+   "formula": "median(capture_commit.ts - capture_open.ts)",
+   "target": "≤3s（PRD 🥇主）",
+   "slice_dimensions": [
+    "热键 vs 兜底按钮"
+   ],
+   "events_needed": [
+    "capture_open",
+    "capture_commit"
+   ],
+   "instrumentation_status": "exists（telemetry p50 快照）"
+  },
+  {
+   "name": "提醒触达率",
+   "relation_to_nsm": "『到点真的会响』是信任基石，失信一次价值崩塌",
+   "formula": "reminder_shown / (reminder_shown + reminder_missed[app_not_running])",
+   "target": "100%（运行/托盘态，版本回归必测）",
+   "slice_dimensions": [
+    "missed reason: expired/dnd/app_not_running"
+   ],
+   "events_needed": [
+    "reminder_shown",
+    "reminder_missed"
+   ],
+   "instrumentation_status": "exists"
+  },
+  {
+   "name": "周汇总采用",
+   "relation_to_nsm": "『完成的不蒸发』兑现周复盘价值，是留存的周末锚点",
+   "formula": "周内 weekly_open 或 weekly_export ≥1 次记为采用",
+   "target": "≥40% 周活（单人=每周至少一次）",
+   "slice_dimensions": [
+    "open vs export",
+    "周内哪天"
+   ],
+   "events_needed": [
+    "weekly_open",
+    "weekly_export"
+   ],
+   "instrumentation_status": "weekly_export exists / weekly_open 本轮新增"
+  },
+  {
+   "name": "钉动作发生率（H1 门专项）",
+   "relation_to_nsm": "roadmap H1 验证门原文『「钉」的动作有没有发生』——不发生则 H2 知识网不投",
+   "formula": "周 sticky_pin(pin) 次数；观测 unpin/pin 比例",
+   "target": "≥1 次/周 即视为门信号成立；持续 0 → H2 减配",
+   "slice_dimensions": [
+    "pin/unpin",
+    "钉住存量"
+   ],
+   "events_needed": [
+    "sticky_pin"
+   ],
+   "instrumentation_status": "本轮新增"
+  }
+ ],
+ "counter_metrics": [
+  {
+   "name": "通知轰炸反指标",
+   "what_to_prevent": "为拉捕获/留存靠提醒轰炸，毁掉『安静文具』信任（PRD Anti-metric 原文）",
+   "formula": "单日 reminder_shown 条数 vs remindCapPerHour 配额",
+   "threshold": "单日通知 ≤12 条；超阈值即回查上限设置"
+  },
+  {
+   "name": "便签壁纸化",
+   "what_to_prevent": "钉了不清、贴满废纸视而不见——H2 命门假设的前置恶化信号",
+   "formula": "钉住未完成条数 >7 的周占比",
+   "threshold": "≤20% 周数；连续超限触发「钉住上限/清理」迭代"
+  },
+  {
+   "name": "功能广度（声明式反指标）",
+   "what_to_prevent": "滴答式『没它也行』全家桶化",
+   "formula": "不设埋点，路线图红线声明",
+   "threshold": "任何新设置项入库前须过 §12.3『明确不加』清单"
+  }
+ ],
+ "health_metrics": [
+  {
+   "name": "捕获落库失败率",
+   "what_it_protects": "记下来就安全（数据可信承诺）",
+   "threshold": "≤1%",
+   "event": "capture_commit_fail / capture_commit",
+   "status": "本轮新增"
+  },
+  {
+   "name": "数据自校验失败",
+   "what_it_protects": "存量数据丢失率 0",
+   "threshold": "<0.1%",
+   "event": "data_health_fail",
+   "status": "exists"
+  },
+  {
+   "name": "提醒错过(未运行) 占比",
+   "what_it_protects": "触达承诺边界知情（非可控行，仅记录）",
+   "threshold": "趋势记录，无阈值",
+   "event": "reminder_missed[app_not_running]",
+   "status": "exists"
+  },
+  {
+   "name": "备份可回滚份数",
+   "what_it_protects": "装坏了也不丢",
+   "threshold": "≥1 份",
+   "event": "health_view（非埋点，设置页可见）",
+   "status": "exists"
+  }
+ ],
+ "instrumentation_gaps": [
+  {
+   "event": "weekly_open",
+   "where": "ReviewView 周汇总 details onToggle → track_event",
+   "priority": "must",
+   "related_metric": "周汇总采用",
+   "status": "本轮已补（含 UI 入口恢复）"
+  },
+  {
+   "event": "sticky_pin",
+   "where": "commands::update_task sticky_pinned 分支",
+   "priority": "must",
+   "related_metric": "钉动作发生率",
+   "status": "本轮已补"
+  },
+  {
+   "event": "capture_commit_fail",
+   "where": "commands::add_task Err 分支（source=capture）",
+   "priority": "must",
+   "related_metric": "落库失败率",
+   "status": "本轮已补"
+  },
+  {
+   "event": "track_event 通道",
+   "where": "通用命令（#49）+ api.trackEvent",
+   "priority": "must",
+   "related_metric": "所有前端侧事件的基础设施",
+   "status": "本轮已补"
+  },
+  {
+   "event": "reminder_snoozed",
+   "where": "scheduler snooze 路径",
+   "priority": "should",
+   "related_metric": "提醒触达切片",
+   "status": "待补"
+  },
+  {
+   "event": "pattern_usage",
+   "where": "set_settings sticky_pattern 分支",
+   "priority": "nice-to-have",
+   "related_metric": "花纹功能采用",
+   "status": "待补"
+  }
+ ],
+ "dashboard": {
+  "primary_view": [
+   "🌟 4 周留存",
+   "🚀 捕获频次/周",
+   "🚀 提醒触达率",
+   "🚀 周汇总采用",
+   "💊 落库失败率"
+  ],
+  "drill_down_dimensions": [
+   "source",
+   "missed reason",
+   "周内分布",
+   "纸色/花纹（nice）"
+  ],
+  "review_cadence": "weekly（H1 验证门按 4 周窗口裁决）",
+  "owner_role": "owner 本人（单人项目——无人盯数 = 数据无意义，周五导出周汇总时顺带看一眼）"
+ },
+ "next_steps": [
+  "H0 尾款：全部改动提交 + git push 建回滚点（当前工作区大量未提交）",
+  "M4：退役旧 vanilla src/（React 五视图已全覆盖；command-parity 与 token-parity 双测试已在位护航）",
+  "H1：多张便签设计稿（frame→spec，等钉动作数据 ≥1 周/连续 2 周再投）",
+  "4 周后：H1 验证门裁决会——NSM 达成？钉发生？决定 KB/知识网投入"
+ ]
+}

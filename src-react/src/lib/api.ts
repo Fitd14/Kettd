@@ -46,6 +46,8 @@ export interface Task {
   kbRefs?: string[]
   /** 用户主动钉上便签的单条（便签规格 D2） */
   stickyPinned?: boolean
+  /** 同列表手动排序位（便签规格 §12.2）；缺省 = 未手动排过 */
+  sortOrder?: number | null
   subtasks: Subtask[]
   notes: Note[]
   source: 'capture' | 'manual' | 'seed'
@@ -123,6 +125,12 @@ export interface Settings {
   theme: string
   stickyPinned: boolean
   stickyPaper: string
+  /** 移出淡化开关（planned-settings B.1★，默认开） */
+  stickyFade: boolean
+  /** 移出淡化后的不透明度（10-100，默认 38） */
+  stickyFadeOpacity: number
+  /** 纸面花纹：none 无 | bamboo 墨竹 | mountain 远山（选后两者时朱印伴随） */
+  stickyPattern: string
   captureHotkey: string
   mainHotkey: string | null
   dnd: Dnd
@@ -136,6 +144,9 @@ export interface SettingsPayload {
   theme?: string
   stickyPinned?: boolean
   stickyPaper?: string
+  stickyFade?: boolean
+  stickyFadeOpacity?: number
+  stickyPattern?: string
   captureHotkey?: string
   mainHotkey?: string | null
   dnd?: Partial<Dnd>
@@ -184,6 +195,8 @@ export interface Bootstrap {
   settings: Settings
   health: DataHealthV2
   migration?: MigrationReport | null
+  /** 应用版本（设置页展示，Cargo.toml 为真相源） */
+  version: string
 }
 
 export interface HotkeyStatus {
@@ -247,6 +260,8 @@ export const getTasks = (includeDeleted?: boolean) => call<Task[]>('get_tasks', 
 export const getTask = (id: string) => call<Task>('get_task', { id })
 export const addTask = (args: TaskPayload) => call<Task>('add_task', { args })
 export const updateTask = (id: string, patch: TaskPayload) => call<Task>('update_task', { id, patch })
+/** 同列表手动排序（便签规格 §12.2）：整表传入目标顺序 */
+export const reorderTasks = (idsInOrder: string[]) => call<number>('reorder_tasks', { idsInOrder })
 export const toggleTask = (id: string) => call<Task>('toggle_task', { id })
 export const deleteTask = (id: string) => call<Task>('delete_task', { id })
 export const undoDelete = () => call<Task | null>('undo_delete')
@@ -265,6 +280,11 @@ export const toggleReminder = (id: string) => call<Reminder>('toggle_reminder', 
 export const snoozeReminder = (id: string, minutes: number) => call<Reminder>('snooze_reminder', { id, minutes })
 export const getSettings = () => call<Settings>('get_settings')
 export const setSettings = (patch: SettingsPayload) => call<Settings>('set_settings', { patch })
+/** 清空本地统计（设置页二次确认后调用）：重置 events.jsonl */
+export const clearEvents = () => call<void>('clear_events')
+/** 通用前端埋点（metric 蓝图：weekly_open 等 UI 侧事件），仅落本机 events.jsonl */
+export const trackEvent = (name: string, props?: Record<string, unknown>) =>
+  call<void>('track_event', { name, props: props ? JSON.stringify(props) : null })
 export const openMainWindow = (route?: string) => call<void>('open_main_window', route ? { route } : undefined)
 export const showFloat = () => call<void>('show_float')
 export const hideFloat = () => call<void>('hide_float')

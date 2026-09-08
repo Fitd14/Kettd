@@ -88,7 +88,7 @@
       "scenario": "早晨规划当日",
       "acceptance_criteria": [
         "任意列表一键「加入今天」（鼠标/键盘）",
-        "昨日未完成自动粘留带「拖了N天」标记",
+        "昨日未完成自动粘留带「顺延 N 天」标记（v3 定稿术语，原「拖了N天」）",
         "逾期收进一条折叠行，展开可改期/移今天/丢弃",
         "三处今日进度数字同源一致"
       ],
@@ -112,7 +112,7 @@
       "scenario": "任务到点而人在别的软件中",
       "acceptance_criteria": [
         "到点弹系统通知，点击直达任务，通知含稍后选项",
-        "面板三态一键切换（置顶/嵌桌面/迷你条），迷你条仅今日剩余+下一条",
+        "单一便签：固定(置顶)开关 + 移出淡化 + 拖拽记位（三形态按便签规格 §1.4/§2 定稿删除，H1 拍板；原「三态切换」AC 已被取代）",
         "装饰性计时卡清零：要么真实倒计时并入库，要么删除",
         "后台/托盘运行时提醒照响（机制PRD定夺）"
       ],
@@ -207,5 +207,7 @@
     "audit",
     "bench"
   ],
-  "markdown_report": "spark-output/stories/kettd-v2.md"
+  "markdown_report": "spark-output/stories/kettd-v2.md",
+  "writeback_note": null,
+  "story_writeback": "2026-09-07 设计走查回写：story-4 术语与 story-5 便签形态 AC 对齐 v3 六份定稿规格（sticky-note-component-spec / today-list-ui-spec）"
 }

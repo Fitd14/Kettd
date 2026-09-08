@@ -38,14 +38,15 @@ caseOf('明天下午3点 #乱分类 !乱优先级', {
 });
 
 console.log('语法解析 · 相对日期');
-caseOf('明天', { title: '明天', dueAt: '2026-09-06', auto: true, cat: null, pri: null, fb: false, chips: ['date:日期 · 2026-09-06'] });
-caseOf('后天 #生活 低', { title: '低', dueAt: '2026-09-07', auto: true, cat: '生活', pri: null, fb: false, chips: ['category:分类 · 生活', 'date:日期 · 2026-09-07'] });
+caseOf('明天', { title: '明天', dueAt: '2026-09-06', auto: false, cat: null, pri: null, fb: false, chips: ['date:日期 · 2026-09-06'] });
+caseOf('后天 #生活 低', { title: '低', dueAt: '2026-09-07', auto: false, cat: '生活', pri: null, fb: false, chips: ['category:分类 · 生活', 'date:日期 · 2026-09-07'] });
 caseOf('周五上午10点开会', { title: '开会', dueAt: '2026-09-11T10:00', auto: true, cat: null, pri: null, fb: false, chips: ['time:时间 · 10:00', 'date:日期 · 2026-09-11'] });
-caseOf('下周一体检', { title: '体检', dueAt: '2026-09-14', auto: true, cat: null, pri: null, fb: false, chips: ['date:日期 · 2026-09-14'] });
+// 纯日期用例 auto=false：无时刻不自动挂提醒（真机 09-08 反馈，原行为会在 T00:00 瞬时误响）
+caseOf('下周一体检', { title: '体检', dueAt: '2026-09-14', auto: false, cat: null, pri: null, fb: false, chips: ['date:日期 · 2026-09-14'] });
 
 console.log('语法解析 · 绝对日期与时段');
 caseOf('9月10日 晚上8点 读书', { title: '读书', dueAt: '2026-09-10T20:00', auto: true, cat: null, pri: null, fb: false, chips: ['time:时间 · 20:00', 'date:日期 · 2026-09-10'] });
-caseOf('9.10 提交材料', { title: '提交材料', dueAt: '2026-09-10', auto: true, cat: null, pri: null, fb: false, chips: ['date:日期 · 2026-09-10'] });
+caseOf('9.10 提交材料', { title: '提交材料', dueAt: '2026-09-10', auto: false, cat: null, pri: null, fb: false, chips: ['date:日期 · 2026-09-10'] });
 caseOf('晚上11点提醒喝水', { title: '提醒喝水', dueAt: '2026-09-05T23:00', auto: true, cat: null, pri: null, fb: false, chips: ['time:时间 · 23:00'] });
 caseOf('今天 18:00 交周报 #工作', { title: '交周报', dueAt: '2026-09-05T18:00', auto: true, cat: '工作', pri: null, fb: false, chips: ['category:分类 · 工作', 'time:时间 · 18:00', 'date:日期 · 2026-09-05'] });
 caseOf('明天早上9点背单词 #学习 !中', { title: '背单词', dueAt: '2026-09-06T09:00', auto: true, cat: '学习', pri: 'med', fb: false, chips: ['category:分类 · 学习', 'priority:优先级 · 中', 'time:时间 · 09:00', 'date:日期 · 2026-09-06'] });

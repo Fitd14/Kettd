@@ -116,8 +116,10 @@ export function nextReminderTime(tasks, reminders, clock) {
 }
 
 /**
- * 「今天」视图三段式（PRD 6.3 / today-list-ui-spec）：今日到期 / 已拖到今天 / 逾期折叠。
+ * 「今天」视图三段式（PRD 6.3 / today-list-ui-spec）：今日到期 / 顺延 / 逾期折叠。
  * 逾期项不混入主体，收进折叠行由视图渲染计数；全部输入排除回收站与已完成。
+ * 注意：视图主列表展示用 todayList()（B.2 合并单列表 + 顺延 badge）；本函数保留
+ * 三段返回值供计数与便签镜像复用。
  * @param {Array} tasks
  * @param {string} today 注入今天（YYYY-MM-DD），测试必传；缺省取本地
  * @returns {{ due: Array, carried: Array, overdue: Array }}
@@ -131,12 +133,34 @@ export function todaySections(tasks, today) {
   for (const t of tasks || []) {
     if (!live(t)) continue;
     if (isOverdue(t, t0)) { overdue.push(t); continue; }
-    // 顺延优先于今日段：自动粘留的条目 plannedDate 已是今天，但「拖了 N 天」必须可见（PRD 6.3 AC）
+    // 顺延优先于今日段：自动粘留的条目 plannedDate 已是今天，但「顺延 N 天」必须可见（today-list §B.2）
     const onToday = t.plannedDate === t0 || String(t.dueAt || '').startsWith(t0);
     if ((Number(t.carriedFrom) || 0) > 0) { carried.push(t); continue; }
     if (onToday) { due.push(t); continue; }
   }
   return { due, carried, overdue };
+}
+
+/**
+ * 同列表视图序（便签规格 §12.2）：sort_order 升序在前，未手动排过的按 created_at 兜底。
+ * 内部工具（todayList 使用），不对外导出。
+ */
+function viewOrder(list) {
+  return [...(list || [])].sort((a, b) => {
+    const sa = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+    const sb = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+    if (sa !== sb) return sa - sb;
+    return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+  });
+}
+
+/**
+ * 「今天」主列表（today-list-ui-spec §B.2）：到期 + 顺延合并为单一列表，
+ * 顺延以行内琥珀 badge 区分（TaskRow），不再拆「已拖到今天」段。
+ */
+export function todayList(tasks, today) {
+  const s = todaySections(tasks, today);
+  return viewOrder([...s.due, ...s.carried]);
 }
 
 /**

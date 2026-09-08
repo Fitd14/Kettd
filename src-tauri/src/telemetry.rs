@@ -21,10 +21,12 @@ const MAX_BYTES: u64 = 1_048_576; // 1 MB
 static ENABLED: AtomicBool = AtomicBool::new(true);
 static SINK: OnceLock<Option<SyncSender<String>>> = OnceLock::new();
 static WRITER: OnceLock<Mutex<()>> = OnceLock::new();
+static DIR: OnceLock<PathBuf> = OnceLock::new();
 
 /// 启动写线程（setup 里调一次）。之后 `record` 走这条通道。
 pub fn init(dir: PathBuf) {
   let _ = WRITER.get_or_init(|| Mutex::new(()));
+  let _ = DIR.set(dir.clone());
   let (tx, rx) = mpsc::sync_channel::<String>(512);
   std::thread::spawn(move || writer_loop(rx, dir));
   let _ = SINK.set(Some(tx));
@@ -32,6 +34,17 @@ pub fn init(dir: PathBuf) {
 
 pub fn set_enabled(on: bool) {
   ENABLED.store(on, Ordering::Relaxed);
+}
+
+/// 清空本地统计（planned-settings-ui-spec B.5★）：events.jsonl 重置为空文件。
+/// 尽力而为语义：写线程队列里可能还有一批在途事件（≤64 条）随后落盘，属可接受残留。
+/// 只清事件流，不碰 data.json；随后记一条 events_cleared 便于对账。
+pub fn clear_events() -> Result<(), String> {
+  let dir = DIR.get().ok_or_else(|| "埋点尚未初始化".to_string())?;
+  let path = events_path(dir);
+  std::fs::File::create(&path).map_err(|e| format!("清空失败：{}", e))?;
+  record_str("events_cleared", &[]);
+  Ok(())
 }
 
 /// 记一条事件。绝不 panic、绝不出网、失败静默。

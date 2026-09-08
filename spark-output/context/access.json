@@ -1,0 +1,229 @@
+{
+ "skill": "access",
+ "generated_at": "2026-09-07T23:51:46+08:00",
+ "project_name": "Kettd v2 · 个人待办记录汇总",
+ "target": {
+  "type": "code",
+  "reference": "src-react/src（主窗五视图+便签+捕获条+详情层）；tokens=index.css/styles.css 双栈",
+  "scope": [
+   "今天",
+   "收件箱",
+   "计划",
+   "回顾",
+   "设置",
+   "便签窗",
+   "捕获条",
+   "任务详情层",
+   "撤销 Toast"
+  ]
+ },
+ "compliance_target": "AA",
+ "audit_mode": "auto",
+ "findings": [
+  {
+   "id": "access-1",
+   "wcag_criterion": "1.4.3 Contrast (Minimum)",
+   "principle": "perceivable",
+   "level": "AA",
+   "severity": "major",
+   "status": "fixed",
+   "description": "亮色琥珀文字（顺延 badge 11px/逾期条/撤销钮）对背景仅 4.17:1，低于 4.5:1",
+   "evidence": "index.css --pri-med 32 85% 38%；实测 bg 4.17:1、card 4.33:1",
+   "suggestion": "亮色 --pri-med 降至 34% 亮度",
+   "fix_effort": "quick-win",
+   "regulatory_reference": [
+    "自查（个人离线工具，无强制法规）"
+   ]
+  },
+  {
+   "id": "access-2",
+   "wcag_criterion": "1.4.11 Non-text Contrast",
+   "principle": "perceivable",
+   "level": "AA",
+   "severity": "major",
+   "status": "fixed",
+   "description": "输入框边界（--input 86%）对白卡仅 1.29:1，无法凭边界识别输入区",
+   "evidence": "light --input 40 15% 86% vs card 1.29:1；dark 22% vs dcard 1.26:1",
+   "suggestion": "--input 提深至 56%（light 3.03:1）/ 45%（dark 3.25:1）",
+   "fix_effort": "quick-win",
+   "regulatory_reference": []
+  },
+  {
+   "id": "access-3",
+   "wcag_criterion": "1.4.3 Contrast (Minimum)",
+   "principle": "perceivable",
+   "level": "AA",
+   "severity": "major",
+   "status": "fixed",
+   "description": "便签「顺延 N 天」徽章琥珀文字对四套纸面仅 1.50-2.21:1",
+   "evidence": "sticky.css .sticky-carry color=--sticky-accent；kraft 纸最低 1.50:1",
+   "suggestion": "改墨色文字 + 琥珀浅底徽章（ ink 对各纸面 8.4-13.9:1）",
+   "fix_effort": "quick-win",
+   "regulatory_reference": []
+  },
+  {
+   "id": "access-4",
+   "wcag_criterion": "1.4.11 Non-text Contrast",
+   "principle": "perceivable",
+   "level": "AA",
+   "severity": "major",
+   "status": "fixed",
+   "description": "便签固定态琥珀图钉图标对纸面 ~2.2:1，钉/未钉状态辨识弱",
+   "evidence": "sticky-btn.pin.on color=accent；另有 aria-pressed + title 冗余",
+   "suggestion": "固定态改墨色图标 + 琥珀底 chip",
+   "fix_effort": "quick-win",
+   "regulatory_reference": []
+  },
+  {
+   "id": "access-5",
+   "wcag_criterion": "3.1.1 Language of Page",
+   "principle": "understandable",
+   "level": "A",
+   "severity": "major",
+   "status": "fixed",
+   "description": "主窗口 index.html lang=en，与实际中文内容不符",
+   "evidence": "src-react/index.html <html lang=\"en\">（float/capture 已是 zh-CN）",
+   "suggestion": "改 zh-CN",
+   "fix_effort": "quick-win",
+   "regulatory_reference": []
+  },
+  {
+   "id": "access-6",
+   "wcag_criterion": "4.1.2 Name, Role, Value",
+   "principle": "robust",
+   "level": "A",
+   "severity": "major",
+   "status": "fixed",
+   "description": "TaskRow role=row 不在 grid/table 父级内，ARIA 结构非法",
+   "evidence": "task-row.tsx role=\"row\"；容器无 role=grid",
+   "suggestion": "改 role=listitem + 容器 role=list（今天/收件箱/便签三处）",
+   "fix_effort": "quick-win",
+   "regulatory_reference": []
+  },
+  {
+   "id": "access-7",
+   "wcag_criterion": "2.4.7 Focus Visible",
+   "principle": "operable",
+   "level": "AA",
+   "severity": "major",
+   "status": "fixed",
+   "description": "捕获条输入 outline:none 且无替代焦点指示",
+   "evidence": "capture.css .cap-row .input:focus box-shadow:none + outline none",
+   "suggestion": "focus 时加底边琥珀线",
+   "fix_effort": "quick-win",
+   "regulatory_reference": []
+  },
+  {
+   "id": "access-8",
+   "wcag_criterion": "3.3.1 Error Identification",
+   "principle": "understandable",
+   "level": "A",
+   "severity": "major",
+   "status": "fixed",
+   "description": "时刻输入非法仅红色边框（仅凭颜色），无文字说明",
+   "evidence": "TimeText bad 态只有 .bad 红边 + aria-invalid",
+   "suggestion": "加 role=alert 文字提示「格式应为 09:30」",
+   "fix_effort": "quick-win",
+   "regulatory_reference": []
+  },
+  {
+   "id": "access-9",
+   "wcag_criterion": "1.4.11 Non-text Contrast",
+   "principle": "perceivable",
+   "level": "AA",
+   "severity": "major",
+   "status": "accepted-mitigated",
+   "description": "热力图 lv1-lv3 对 muted 底 1.3-2.3:1，不满 3:1；拉满会摧毁规格「浅→深」5 档梯度",
+   "evidence": "实测 heat-1 78%/muted 1.31:1、heat-2 58% 1.81:1、heat-3 46% 2.34:1；已较初始（1.16/1.59）提深",
+   "suggestion": "缓解：逐格 aria-label+title 文本、图例说明、点击下钻纯文本列表；接受为设计决策并留档",
+   "fix_effort": "major-rework",
+   "regulatory_reference": []
+  },
+  {
+   "id": "access-10",
+   "wcag_criterion": "1.4.11 Non-text Contrast",
+   "principle": "perceivable",
+   "level": "AA",
+   "severity": "minor",
+   "status": "accepted",
+   "description": "装饰性卡片/按钮边框（--border 88%）对背景 ~1.3:1",
+   "evidence": "组件均另有背景色/阴影/文字参与识别；输入类边界已在 access-2 修复",
+   "suggestion": "接受：品牌「安静文具」低边框美学，识别不依赖边框",
+   "fix_effort": "quick-win",
+   "regulatory_reference": []
+  },
+  {
+   "id": "access-11",
+   "wcag_criterion": "2.4.3 Focus Order",
+   "principle": "operable",
+   "level": "A",
+   "severity": "minor",
+   "status": "open",
+   "description": "任务详情弹层焦点未圈闭（Tab 可移出遮罩到背景内容）",
+   "evidence": "TaskDetail 打开时焦点入弹层、Esc 可关，但无 focus-trap",
+   "suggestion": "后续加 focus-trap 或惰性圈闭（aria-modal 已标）",
+   "fix_effort": "medium",
+   "regulatory_reference": []
+  },
+  {
+   "id": "access-12",
+   "wcag_criterion": "4.1.2 Name, Role, Value",
+   "principle": "robust",
+   "level": "A",
+   "severity": "minor",
+   "status": "open",
+   "description": "Tabs 用 role=tab/tablist+aria-selected，但未实现完整 tabpanel 关联与方向键模式",
+   "evidence": "PlannedView .tabs；面板为条件渲染 section，未标 role=tabpanel",
+   "suggestion": "补 role=tabpanel 与 ←/→ 切换（规格 §D 本就要求键盘 Tabs）",
+   "fix_effort": "quick-win",
+   "regulatory_reference": []
+  }
+ ],
+ "fixed_this_round": [
+  "access-1",
+  "access-2",
+  "access-3",
+  "access-4",
+  "access-5",
+  "access-6",
+  "access-7",
+  "access-8"
+ ],
+ "compliance_summary": {
+  "total_criteria_checked": 34,
+  "total_passed": 30,
+  "total_failed": 4,
+  "by_principle": {
+   "perceivable": {
+    "passed": 9,
+    "failed": 2
+   },
+   "operable": {
+    "passed": 8,
+    "failed": 2
+   },
+   "understandable": {
+    "passed": 6,
+    "failed": 0
+   },
+   "robust": {
+    "passed": 7,
+    "failed": 2
+   }
+  },
+  "conformance_level_achieved": "A",
+  "conformance_gap": [
+   "1.4.11 热力渐变 lv1-3 图形对比（缓解：逐格 aria/tooltip/下钻文本 + 图例；接受为设计决策）",
+   "1.4.11 装饰边框（接受，识别不依赖边框）",
+   "2.4.3 详情弹层焦点圈闭（minor）",
+   "4.1.2 Tabs 完整 ARIA 模式（minor，规格本有键盘 Tabs 要求）"
+  ]
+ },
+ "legal_risk_assessment": {
+  "applicable_regulations": [
+   "仅自查（个人离线 Windows 桌面工具）"
+  ],
+  "risk_level": "low",
+  "notes": "中国《无障碍环境建设法》(2024) 与 GB/T 37668 针对政务/公共服务与 App 场景，个人本地工具不在强制范围；ADA/EAA 适用电子商务与公共服务，本产品不涉。若未来转 ToC 服务/出海再按 AA 全量复核。"
+ }
+}

@@ -48,6 +48,7 @@ pub fn get_bootstrap(state: State<'_, Shared>) -> Result<Bootstrap, String> {
     settings: store.data.settings.clone(),
     health: store.health_view(),
     migration: store.runtime.migration.clone(),
+    version: env!("CARGO_PKG_VERSION").to_string(),
   })
 }
 
@@ -110,8 +111,19 @@ pub fn add_task(
 ) -> Result<Task, String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
+  let from_capture = matches!(args.source, Some(Source::Capture));
   // 规则在 app/tasks：标题非空、默认值、拖留初值
-  let task = crate::app::tasks::add(&mut store, args, &now_text(), today())?;
+  let task = match crate::app::tasks::add(&mut store, args, &now_text(), today()) {
+    Ok(task) => task,
+    Err(e) => {
+      if from_capture {
+        // 捕获提交失败（Health 指标：落库失败率 ≤1%）
+        let kind: String = e.chars().take(48).collect();
+        crate::telemetry::record_str("capture_commit_fail", &[("err", kind.as_str())]);
+      }
+      return Err(e);
+    }
+  };
   save_and_emit(&mut store, &app, &task.id.clone())?;
   if matches!(task.source, Source::Capture) {
     crate::telemetry::capture_commit();
@@ -128,9 +140,14 @@ pub fn update_task(
 ) -> Result<Task, String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
+  let pinned_changed = patch.sticky_pinned;
   // 规则在 app/tasks：拖留只增不减
   let next = crate::app::tasks::update(&mut store, &id, patch, &now_text(), today())?;
   save_and_emit(&mut store, &app, &id)?;
+  if let Some(p) = pinned_changed {
+    // H1 验证门：「钉」的动作有没有发生（sticky-background / roadmap H1）
+    crate::telemetry::record_str("sticky_pin", &[("action", if p { "pin" } else { "unpin" })]);
+  }
   Ok(next)
 }
 
@@ -420,6 +437,20 @@ pub fn snooze_reminder(
   Ok(updated)
 }
 
+/// 同列表手动排序（便签规格 §12.2）：按传入顺序整表落 sort_order。
+#[tauri::command]
+pub fn reorder_tasks(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  ids_in_order: Vec<String>,
+) -> Result<usize, String> {
+  let mut store = lock(&state);
+  store.ensure_writable()?;
+  let moved = store.reorder_tasks(&ids_in_order)?;
+  save_and_emit(&mut store, &app, "order")?;
+  Ok(moved)
+}
+
 // ---------------------------------------------------------------- 设置
 
 #[tauri::command]
@@ -434,6 +465,10 @@ pub fn set_settings(
   // 两槽位热键事务：任一换绑失败，主题/键位整批回滚（规则在 app/settings）
   let mut hotkeys = crate::infra::tauri_hotkeys::TauriHotkeys::new(&app);
   crate::app::settings::apply_with_hotkeys(&mut store, &patch, &mut hotkeys)?;
+  if let Some(on) = patch.telemetry_enabled {
+    // 埋点开关即时生效（此前只在启动时读一次——补 planned-settings B.5★ 的实效性）
+    crate::telemetry::set_enabled(on);
+  }
   let next_theme = store.data.settings.theme.clone();
   store.save()?;
   if next_theme != old_theme {
@@ -441,6 +476,29 @@ pub fn set_settings(
   }
   emit(&app, StoreEvent::changed("settings"));
   Ok(store.data.settings.clone())
+}
+
+/// 清空本地统计（planned-settings-ui-spec B.5★，二次确认在前端）：重置 events.jsonl。
+#[tauri::command]
+pub fn clear_events() -> Result<(), String> {
+  crate::telemetry::clear_events()
+}
+
+/// 通用前端埋点通道（metric 蓝图：weekly_open 等 UI 侧事件）。仅落本机 events.jsonl，绝不出网。
+#[tauri::command]
+pub fn track_event(name: String, props: Option<String>) -> Result<(), String> {
+  let name = name.trim();
+  if name.is_empty() || name.len() > 48 {
+    return Err("事件名不合法".to_string());
+  }
+  match props {
+    Some(json) if !json.trim().is_empty() => match serde_json::from_str::<serde_json::Value>(json.trim()) {
+      Ok(v) => crate::telemetry::record(name, v),
+      Err(_) => return Err("props 不是合法 JSON".to_string()),
+    },
+    _ => crate::telemetry::record_str(name, &[]),
+  }
+  Ok(())
 }
 
 // ---------------------------------------------------------------- 窗口 / 托盘

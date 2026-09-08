@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { Bootstrap } from '@/lib/api'
 import { deleteTask, undoDelete, updateTask } from '@/lib/api'
 import { inboxGroups } from '../../../src/kernel/selectors.js'
 import { localToday } from '../../../src/kernel/time.js'
 import { TaskRow } from '@/components/task-row'
+import { TaskDetail } from '@/components/task-detail'
+import { useRowNav } from '@/lib/list-nav'
 import type { useUndoToast } from '@/components/undo-toast'
 
 interface Props {
@@ -18,9 +20,16 @@ export function InboxView({ boot, refresh, undo }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [dragOver, setDragOver] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
+  const [batchSchedule, setBatchSchedule] = useState(false)
+  const [scheduleDate, setScheduleDate] = useState('')
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const groups = useMemo(() => inboxGroups(boot.tasks, today), [boot.tasks, today])
+  const inboxCount = groups.fresh.length + groups.week.length + groups.older.length
 
   const selectedIds = [...selected]
+
+  const { containerProps } = useRowNav({ containerRef: listRef })
 
   const runFor = async (ids: string[], action: (id: string) => Promise<{ err: string | null }>) => {
     let firstErr: string | null = null
@@ -34,11 +43,16 @@ export function InboxView({ boot, refresh, undo }: Props) {
   }
 
   const planToday = (ids: string[]) => runFor(ids, (id) => updateTask(id, { plannedDate: today }))
-  const schedule = (ids: string[]) => {
-    const due = window.prompt('排期到哪天？（YYYY-MM-DD，留空取消）')
-    if (!due?.trim()) return
-    void runFor(ids, (id) => updateTask(id, { dueAt: `${due.trim()}T09:00` }))
+
+  /** 批量/单条排期：内联日期面板（qa2-04：Tauri WebView 无原生 prompt，禁用） */
+  const commitSchedule = () => {
+    if (!scheduleDate.trim()) { setBatchSchedule(false); return }
+    const due = scheduleDate.trim()
+    setBatchSchedule(false)
+    setScheduleDate('')
+    void runFor(selectedIds, (id) => updateTask(id, { dueAt: `${due}T09:00` }))
   }
+
   const drop = (ids: string[]) => {
     void (async () => {
       let firstErr: string | null = null
@@ -69,7 +83,7 @@ export function InboxView({ boot, refresh, undo }: Props) {
     })
   }
 
-  const renderGroup = (title: string, entries: { task: Parameters<typeof TaskRow>[0]['task']; age: number }[], aged: boolean) => {
+  const renderGroup = (title: string, start: number, entries: { task: Parameters<typeof TaskRow>[0]['task']; age: number }[], aged: boolean) => {
     if (!entries.length) return null
     return (
       <section className="section" aria-label={title}>
@@ -77,7 +91,7 @@ export function InboxView({ boot, refresh, undo }: Props) {
           <b>{title}</b>
           <span>{entries.length} 件</span>
         </div>
-        {entries.map(({ task, age }) => (
+        {entries.map(({ task, age }, i) => (
           <div
             key={task.id}
             draggable
@@ -87,12 +101,14 @@ export function InboxView({ boot, refresh, undo }: Props) {
               task={aged ? { ...task, carriedFrom: age } : task}
               today={today}
               actions="inbox"
+              rowIndex={start + i}
               selected={selected.has(task.id)}
               onSelect={toggleSelect}
               onToggle={(id) => { void runFor([id], (tid) => updateTask(tid, { done: true })) }}
               onPlanToday={(id) => { void planToday([id]) }}
-              onSchedule={(id) => { void schedule([id]) }}
+              onSchedule={(id, due) => { void runFor([id], (tid) => updateTask(tid, { dueAt: due ? `${due}T09:00` : null })) }}
               onDelete={(id) => { void drop([id]) }}
+              onOpen={setDetailId}
             />
           </div>
         ))}
@@ -100,12 +116,13 @@ export function InboxView({ boot, refresh, undo }: Props) {
     )
   }
 
-  const isEmpty = !groups.fresh.length && !groups.week.length && !groups.older.length
+  const isEmpty = inboxCount === 0
+  const detailTask = boot.tasks.find((t) => t.id === detailId) ?? null
 
   return (
     <div className="view">
       <div>
-        <div className="view-title">收件箱</div>
+        <div className="view-title">收件箱 · {inboxCount} 条未整理</div>
         <div className="view-sub">还没安排的事 · 拖到右侧「今天」或用行尾动作处理 · 越久滞留越醒目（琥珀，非红）</div>
       </div>
 
@@ -115,7 +132,26 @@ export function InboxView({ boot, refresh, undo }: Props) {
         <div className="batch-bar" role="toolbar" aria-label="批量处理">
           <span>已选 {selected.size}</span>
           <button className="btn xs outline" onClick={() => { void planToday(selectedIds) }}>加入今天</button>
-          <button className="btn xs outline" onClick={() => { void schedule(selectedIds) }}>排期…</button>
+          {!batchSchedule ? (
+            <button className="btn xs outline" onClick={() => { setBatchSchedule(true); setScheduleDate('') }}>排期…</button>
+          ) : (
+            <span className="row-flex items-center gap-1.5">
+              <input
+                type="date"
+                className="input xs"
+                autoFocus
+                value={scheduleDate}
+                aria-label="批量排期到哪天"
+                onChange={(e) => setScheduleDate(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitSchedule()
+                  if (e.key === 'Escape') setBatchSchedule(false)
+                }}
+              />
+              <button className="btn xs outline" onClick={commitSchedule}>定</button>
+              <button className="btn ghost xs" onClick={() => setBatchSchedule(false)}>取消</button>
+            </span>
+          )}
           <button className="btn xs outline" onClick={() => { void drop(selectedIds) }}>删除</button>
           <span className="grow" />
           <button className="btn ghost xs" onClick={() => setSelected(new Set())}>取消</button>
@@ -124,15 +160,15 @@ export function InboxView({ boot, refresh, undo }: Props) {
 
       {isEmpty && (
         <div className="empty">
-          收件箱清空了 ✓ 新想法按 <kbd>Alt+Shift+A</kbd> 直接记，不带 #分类 !优先级 就是纯文本落这里。
+          都安排好了 ✓ 新想法按 <kbd>Alt+Shift+A</kbd> 直接记，不带 #分类 !优先级 就是纯文本落这里。
         </div>
       )}
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {renderGroup('今天进的', groups.fresh, false)}
-          {renderGroup('本周', groups.week, false)}
-          {renderGroup('更早 · 滞留 ≥5 天', groups.older, true)}
+        <div ref={listRef} role="list" aria-label="收件箱列表" {...containerProps} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {renderGroup('今天进的', 0, groups.fresh, false)}
+          {renderGroup('本周', groups.fresh.length, groups.week, false)}
+          {renderGroup('更早 · 滞留 ≥5 天', groups.fresh.length + groups.week.length, groups.older, true)}
         </div>
         <div
           className={`drop-today${dragOver ? ' over' : ''}`}
@@ -149,6 +185,13 @@ export function InboxView({ boot, refresh, undo }: Props) {
           拖到这里<br />= 加入今天
         </div>
       </div>
+
+      <TaskDetail
+        task={detailTask}
+        today={today}
+        onClose={() => setDetailId(null)}
+        onDelete={(id) => { void drop([id]) }}
+      />
     </div>
   )
 }

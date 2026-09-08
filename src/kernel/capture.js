@@ -94,7 +94,9 @@ export function parseCapture(raw, today) {
     title,
     chips,
     dueAt,
-    autoRemind: dueAt !== null, // 有截止即随截止提醒
+    // 随截止自动提醒 = 截止带明确时刻才挂。纯日期（今天/明天/周五…）没有时刻，
+    // 归一成 T00:00 会在创建瞬间就到点误响（真机 2026-09-08 反馈）。
+    autoRemind: dueAt !== null && dueAt.includes('T'),
     category,
     priority,
     fellBack: chips.length === 0,

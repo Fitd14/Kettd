@@ -49,5 +49,5 @@ test('V2-API 文档表 ↔ 注册表一一对应', () => {
 });
 
 test('命令总数与文档声明一致（当前 41）', () => {
-  assert.equal(handler.size, 46, '总数变更时同步更新 V2-API §10 与本断言');
+  assert.equal(handler.size, 49, '总数变更时同步更新 V2-API §10 与本断言');
 });

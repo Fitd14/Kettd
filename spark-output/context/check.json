@@ -1,87 +1,56 @@
 {
-  "skill": "check",
-  "generated_at": "2026-09-02T16:55:00+08:00",
-  "project_name": "Kettd v2 · 个人待办记录汇总",
-  "target": "Mode C 链一致性（brief/stories/journey/sitemap/prd/extract）+ Mode A 静态（prototype Phase A 文件）",
-  "mode": "C+A",
-  "spec_layer_verdict": "pass（3 策略维度/8 stories AC/4 journey 断点全部可溯，out_of_scope 零违例；5 处🟡均为『规格就绪·实现待Phase B』）",
-  "implementation_verdict": "blocked_by_B1（0/6 屏）",
-  "findings": [
-    {
-      "category": "flow-continuity",
-      "severity": "blocker",
-      "description": "6 个 flow 均无实现：App/main 仍为 Vite 模板 demo，react-router 零引用，sitemap 18 节点与 ?open=:id 深链零触达，Mode A 无法走查任何业务屏",
-      "suggestion": "续跑 flow-web Phase B/C 或按 PRD §6+§6.9 直接 vibe coding；实现后重跑 Check + QA",
-      "location": "prototype/src/App.tsx; prototype/src/main.tsx"
-    },
-    {
-      "category": "components",
-      "severity": "major",
-      "description": "parseCapture 返回自相矛盾：remindAt 计算为提示串却返回 TODAY+' ·自动'，dueAt 含“换算结果示例”说明文本；若按 mock 做 UI 会显示假值并违反 PRD 6.6 本地时间契约",
-      "suggestion": "改结构化返回 {dueAtISO:'YYYY-MM-DDTHH:mm'|null, autoRemind:boolean}，说明文本移入注释",
-      "location": "prototype/src/flows/shared/mock-data.ts#parseCapture"
-    },
-    {
-      "category": "components",
-      "severity": "minor",
-      "description": "脚手架残留未清（App.css/assets 模板图被 App.tsx 引用），与 v2 token 视觉基座竞争样式",
-      "suggestion": "Phase B/C 按 flow-web 4.5.a 清单删除并重置入口",
-      "location": "prototype/src/"
-    },
-    {
-      "category": "feedback",
-      "severity": "minor",
-      "description": "active 按压缩态全仓 0 次（extract 实证），'点了没反应'体感病未在组件层绝根",
-      "suggestion": "Phase B 每屏补 active 反馈或 toast，PRD 6.9 已预留验收行",
-      "location": "prototype/src/components/ui/*"
-    },
-    {
-      "category": "accessibility",
-      "severity": "minor",
-      "description": "muted-foreground #71717a 于纸白底对比度约 4.4-4.6:1 临界（抽样估算，未实测），暗色同位 token 亦逼近 4.5:1",
-      "suggestion": "转 /无障碍检查 工具实测，勿在此下合规结论",
-      "location": "prototype/src/index.css"
-    }
-  ],
-  "summary": {
-    "blocker": 1,
-    "major": 1,
-    "minor": 3,
-    "pass": 6,
-    "categories_no_finding": [
-      "brief-consistency",
-      "copy",
-      "edge-states",
-      "ia",
-      "responsive",
-      "visual-hierarchy"
-    ]
+ "skill": "check",
+ "generated_at": "2026-09-07T23:15:47+08:00",
+ "project_name": "Kettd v2 · 个人待办记录汇总",
+ "target": "Mode C 定向验证（v3 设计层）：2026-09-04 六份定稿规格 vs brief.strategy_dimensions + stories 8×AC + journey key_moments；实现层仅交叉引用 qa.json (qa2 台账)，不做还原度复核",
+ "review_mode": "mode-c",
+ "upstream_refs": {
+  "brief": "context/brief.json (rev.2)",
+  "stories": "context/stories.json (8)",
+  "journey": "context/journey.json (rev.2)",
+  "qa_crossref": "context/qa.json (2026-09-07)"
+ },
+ "findings": [
+  {
+   "category": "brief-consistency",
+   "severity": "major",
+   "description": "story-5 AC2「面板三态一键切换（置顶/嵌桌面/迷你条）」被 sticky-note 定稿决策 4「彻底删除三形态→唯一便签+固定(置顶)」有意推翻，但 stories.json/PRD 上游未回写——上游文档与定稿设计脱钩，后续实现者可能按旧 AC 追问或回退",
+   "suggestion": "按 H1 拍板把 story-5 AC2 回写为「单一便签：固定(置顶)开关 + 移出淡化 + 拖拽记位」，PRD 对应段落同步；或在 stories.json 标注 superseded_by: sticky-note-component-spec",
+   "location": "context/stories.json story-5 AC2 vs design/sticky-note-component-spec.md §1.4/§2"
   },
-  "report": "spark-output/check/kettd-v2-走查报告.md",
-  "gate": "实现层验证 Gate=flow 屏产出后重跑 Check + QA",
-  "fixes_applied": [
-    {
-      "finding": "M1 parseCapture 自相矛盾占位文本",
-      "action": "整体重写为 CaptureParseResult{dueAt:本地ISO|null, autoRemind:boolean}，含 今天/明天/后天/周X/下周X/N月D日/N.D + 时段归一/秒错防护；fellBack 纯文本照收",
-      "status": "resolved",
-      "verify": "tsc 0 error + vite build pass",
-      "file": "prototype/src/flows/shared/mock-data.ts"
-    },
-    {
-      "finding": "B1(部分) 入口为 Vite 模板 demo",
-      "action": "App.tsx 重置为原型状态板：解析实机预览 + 6 flow 状态卡（标注各自 PRD 节与『UI 待 Phase B』）；#3 残留 App.css/assets 已删，index.html 标题改 Kettd",
-      "status": "resolved（6 屏 + App Shell 已交付，build 绿）",
-      "file": "prototype/src/App.tsx"
-    },
-    {
-      "finding": "#3 脚手架残留",
-      "action": "已随入口重置清除",
-      "status": "resolved"
-    }
-  ],
-  "open_after_fix": [
-    "#4 active 按压态随生产迭代打磨",
-    "#5 对比度→/无障碍检查 实测"
-  ],
-  "recheck_point": "edge must 已 12/12 落地（F0-F7 新屏+接线），复检可拉绿"
+  {
+   "category": "brief-consistency",
+   "severity": "major",
+   "description": "实现层违反 brief 定性设计标准「控件皆有实行为」：今天页「就地记一条」与收件箱批量「排期…」依赖 window.prompt，Tauri v1 (wry) WebView 不提供原生 prompt，可能静默无效（qa2-04，待真机确认）",
+   "suggestion": "真机确认；替换为内联输入框（今天页，规格 B.1 本就要求）与 TaskRow 排期弹出（收件箱），删除 prompt 依赖",
+   "location": "src-react/src/views/TodayView.tsx:80、src-react/src/views/InboxView.tsx:38"
+  },
+  {
+   "category": "copy",
+   "severity": "minor",
+   "description": "sticky-note 规格内部自相矛盾：§7 组件映射表待办行写「宋体标题」，而 §1.6 与 §5 已定稿「无衬线(雅黑)，不用宋体」——实现者若只读 §7 会被误导",
+   "suggestion": "把 §7 表格「宋体标题」改为「无衬线标题（雅黑/system-ui）」，与 §5 视觉 token 一致",
+   "location": "design/sticky-note-component-spec.md §7 vs §1.6/§5"
+  },
+  {
+   "category": "copy",
+   "severity": "minor",
+   "description": "老化术语三处不一：stories story-4 原文「拖了N天」、六规格定稿改「顺延/滞留」（today §B.2、inbox ③）、已实现便签 badge 仍用「拖了 N 天」（qa2-20），与主界面 TaskRow「顺延 N 天」跨视图不一致",
+   "suggestion": "以规格「顺延（今天列表）/滞留（收件箱）」为唯一口径：回写 stories story-4，修 StickyWindow badge 文案",
+   "location": "context/stories.json story-4、design/today-list-ui-spec.md §B.2、src-react sticky/StickyWindow.tsx:99"
+  },
+  {
+   "category": "accessibility",
+   "severity": "minor",
+   "description": "便签四套纸色 × 墨色组合把对比度风险面扩大 4 倍：规格 §8 要求正文常态对比 ≥4.5:1、琥珀 ≥3:1，但 4 套纸色（暖白/牛皮/淡青/暗墨）各自独立 ink，无实测数据（v2 时代 check 曾实测 muted-foreground 于纸白底 4.4-4.6:1 临界）",
+   "suggestion": "真机 QA 对 4 套纸色逐一取色抽测正文/次要文字/琥珀对比度，不达标纸色微调 ink 亮度；把结果记入 qa 报告",
+   "location": "design/sticky-note-component-spec.md §5/§8、src-react sticky sticky.css"
+  }
+ ],
+ "summary": {
+  "blocker": 0,
+  "major": 2,
+  "minor": 3,
+  "pass": 7
+ }
 }

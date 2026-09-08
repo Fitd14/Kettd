@@ -84,13 +84,14 @@
         "label": "float",
         "title": "待办列表",
         "width": 380,
-        "height": 520,
+        "height": 456,
         "resizable": false,
         "fullscreen": false,
-        "decorations": true,
+        "decorations": false,
+        "transparent": true,
         "visible": true,
         "alwaysOnTop": true,
-        "skipTaskbar": false,
+        "skipTaskbar": true,
         "url": "float.html"
       },
       {

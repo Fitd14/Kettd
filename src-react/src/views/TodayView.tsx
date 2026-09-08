@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { Bootstrap } from '@/lib/api'
-import { addTask, deleteTask, undoDelete, updateTask } from '@/lib/api'
-import { isDoneToday, todaySections } from '../../../src/kernel/selectors.js'
+import { addTask, deleteTask, reorderTasks, undoDelete, updateTask } from '@/lib/api'
+import { isDoneToday, nextReminderTime, todayList, todaySections } from '../../../src/kernel/selectors.js'
 import { localToday } from '../../../src/kernel/time.js'
 import { TaskRow } from '@/components/task-row'
+import { TaskDetail } from '@/components/task-detail'
+import { useRowNav } from '@/lib/list-nav'
 import type { useUndoToast } from '@/components/undo-toast'
 
 interface Props {
@@ -13,18 +15,36 @@ interface Props {
 }
 
 /**
- * 今天视图（PRD 6.3 / today-list-ui-spec）：
- * 三段式（今日到期 → 已拖到今天 → 逾期折叠行）+ 三处「今天」同源计数 + 完成庆祝空态。
+ * 今天视图（today-list-ui-spec）：
+ * - 单一捕获入口（B.1 内联输入框）+ 单一主列表（B.2 到期/顺延合并，badge 区分）
+ * - 执行驾驶舱（B.4）：下一条提醒行 + 「今天计划 N 项」口径
+ * - 逾期琥珀折叠条（B.3）；拖拽/Alt+↑↓ 排序（便签规格 §12.2）；j/k 行间导航
+ * - 三处「今天」同源计数 + 完成庆祝空态（B.6 保留项）
  */
 export function TodayView({ boot, refresh, undo }: Props) {
   const today = localToday()
   const [overdueOpen, setOverdueOpen] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
+  const [capture, setCapture] = useState('')
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const s = useMemo(() => todaySections(boot.tasks, today), [boot.tasks, today])
+  const merged = useMemo(() => todayList(boot.tasks, today), [boot.tasks, today])
   const doneToday = useMemo(
     () => boot.tasks.filter((t) => isDoneToday(t, today)),
     [boot.tasks, today],
   )
+  const next = useMemo(() => nextReminderTime(boot.tasks, boot.reminders), [boot.tasks, boot.reminders])
+
+  const { containerProps } = useRowNav({
+    containerRef: listRef,
+    ids: merged.map((t) => t.id),
+    onReorder: async (ids) => {
+      const r = await reorderTasks(ids)
+      if (r.err) setSaveErr(r.err)
+      await refresh()
+    },
+  })
 
   const toggle = async (id: string) => {
     const r = await updateTask(id, { done: !boot.tasks.find((t) => t.id === id)?.done })
@@ -75,88 +95,85 @@ export function TodayView({ boot, refresh, undo }: Props) {
     await schedule(id, today)
   }
 
-  const quickAdd = async () => {
-    // 兜底入口：热键不可用时点这里记一条（PRD 6.2 边缘降级）
-    const title = window.prompt('记一条…')
-    if (!title?.trim()) return
-    const r = await addTask({ title: title.trim(), source: 'manual' })
+  const captureCommit = async () => {
+    // 单一捕获入口（B.1）：回车放进今天
+    const title = capture.trim()
+    if (!title) return
+    const r = await addTask({ title, source: 'manual', plannedDate: today })
     if (r.err) { setSaveErr(r.err); return }
+    setSaveErr(null)
+    setCapture('')
     await refresh()
   }
 
   const totalOpen = s.due.length + s.carried.length
+  const planTotal = totalOpen + doneToday.length
   const allClear = totalOpen === 0 && s.overdue.length === 0
+  const detailTask = boot.tasks.find((t) => t.id === detailId) ?? null
 
   return (
     <div className="view">
       <div>
         <div className="view-title">今天</div>
         <div className="view-sub">
-          {today} · 剩 {totalOpen} · 今天做完 {doneToday.length}
-          {' · '}侧栏 / 便签 / 这里三处数字同源
+          {today} · 今天计划 {planTotal} 项 · 剩 {totalOpen} · 做完 {doneToday.length}
+          {' · '}三处同源
+        </div>
+        <div className="next-remind" aria-live="polite">
+          下一条提醒 · <b>{next ?? '—'}</b>
         </div>
       </div>
 
+      <form className="capture-bar" onSubmit={(e) => { e.preventDefault(); void captureCommit() }}>
+        <input
+          className="input sm grow"
+          placeholder="记一条，回车放进今天（或按 Alt+Shift+A）"
+          aria-label="记一条放进今天"
+          value={capture}
+          onChange={(e) => setCapture(e.target.value)}
+        />
+        <button className="btn xs outline" type="submit" disabled={!capture.trim()}>记下</button>
+      </form>
+
       {saveErr && <div className="inline-err" role="alert">{saveErr}</div>}
 
-      {allClear && totalOpen === 0 && (
+      {allClear && (
         doneToday.length > 0 ? (
           <div className="celebrate" aria-live="polite">
             <div className="mark">✓</div>
             <div>今天清零 · 做完 {doneToday.length} 件</div>
           </div>
         ) : (
-          <div className="empty">
-            今天还没有挑出来的事项。
-            <div style={{ marginTop: 8 }}>
-              按 <kbd>Alt+Shift+A</kbd> 记一条，或在收件箱里把它拖进来。
-              <button className="btn ghost xs" style={{ marginLeft: 8 }} onClick={() => { void quickAdd() }}>
-                就地记一条
-              </button>
-            </div>
-          </div>
+          <div className="empty">今天还没有挑出来的事项。</div>
         )
       )}
 
-      {s.due.length > 0 && (
-        <section className="section" aria-label="今日到期">
+      {merged.length > 0 && (
+        <section className="section" aria-label="今天要做的">
           <div className="section-head">
-            <b>今日到期</b>
-            <span>{s.due.length} 件</span>
+            <b>今天要做的</b>
+            <span>{merged.length} 件</span>
           </div>
-          {s.due.map((t) => (
-            <TaskRow
-              key={t.id}
-              task={t}
-              today={today}
-              actions="today"
-              onToggle={(id) => { void toggle(id) }}
-              onSchedule={(id, due) => { void schedule(id, due) }}
-              onDelete={(id) => { void drop(id) }}
-              onPinSticky={(id, pinned) => { void pinSticky(id, pinned) }}
-            />
-          ))}
-        </section>
-      )}
-
-      {s.carried.length > 0 && (
-        <section className="section" aria-label="已拖到今天">
-          <div className="section-head">
-            <b>已拖到今天</b>
-            <span>{s.carried.length} 件</span>
+          <div ref={listRef} role="list" aria-label="今天要做的" {...containerProps}>
+            {merged.map((t, i) => (
+              <TaskRow
+                key={t.id}
+                task={t}
+                today={today}
+                actions="today"
+                rowIndex={i}
+                dragEnabled
+                onToggle={(id) => { void toggle(id) }}
+                onSchedule={(id, due) => { void schedule(id, due) }}
+                onDelete={(id) => { void drop(id) }}
+                onPinSticky={(id, pinned) => { void pinSticky(id, pinned) }}
+                onOpen={setDetailId}
+              />
+            ))}
           </div>
-          {s.carried.map((t) => (
-            <TaskRow
-              key={t.id}
-              task={t}
-              today={today}
-              actions="today"
-              onToggle={(id) => { void toggle(id) }}
-              onSchedule={(id, due) => { void schedule(id, due) }}
-              onDelete={(id) => { void drop(id) }}
-              onPinSticky={(id, pinned) => { void pinSticky(id, pinned) }}
-            />
-          ))}
+          <div className="tiny text-muted" style={{ marginTop: 4 }}>
+            拖行或 Alt+↑↓ 调整顺序 · j/k 移动 · Enter 看详情
+          </div>
         </section>
       )}
 
@@ -173,6 +190,7 @@ export function TodayView({ boot, refresh, undo }: Props) {
                   onToggle={(id) => { void toggle(id) }}
                   onDelete={(id) => { void drop(id) }}
                   onSchedule={(id) => { void rescheduleOverdue(id) }}
+                  onOpen={setDetailId}
                 />
                 {overdueOpen && (
                   <div style={{ margin: '0 0 4px 30px' }}>
@@ -185,6 +203,13 @@ export function TodayView({ boot, refresh, undo }: Props) {
           </div>
         </details>
       )}
+
+      <TaskDetail
+        task={detailTask}
+        today={today}
+        onClose={() => setDetailId(null)}
+        onDelete={(id) => { void drop(id) }}
+      />
     </div>
   )
 }

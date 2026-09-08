@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { buildCaptureArgs, localToday, parseCapture, type ParsedCapture } from '@/lib/kernel'
 import { call, onEvent } from '@/lib/bridge'
+import { addTask } from '@/lib/api'
 import './capture.css'
 
 interface TaskRow {
@@ -63,8 +64,10 @@ export default function CaptureWindow() {
       setError('标题不能为空')
       return
     }
-    const args = buildCaptureArgs(parseCapture(raw, localToday()))
-    const r = await call<{ id: string; title: string }>('add_task', args)
+    const payload = buildCaptureArgs(parseCapture(raw, localToday()))
+    // 走 api.ts 封装（自动包 { args }）——M1 试点曾裸传 payload 导致
+    // 「command add_task missing required key args」（真机 2026-09-08 捕获条复现）
+    const r = await addTask(payload)
     if (r.err || !r.data) {
       setError((r.err ?? '保存失败') + ' · 输入已保留，改完再按回车')
       return

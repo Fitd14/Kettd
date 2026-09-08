@@ -56,6 +56,8 @@ body,
 
 .cap-row .input:focus {
   box-shadow: none;
+  /* 2.4.7：无边框输入的可见焦点指示（底边琥珀线；outline:none 仅移除默认环） */
+  border-bottom: 2px solid hsl(var(--pri-med));
 }
 
 .cap-row .input::placeholder {

@@ -96,6 +96,7 @@ export default function App() {
           <button
             key={r.hash}
             className={`side-item${route === r.hash ? ' on' : ''}`}
+            title={r.label}
             onClick={() => { window.location.hash = r.hash; setRoute(r.hash) }}
           >
             <span className="label">{r.label}</span>
