@@ -24,9 +24,12 @@ export default function CaptureWindow() {
   const [receiptNote, setReceiptNote] = useState('2s 后自动收起')
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const frameRef = useRef<HTMLDivElement>(null)
   const savedRef = useRef<TaskRow | null>(null)
   const closingRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 已上报给后端的窗口高度；与实测差 ≥1px 才再报，避免 resize 回环
+  const sentHeightRef = useRef(0)
 
   const trimmed = text.trim()
   const parsed: ParsedCapture | null = trimmed ? parseCapture(trimmed, localToday()) : null
@@ -109,6 +112,24 @@ export default function CaptureWindow() {
     return () => window.removeEventListener('blur', onBlur)
   }, [closeOverlay])
 
+  // 真·动态高度（方案 B）：内容实高（空输入≈45 / 带 chips≈68 / 回执≈45）上报后端改窗口高，
+  // 顶边锚定向下伸缩。宽度恒 560 不参与；触发时机覆盖 chips 出没、错误行、回执切换、
+  // capture-opened 重置（reset 发生在窗隐藏后 80ms，改高在隐藏期完成，下次唤起无跳变）。
+  useEffect(() => {
+    const el = frameRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => {
+      // ceil 防亚像素裁切；后端 sanitize 兜底钳制（36..200）
+      const h = Math.ceil(el.getBoundingClientRect().height)
+      if (h > 0 && Math.abs(h - sentHeightRef.current) >= 1) {
+        sentHeightRef.current = h
+        void call('capture_resize', { height: h })
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   // 后端事件：capture-opened 重置并聚焦；theme-changed 翻暗色
   useEffect(() => {
     const offOpened = onEvent('capture-opened', () => {
@@ -147,7 +168,7 @@ export default function CaptureWindow() {
   }
 
   return (
-    <div className="cap-frame" id="frame">
+    <div className="cap-frame" id="frame" ref={frameRef}>
       {phase === 'input' ? (
         <div className="cap-row">
           <span className="cap-hint" aria-hidden data-tauri-drag-region title="按住拖动">✎</span>

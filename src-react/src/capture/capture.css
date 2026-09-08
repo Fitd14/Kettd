@@ -8,14 +8,17 @@ body,
   margin: 0;
   padding: 0;
   background: transparent;
+  /* 内容长高先于窗口 set_size 落地（IPC 一帧差），禁滚动条防抖动 */
+  overflow: hidden;
 }
 
-/* DWM 圆角由 OS 提供，窗体本身全幅铺材质 */
+/* 圆角由 DWM 做（runtime::apply_capture_rounding）：OS 磨砂画在整窗矩形上，
+   CSS 自绘 radius 裁不动它，反而在四角露出方形磨砂斑（vanilla 时代「黑边」教训） */
 .cap-frame {
   display: flex;
   flex-direction: column;
   padding: 10px 12px;
-  border-radius: 14px;
+  border-radius: 0;
   background: linear-gradient(
     180deg,
     hsl(var(--vellum-tint) / var(--vellum-lit-a)) 0%,

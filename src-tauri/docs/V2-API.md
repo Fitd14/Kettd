@@ -161,9 +161,10 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `set_sticky_pinned` | `pinned: boolean` | `void` | 便签规格 §1（三形态收敛为单一便签）：固定=仅切换置顶，位置始终可拖；结果写回 `settings.stickyPinned`，托盘勾选同步 |
 | `register_capture_hotkey` | `combo` | `Settings` | 例 `Alt+Shift+A`；注册失败 → Err「快捷键被占用，请用备用入口」（保持旧值） |
 | `register_main_hotkey` | `combo` | `Settings` | 打开主界面全局热键；`combo` 空串 = 解绑（`mainHotkey` → `null`）；与 `register_capture_hotkey` 同一约束：组合键互斥、失败保持旧值 |
-| `open_capture_overlay` | — | `void` | label `capture`：560×80、无边框、「硫酸纸」材质（OS `apply_blur` 暖纸 tint + DWM 圆角，CSS 层负责反光描边/厚度/可读性，详见 `styles.css` 的 `--vellum-*` 令牌）、屏幕上部 28% 居中、置顶，显示后 emit `capture-opened` 让前端聚焦输入框；失焦自动收起 |
+| `open_capture_overlay` | — | `void` | label `capture`：560×**内容实高**（动态高度，见 `capture_resize`）、无边框、「硫酸纸」材质（OS `apply_blur` 暖纸 tint + DWM 圆角，CSS 层负责反光描边/厚度/可读性，圆角全权归 DWM、CSS `border-radius:0`）、屏幕上部 28% 居中、置顶，显示后 emit `capture-opened` 让前端聚焦输入框；失焦自动收起 |
 | `close_capture_overlay` | — | `void` | |
 | `capture_start_drag` | — | `void` | 让无边框捕获条可被鼠标拖动（转调 `window.start_dragging()`）。**当前前端未接线** —— 实际拖拽走 Tauri 的 `data-tauri-drag-region` 属性（见 `capture.html` 的 ✎ 把手）；此命令作为备用入口保留，位置记忆由 `settings.capturePos` 承担 |
+| `capture_resize` | `height: f64` | `void` | 真·动态高度（方案 B）：前端 ResizeObserver 测 `#frame` 实高（ceil）上报，窗口顶边锚定向下伸缩；宽度恒 560。后端 `sanitize_capture_height` 钳制 `36..200`、NaN 回落 36（`f64::clamp` 遇 NaN 会毒化 set_size）。内容长高先于 set_size 落地的一帧差由 CSS `overflow:hidden` 兜住；高度变化只在内容结构变化时发生（chips 出没/错误行/回执），不在逐键输入时 |
 | `export_weekly` | `week?: string`, `format?: 'md' \| 'csv'`, `dir?: string` | `string`（完整路径） | `week` = `current`（默认）/ `last` / `YYYY-Www`；文件名含 ISO 周（如 `周汇总-2026-W36.md`）；二次导出不覆盖（自动 `-2`/`-3`）；目标不可写 → Err「这个位置写不了，换个位置」 |
 | `get_backups` | — | `BackupInfo[]` | 含不可读备份（`readable:false` + 中文 error） |
 | `restore_backup` | `slot`（`"1".."5"`，也吃 `data.json.bak-3` 这种整名） | `RestoreResult` | 成功即解除 corrupt 封锁；损坏原件已留存为 `data.corrupt.*`，`data.v1.json` 永不删 |
@@ -223,9 +224,9 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 
 ## 5. 托盘与窗口（配置侧）
 
-- `tauri.conf.json`：`productName: "待办列表"`；三窗 `main`(1100×720, min 1024×640, visible:false) / `float`(380×520, resizable:false, alwaysOnTop:true, skipTaskbar:false) / `capture`(560×80, decorations:false, transparent:false, alwaysOnTop:true, skipTaskbar:true, visible:false)；`allowlist` 沿用 v1 的 `api-all`。
-  - capture 窗取向为「**窗口即纸片卡**」：整窗不透明、底色跟 `--card` 走，绕开 WebView2 透明窗在 Windows 上的黑边问题（需求 5「四周透出桌面」因此**未达成**，属已知取舍，见 §10）。
-  - 该窗实际由 `runtime::create_capture_window` 用 `WindowBuilder` 创建，`tauri.conf.json` 的声明必须与 `inner_size` 手工对齐；`center_capture` 已改为读窗口实际 `outer_size` 居中，不再重复写死尺寸常量。
+- `tauri.conf.json`：`productName: "待办列表"`；三窗 `main`(1100×720, min 1024×640, visible:false) / `float`(380×520, resizable:false, alwaysOnTop:true, skipTaskbar:false) / `capture`(560×46 首帧值——挂载后由 `capture_resize` 按内容校正, decorations:false, transparent:true, alwaysOnTop:true, skipTaskbar:true, visible:false)；`allowlist` 沿用 v1 的 `api-all`。
+  - capture 窗取向为「**窗口即硫酸纸条**」：透明窗 + OS 磨砂材质（`apply_blur` 暖纸 tint）+ DWM 圆角，CSS 只画反光描边与厚度（`--vellum-*` 令牌）。
+  - 该窗实际由 `runtime::create_capture_window` 用 `WindowBuilder` 创建，`tauri.conf.json` 的声明必须与 `inner_size` 手工对齐（宽度另有 `runtime::CAPTURE_W` 常量供 `capture_resize` 共用）；`center_capture` 已改为读窗口实际 `outer_size` 居中，不再重复写死尺寸常量。
 - 托盘在代码里创建，`id = "main"`（v1 的 `tauri.systemTray` 配置项只吃 `iconPath`，没有 `id` 字段，v1 运行时的托盘菜单必须由代码构建）。
 - 托盘菜单（术语表：悬浮面板 / 提醒 / 周汇总）：
   `打开主界面` · `快速记录`（等同 `open_capture_overlay`，前端也可监听 `capture-opened`）· 分隔 · `显示悬浮面板` / `隐藏悬浮面板` · 子菜单 `悬浮形态`(置于顶层 / 嵌入桌面 / 迷你条，当前形态带勾选) · 分隔 · `管理提醒` / `本周汇总导出` / `打开数据文件夹` · 分隔 · `退出`。

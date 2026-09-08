@@ -79,6 +79,7 @@ fn main() {
       commands::open_capture_overlay,
       commands::close_capture_overlay,
       commands::capture_start_drag,
+      commands::capture_resize,
       commands::register_capture_hotkey,
       commands::register_main_hotkey,
       commands::open_data_folder,
@@ -194,6 +195,36 @@ fn main() {
           let pos = note_pos.get(&note.id).copied();
           let _ = runtime::open_note_window(&handle, &note.id, note.pinned, !note.hidden, pos);
         }
+      }
+      // 临时诊断探针：工作线程建窗是否失败（复现 create_sticky 命令的线程上下文）
+      {
+        let dbg_app = handle.clone();
+        std::thread::spawn(move || {
+          std::thread::sleep(std::time::Duration::from_secs(4));
+          let r = runtime::open_note_window(&dbg_app, "dbgprobe", false, false, None);
+          let ok = r.is_ok();
+          crate::telemetry::record_str(
+            "dbg_note_window",
+            &[("ctx", "worker_thread"), ("result", if ok { "ok" } else { "err" })],
+          );
+          if let Some(w) = dbg_app.get_window("note:dbgprobe") {
+            let _ = w.close();
+          }
+        });
+      }
+      // 临时诊断探针②：直接调真实 create_sticky 命令函数（绕过前端 invoke）
+      {
+        let dbg_app = handle.clone();
+        std::thread::spawn(move || {
+          std::thread::sleep(std::time::Duration::from_secs(7));
+          let state = dbg_app.state::<Mutex<store::Store>>();
+          let r = commands::create_sticky(dbg_app.clone(), state, "todo".to_string());
+          let text = match &r {
+            Ok(note) => format!("ok:{}", note.id),
+            Err(e) => format!("err:{e}"),
+          };
+          crate::telemetry::record_str("dbg_create_sticky", &[("result", text.as_str())]);
+        });
       }
       if let Some(tray) = handle.tray_handle_by_id(runtime::TRAY_ID) {
         let _ = tray.set_tooltip("待办列表 · 常驻托盘");

@@ -98,7 +98,7 @@
         "label": "capture",
         "title": "快速记录",
         "width": 560,
-        "height": 80,
+        "height": 46,
         "resizable": false,
         "maximizable": false,
         "minimizable": false,

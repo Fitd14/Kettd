@@ -740,6 +740,12 @@ pub fn capture_start_drag(app: AppHandle) -> Result<(), String> {
   runtime::capture_start_drag(&app)
 }
 
+/// 前端 ResizeObserver 上报内容高度，动态改快速记录条窗口高度（顶部锚定向下伸缩）
+#[tauri::command]
+pub fn capture_resize(app: AppHandle, height: f64) -> Result<(), String> {
+  runtime::capture_resize(&app, height)
+}
+
 /// 换绑捕获热键；失败返回「快捷键被占用，请用备用入口」并保持旧值
 #[tauri::command]
 pub fn register_capture_hotkey(

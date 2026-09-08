@@ -4,7 +4,7 @@ use crate::store::Store;
 use std::path::Path;
 use std::sync::Mutex;
 use tauri::{
-  AppHandle, CustomMenuItem, GlobalShortcutManager, Manager, PhysicalPosition,
+  AppHandle, CustomMenuItem, GlobalShortcutManager, LogicalSize, Manager, PhysicalPosition,
   Position, SystemTray, SystemTrayMenu, SystemTrayMenuItem, Window,
   WindowBuilder, WindowUrl,
 };
@@ -132,7 +132,7 @@ pub fn open_note_window(
     }
     return Ok(());
   }
-  let window = WindowBuilder::new(app, &label, WindowUrl::App("float.html".into()))
+  let window = match WindowBuilder::new(app, &label, WindowUrl::App("float.html".into()))
     .title("便签")
     .inner_size(380.0, 456.0)
     .resizable(false)
@@ -142,7 +142,18 @@ pub fn open_note_window(
     .skip_taskbar(true)
     .visible(false)
     .build()
-    .map_err(|_| "便签窗口创建失败".to_string())?;
+  {
+    Ok(window) => window,
+    Err(e) => {
+      // 临时诊断：真实失败原因进 events.jsonl（sticky_create 埋点缺失即此处失败）
+      let text = format!("{e}");
+      crate::telemetry::record_str(
+        "sticky_window_error",
+        &[("label", &label), ("err", text.as_str())],
+      );
+      return Err(format!("便签窗口创建失败：{text}"));
+    }
+  };
   if let Some([x, y]) = stored_pos {
     if capture_pos_on_screen(&window, x, y) {
       let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
@@ -185,10 +196,28 @@ pub fn float_is_visible(app: &AppHandle) -> bool {
 
 // ---------------------------------------------------------------- 快速记录浮条
 
+/// 快速记录条宽度：创建（create_capture_window）与动态改高（capture_resize）共用一个常量，
+/// 避免两处字面量改一处漏一处（同 center_capture 改用 outer_size 的教训）
+pub const CAPTURE_W: f64 = 560.0;
+/// 动态高度安全下界：低于任何真实内容高度（空输入 ≈45），防退化成 0 高窗
+pub const CAPTURE_MIN_H: f64 = 36.0;
+/// 动态高度安全上界：最挤内容（输入行+chips+错误行）≈90，200 已宽裕
+pub const CAPTURE_MAX_H: f64 = 200.0;
+
+/// 前端上报的内容高度 → 合法窗口高度。
+/// NaN 必须先挡掉：f64::clamp 遇 NaN 原样返回 NaN，会毒化 set_size；±Inf 由 clamp 收边界。
+pub fn sanitize_capture_height(height: f64) -> f64 {
+  if height.is_nan() {
+    return CAPTURE_MIN_H;
+  }
+  height.clamp(CAPTURE_MIN_H, CAPTURE_MAX_H)
+}
+
 fn create_capture_window(app: &AppHandle) -> Result<Window, String> {
+  // 初始高度只是首帧值：窗口随配置在启动即创建（隐藏），前端挂载后由 capture_resize 按内容校正
   WindowBuilder::new(app, CAPTURE_LABEL, WindowUrl::App("capture.html".into()))
     .title("快速记录")
-    .inner_size(560.0, 80.0)
+    .inner_size(CAPTURE_W, 46.0)
     .resizable(false)
     .maximizable(false)
     .minimizable(false)
@@ -374,6 +403,19 @@ pub fn capture_is_visible(app: &AppHandle) -> bool {
     Ok(window) => window.is_visible().unwrap_or(false),
     Err(_) => false,
   }
+}
+
+/// 动态改高（方案 B）：前端 ResizeObserver 按内容实际高度上报，窗口顶部锚定、向下伸缩。
+/// resizable(false) 只挡用户手拖，编程 set_size 不受限；隐藏窗口也接受 set_size
+/// （启动即创建时是隐藏的，前端挂载后先改高、首开即是正确尺寸）。
+pub fn capture_resize(app: &AppHandle, height: f64) -> Result<(), String> {
+  let window = app
+    .get_window(CAPTURE_LABEL)
+    .ok_or_else(|| "快速记录条未就绪".to_string())?;
+  let h = sanitize_capture_height(height);
+  window
+    .set_size(LogicalSize::new(CAPTURE_W, h))
+    .map_err(|_| "快速记录条改高失败".to_string())
 }
 
 // ---------------------------------------------------------------- 全局快捷键
@@ -643,4 +685,29 @@ pub fn notify_title(app: &AppHandle, title: &str, body: &str) -> bool {
     .body(body)
     .show()
     .is_ok()
+}
+
+#[cfg(test)]
+mod capture_resize_tests {
+  use super::*;
+
+  #[test]
+  fn height_in_range_passes_through() {
+    assert_eq!(sanitize_capture_height(45.0), 45.0);
+    assert_eq!(sanitize_capture_height(68.0), 68.0);
+  }
+
+  #[test]
+  fn height_out_of_range_clamped_to_bounds() {
+    assert_eq!(sanitize_capture_height(0.0), CAPTURE_MIN_H);
+    assert_eq!(sanitize_capture_height(-5.0), CAPTURE_MIN_H);
+    assert_eq!(sanitize_capture_height(10_000.0), CAPTURE_MAX_H);
+  }
+
+  #[test]
+  fn height_non_finite_falls_back_to_safe_bounds() {
+    assert_eq!(sanitize_capture_height(f64::NAN), CAPTURE_MIN_H);
+    assert_eq!(sanitize_capture_height(f64::INFINITY), CAPTURE_MAX_H);
+    assert_eq!(sanitize_capture_height(f64::NEG_INFINITY), CAPTURE_MIN_H);
+  }
 }
