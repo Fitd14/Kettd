@@ -6,7 +6,7 @@
  * 时间全链路本地语义字符串，零 UTC 换算（不用 toISOString）—— 对治 v1 audit-6 时间漂移。
  */
 
-export const pad2 = (n) => String(n).padStart(2, '0');
+export const pad2 = (n) => String(n).padStart(2, '0'); // 内核内亦跨模块使用
 
 export const WEEK_CN = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
@@ -29,9 +29,6 @@ export function addDays(iso, n) {
   return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
 }
 
-export function isLocalDate(s) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
-}
 
 /** 拆开 YYYY-MM-DDTHH:mm；仅有日期时 time 为空串 */
 export function fullDueParts(dueAt) {

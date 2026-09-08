@@ -10,8 +10,8 @@ import {
   type Bootstrap,
   type Task,
 } from '@/lib/api'
-import { todayList } from '../../../src/kernel/selectors.js'
-import { localToday } from '../../../src/kernel/time.js'
+import { todayList } from '../kernel/selectors.js'
+import { localToday } from '../kernel/time.js'
 import { useRowNav } from '@/lib/list-nav'
 import { PaperPattern } from './paper-patterns'
 import './sticky.css'

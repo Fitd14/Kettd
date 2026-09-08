@@ -1,9 +1,9 @@
 /**
- * 共享内核的类型化出口（ADR-0006）：快录解析与组参的唯一实现住在 src/kernel/（vanilla 侧），
- * 两栈共用，禁止在 TS 侧复制第二份语义。
+ * 共享内核的类型化出口（ADR-0006）：快录解析与组参的唯一实现住在 src-react/src/kernel/（M4 自 vanilla src/ 迁入），
+ * 全站唯一实现，禁止在 TS 侧复制第二份语义。
  */
-import { parseCapture as rawParseCapture, buildCaptureArgs as rawBuildCaptureArgs } from '../../../src/kernel/capture.js'
-import { localToday as rawLocalToday } from '../../../src/kernel/time.js'
+import { parseCapture as rawParseCapture, buildCaptureArgs as rawBuildCaptureArgs } from '../kernel/capture.js'
+import { localToday as rawLocalToday } from '../kernel/time.js'
 
 export interface ParseChip {
   /** 原始子串（点击 chip 从输入里删除时用） */

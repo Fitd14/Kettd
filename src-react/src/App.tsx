@@ -6,8 +6,8 @@ import {
   takePendingRoute,
   type Bootstrap,
 } from '@/lib/api'
-import { todaySections } from '../../src/kernel/selectors.js'
-import { localToday } from '../../src/kernel/time.js'
+import { todaySections } from './kernel/selectors.js'
+import { localToday } from './kernel/time.js'
 import { useUndoToast, UndoToast } from '@/components/undo-toast'
 import { TodayView } from '@/views/TodayView'
 import { InboxView } from '@/views/InboxView'

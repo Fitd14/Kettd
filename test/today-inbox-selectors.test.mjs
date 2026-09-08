@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { todaySections, inboxGroups, isPlannedToday } from '../src/kernel/selectors.js';
+import { todaySections, inboxGroups, isPlannedToday } from '../src-react/src/kernel/selectors.js';
 
 const TODAY = '2026-09-06';
 

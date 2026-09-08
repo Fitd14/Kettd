@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import {
   isOverdue, isPlannedToday, isDoneToday, isCarry, isoWeekOf, weekWindow, nextReminderTime,
-} from '../src/kernel/selectors.js';
+} from '../src-react/src/kernel/selectors.js';
 
 let pass = 0;
 const it = (name, fn) => { fn(); pass++; console.log('  ✓', name); };

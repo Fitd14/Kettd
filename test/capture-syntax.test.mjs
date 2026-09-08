@@ -9,7 +9,7 @@
  * 跑法：node test/capture-syntax.test.mjs
  */
 import assert from 'node:assert/strict';
-import { parseCapture, buildCaptureArgs } from '../src/kernel/capture.js';
+import { parseCapture, buildCaptureArgs } from '../src-react/src/kernel/capture.js';
 
 const TODAY = '2026-09-05'; // 周六
 let pass = 0;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createEventBus } from '../src/kernel/event-bus.js';
+import { createEventBus } from '../src-react/src/kernel/event-bus.js';
 
 /** 可手动 pump 的假桥：模拟后端事件到达（带 { payload } 包裹或裸值） */
 function fakeBridge() {

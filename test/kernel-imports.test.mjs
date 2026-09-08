@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const KDIR = path.join(root, 'src', 'kernel');
+const KDIR = path.join(root, 'src-react', 'src', 'kernel');
 
 const exportsOf = (file) => {
   const src = readFileSync(file, 'utf8');
@@ -30,19 +30,22 @@ const exportsOf = (file) => {
 };
 
 const kernelFiles = existsSync(KDIR) ? readdirSync(KDIR).filter((f) => f.endsWith('.js')) : [];
-assert.ok(kernelFiles.length >= 2, `src/kernel/ 至少应有 text.js 与 rem-editor.js，实际：${kernelFiles.join(',')}`);
+assert.ok(kernelFiles.length >= 2, `src-react/src/kernel/ 至少应有 text.js 与 rem-editor.js，实际：${kernelFiles.join(',')}`);
 
 const exported = new Map();
 for (const f of kernelFiles) exported.set(f, exportsOf(path.join(KDIR, f)));
 
-// 消费方 = vanilla 四窗 + src-react（M3 起视图层直接依赖内核，ADR-0001 ①）
+// 消费方 = src-react 全窗（M4 已退役 vanilla，内核随 React；ADR-0006 唯一实现原则不变）
 const consumers = [
-  'src/index.html', 'src/float.html', 'src/capture.html', 'src/api.js',
   'src-react/src/App.tsx', 'src-react/src/lib/api.ts', 'src-react/src/lib/kernel.ts',
   'src-react/src/capture/CaptureWindow.tsx', 'src-react/src/capture/main.tsx',
+  'src-react/src/sticky/StickyWindow.tsx',
   'src-react/src/views/TodayView.tsx', 'src-react/src/views/InboxView.tsx',
   'src-react/src/views/PlannedView.tsx', 'src-react/src/views/ReviewView.tsx',
   'src-react/src/views/SettingsView.tsx',
+  // 内核单测同样算消费方（直接钉住导出 API，防漂移）
+  'test/selectors.test.mjs', 'test/today-inbox-selectors.test.mjs',
+  'test/event-bus.test.mjs', 'test/capture-syntax.test.mjs',
 ]
   .filter((p) => existsSync(path.join(root, p)));
 assert.ok(consumers.length >= 4, '消费方清单与实际文件不符，检查是否漏了窗口文件');
@@ -68,6 +71,17 @@ assert.ok(checks >= 10, `只比对了 ${checks} 个导入名，疑似正则没�
 // ② api.js 再导出 export { A } from './kernel/x.js'，各窗口以 api.A 使用。
 const usedNames = new Set();
 const BRACE_RE = /(?:import|export)\s*\{([^}]*)\}\s*from\s*['"][^'"]*kernel\/[\w.-]+\.js['"]/g;
+// 内核文件互相导入同样算「被使用」（如 selectors 用 time 的 pad2）
+const INNER_RE = /(?:import|export)\s*\{([^}]*)\}\s*from\s*['"]\.\/[\w.-]+\.js['"]/g;
+for (const f of kernelFiles) {
+  const src = readFileSync(path.join(KDIR, f), 'utf8');
+  for (const m of src.matchAll(INNER_RE)) {
+    for (const part of m[1].split(',')) {
+      const n = part.trim().split(/\s+as\s+/)[0].trim();
+      if (n) usedNames.add(n);
+    }
+  }
+}
 for (const rel of consumers) {
   const src = readFileSync(path.join(root, rel), 'utf8');
   for (const m of src.matchAll(BRACE_RE)) {

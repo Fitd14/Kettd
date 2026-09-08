@@ -9,8 +9,8 @@ import {
   updateTask,
   validateReminderTime,
 } from '@/lib/api'
-import { localToday } from '../../../src/kernel/time.js'
-import { nextReminderTime } from '../../../src/kernel/selectors.js'
+import { localToday } from '../kernel/time.js'
+import { nextReminderTime } from '../kernel/selectors.js'
 import { TimeText } from '@/components/time-text'
 
 interface Props {

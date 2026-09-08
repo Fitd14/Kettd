@@ -1,6 +1,6 @@
 /**
  * Tauri 桥接（M1 最小集；M2 扩展为全部命令的类型化封装）。
- * 契约真相源：src-tauri/docs/V2-API.md；与 vanilla src/api.js 的 { data, err } 约定逐字对齐：
+ * 契约真相源：src-tauri/docs/V2-API.md；延续 vanilla 时代 { data, err } 约定（M4 后 vanilla 已退役）：
  * err 为后端可直接展示的中文短句，永不 throw。
  * withGlobalTauri 开启（tauri.conf.json），走 window.__TAURI__，不引入 npm 依赖。
  */
