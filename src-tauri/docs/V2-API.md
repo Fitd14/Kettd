@@ -307,7 +307,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | 项 | 手段 | 结果 |
 | --- | --- | --- |
 | 类型检查与链接 | `cargo check` / `cargo build`（debug） | **0 error**；7 条 `dead_code` warning（`models.rs:21/187/243/385/573/748`、`store.rs:688`） |
-| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **54 ↔ 54 ↔ 54**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + H1 多便签 5 项） |
+| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **55 ↔ 55 ↔ 55**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + H1 多便签 5 项 + 方案B `capture_resize`） |
 | 存储安全自查 | 人工 | 无 `unwrap_or_default()` 式空库回退；无 `toISOString`/`Utc`/`naive_utc` 混入；`tauri.conf.json` JSON 合法 |
 | 提醒编辑器逻辑 | `node test/rem-editor.test.mjs`（从 `index.html` 抽真实函数源码断言，17 项） | 全绿：多时刻 round-trip 四形态、模式收敛、渲染契约、aria-label、文案不含手输格式 |
 | 时间契约 + v1 迁移十规则 | `cargo test`（**30 项** = `models` 14 时间契约 + `store` 16 迁移规则，纯内存 fixture，不碰数据目录） | 全绿。过程逼出 `parse_clock` 两处加固：带秒输入归零（否则永不命中整分 tick = 到点不响）、接受裸 `HH:MM:SS` 与单位数小时 |

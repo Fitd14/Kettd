@@ -114,6 +114,95 @@ pub fn note_label(id: &str) -> String {
   format!("note:{id}")
 }
 
+// 主线程标记：setup（事件循环未启动）里建窗走内联路径才可靠；其余线程一律走
+// 「帮手线程 + 6s 超时」。背景（2026-09-08 真机复盘）：WebView2 层建窗偶发无限挂起，
+// 挂在 sync 命令里 = 事件循环线程被阻塞 = 全应用按钮假死（"点击便签后按钮全失效"根因）。
+use std::sync::OnceLock;
+use std::thread::ThreadId;
+
+static MAIN_THREAD: OnceLock<ThreadId> = OnceLock::new();
+
+pub fn mark_main_thread() {
+  let _ = MAIN_THREAD.set(std::thread::current().id());
+}
+
+fn is_main_thread() -> bool {
+  MAIN_THREAD.get() == Some(&std::thread::current().id())
+}
+
+/// 便签窗 builder 统一配置（在线程内构造：WindowBuilder 非 Send，不能跨线程携带）
+fn note_builder<'a>(app: &'a AppHandle, label: &'a str, pinned: bool) -> WindowBuilder<'a> {
+  WindowBuilder::new(app, label, WindowUrl::App("float.html".into()))
+    .title("便签")
+    .inner_size(380.0, 456.0)
+    .resizable(false)
+    .decorations(false)
+    .transparent(true)
+    .always_on_top(pinned)
+    .skip_taskbar(true)
+    .visible(false)
+}
+
+/// 建窗：主线程内联；其余线程经帮手线程带 6s 超时。
+/// 超时后顺手探测事件循环是否存活（float 窗 is_visible 同样要过循环队列，
+/// 3s 内回不来即循环已卡死），结果记 events.jsonl —— 区分「派发丢失」与「循环内卡死」。
+fn build_note_window(
+  app: &AppHandle,
+  label: String,
+  pinned: bool,
+) -> Result<tauri::Window, String> {
+  let build = move |app: &AppHandle, label: &str| {
+    note_builder(app, label, pinned)
+      .build()
+      .map_err(|e| {
+        let text = format!("{e}");
+        crate::telemetry::record_str(
+          "sticky_window_error",
+          &[("label", label.to_string().as_str()), ("err", text.as_str())],
+        );
+        format!("便签窗口创建失败：{text}")
+      })
+  };
+  if is_main_thread() {
+    return build(app, &label);
+  }
+  let app2 = app.clone();
+  let label2 = label.clone();
+  let (tx, rx) = std::sync::mpsc::channel();
+  std::thread::Builder::new()
+    .name(format!("note-build:{label}"))
+    .spawn(move || {
+      let _ = tx.send(build(&app2, &label2));
+    })
+    .map_err(|_| "便签建窗线程启动失败".to_string())?;
+  match rx.recv_timeout(std::time::Duration::from_secs(6)) {
+    Ok(result) => result,
+    Err(_) => {
+      let app2 = app.clone();
+      let (tx2, rx2) = std::sync::mpsc::channel::<bool>();
+      std::thread::spawn(move || {
+        let alive = app2
+          .get_window(FLOAT_LABEL)
+          .map(|w| w.is_visible().unwrap_or(false))
+          .unwrap_or(false);
+        let _ = tx2.send(alive);
+      });
+      let loop_alive = rx2
+        .recv_timeout(std::time::Duration::from_secs(3))
+        .unwrap_or(false);
+      crate::telemetry::record_str(
+        "sticky_window_error",
+        &[
+          ("label", label.as_str()),
+          ("err", "timeout_6s"),
+          ("loop_alive", if loop_alive { "yes" } else { "no" }),
+        ],
+      );
+      Err("便签窗口创建超时，请重试；若连续出现请重启应用".to_string())
+    }
+  }
+}
+
 /// 打开（或创建）动态便签窗；show=false 时隐藏创建（收起态重启恢复）。
 /// 已存在则仅按需显示。位置：stored_pos 有存档且在屏内则恢复。
 /// stored_pos 由调用方在自己的锁作用域内取好传入——本函数不碰全局 Store 锁，
@@ -132,28 +221,7 @@ pub fn open_note_window(
     }
     return Ok(());
   }
-  let window = match WindowBuilder::new(app, &label, WindowUrl::App("float.html".into()))
-    .title("便签")
-    .inner_size(380.0, 456.0)
-    .resizable(false)
-    .decorations(false)
-    .transparent(true)
-    .always_on_top(pinned)
-    .skip_taskbar(true)
-    .visible(false)
-    .build()
-  {
-    Ok(window) => window,
-    Err(e) => {
-      // 临时诊断：真实失败原因进 events.jsonl（sticky_create 埋点缺失即此处失败）
-      let text = format!("{e}");
-      crate::telemetry::record_str(
-        "sticky_window_error",
-        &[("label", &label), ("err", text.as_str())],
-      );
-      return Err(format!("便签窗口创建失败：{text}"));
-    }
-  };
+  let window = build_note_window(app, label.clone(), pinned)?;
   if let Some([x, y]) = stored_pos {
     if capture_pos_on_screen(&window, x, y) {
       let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));

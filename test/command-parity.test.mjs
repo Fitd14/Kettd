@@ -18,8 +18,8 @@ const doc = read('src-tauri/docs/V2-API.md');
 const handlerBody = mainRs.match(/generate_handler!\[([\s\S]*?)\]/)[1];
 const handler = new Set([...handlerBody.matchAll(/commands::([a-z_]+)/g)].map((m) => m[1]));
 
-// ② #[tauri::command] 函数名
-const defined = new Set([...commandsRs.matchAll(/#\[tauri::command\]\s*(?:pub\s+)?fn\s+([a-z_]+)/g)].map((m) => m[1]));
+// ② #[tauri::command] 函数名（含 async fn —— 建窗类命令必须 async，真机复盘 2026-09-08）
+const defined = new Set([...commandsRs.matchAll(/#\[tauri::command\]\s*(?:pub\s+)?(?:async\s+)?fn\s+([a-z_]+)/g)].map((m) => m[1]));
 
 // ③ api.ts 里 call('xxx') 的命令名
 const wrapped = new Set([...apiTs.matchAll(/call(?:<[^>]*>)?\('([a-z_]+)'/g)].map((m) => m[1]));
@@ -48,6 +48,6 @@ test('V2-API 文档表 ↔ 注册表一一对应', () => {
   assert.deepEqual(diff(documented, handler), [], '文档有行但没注册');
 });
 
-test('命令总数与文档声明一致（当前 41）', () => {
-  assert.equal(handler.size, 54, '总数变更时同步更新 V2-API §10 与本断言');
+test('命令总数与文档声明一致（当前 55）', () => {
+  assert.equal(handler.size, 55, '总数变更时同步更新 V2-API §10 与本断言');
 });

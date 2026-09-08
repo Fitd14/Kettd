@@ -340,6 +340,8 @@ export const getHotkeyStatus = () => call<HotkeyStatus>('get_hotkey_status')
 export const openCaptureOverlay = () => call<void>('open_capture_overlay')
 export const closeCaptureOverlay = () => call<void>('close_capture_overlay')
 export const captureStartDrag = () => call<void>('capture_start_drag')
+/** 内容高度上报：快速记录条窗口顶部锚定向下伸缩（方案B 动态高度） */
+export const captureResize = (height: number) => call<void>('capture_resize', { height })
 /** 已注册但前端未接线（V2-API §10）——补齐封装，接线随 M3 */
 export const exportWeekly = (opts?: { week?: string; format?: 'md' | 'csv'; dir?: string }) => {
   const args: Record<string, unknown> = {}

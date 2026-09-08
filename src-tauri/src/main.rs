@@ -28,7 +28,44 @@ mod telemetry;
 use std::sync::Mutex;
 use tauri::Manager;
 
+/// 单实例守卫：多实例并存会放大 WebView2 建窗挂起（共享浏览器进程被搅），
+/// 且双实例互踩 data.json。第二个实例弹窗说明后立即退出。
+#[cfg(windows)]
+fn enforce_single_instance() {
+  #[link(name = "kernel32")]
+  extern "system" {
+    fn CreateMutexW(lpMutexAttributes: *mut u8, bInitialOwner: i32, lpName: *const u16) -> *mut u8;
+    fn GetLastError() -> u32;
+  }
+  #[link(name = "user32")]
+  extern "system" {
+    fn MessageBoxW(hwnd: *mut u8, text: *const u16, caption: *const u16, utype: u32) -> i32;
+  }
+  const ERROR_ALREADY_EXISTS: u32 = 183;
+  const MB_OK_ICON_INFO: u32 = 0x40;
+  let name: Vec<u16> = "Local\\Kettd.TodoList.SingleInstance\0"
+    .encode_utf16()
+    .collect();
+  let _guard = unsafe { CreateMutexW(std::ptr::null_mut(), 0, name.as_ptr()) };
+  if !_guard.is_null() && unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+    let text: Vec<u16> = "Kettd 已在运行（托盘里找回它）。\0".encode_utf16().collect();
+    let caption: Vec<u16> = "Kettd\0".encode_utf16().collect();
+    unsafe {
+      MessageBoxW(
+        std::ptr::null_mut(),
+        text.as_ptr(),
+        caption.as_ptr(),
+        MB_OK_ICON_INFO,
+      )
+    };
+    std::process::exit(0);
+  }
+}
+
 fn main() {
+  runtime::mark_main_thread();
+  #[cfg(windows)]
+  enforce_single_instance();
   let mut boot = store::Store::load();
   // 启动即清理过期软删（回收站 30 天承诺）
   let purged = boot.purge_expired(models::TRASH_RETENTION_DAYS);
@@ -195,36 +232,6 @@ fn main() {
           let pos = note_pos.get(&note.id).copied();
           let _ = runtime::open_note_window(&handle, &note.id, note.pinned, !note.hidden, pos);
         }
-      }
-      // 临时诊断探针：工作线程建窗是否失败（复现 create_sticky 命令的线程上下文）
-      {
-        let dbg_app = handle.clone();
-        std::thread::spawn(move || {
-          std::thread::sleep(std::time::Duration::from_secs(4));
-          let r = runtime::open_note_window(&dbg_app, "dbgprobe", false, false, None);
-          let ok = r.is_ok();
-          crate::telemetry::record_str(
-            "dbg_note_window",
-            &[("ctx", "worker_thread"), ("result", if ok { "ok" } else { "err" })],
-          );
-          if let Some(w) = dbg_app.get_window("note:dbgprobe") {
-            let _ = w.close();
-          }
-        });
-      }
-      // 临时诊断探针②：直接调真实 create_sticky 命令函数（绕过前端 invoke）
-      {
-        let dbg_app = handle.clone();
-        std::thread::spawn(move || {
-          std::thread::sleep(std::time::Duration::from_secs(7));
-          let state = dbg_app.state::<Mutex<store::Store>>();
-          let r = commands::create_sticky(dbg_app.clone(), state, "todo".to_string());
-          let text = match &r {
-            Ok(note) => format!("ok:{}", note.id),
-            Err(e) => format!("err:{e}"),
-          };
-          crate::telemetry::record_str("dbg_create_sticky", &[("result", text.as_str())]);
-        });
       }
       if let Some(tray) = handle.tray_handle_by_id(runtime::TRAY_ID) {
         let _ = tray.set_tooltip("待办列表 · 常驻托盘");

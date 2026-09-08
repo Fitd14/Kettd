@@ -505,8 +505,10 @@ fn sticky_kind_of(kind: &str) -> Result<(), String> {
 }
 
 /// 新建一张便签（todo=镜像今天分页 / free=自由便签）；总数含 float 主便签 ≤ STICKY_CAP。
+/// async：建窗可能被 WebView2 层无限挂起（真机复盘 2026-09-08），绝不能在事件循环
+/// 线程上执行；挂起时走 6s 超时回错，并回滚已入库的便签（不留"清单有窗没有"的幽灵行）。
 #[tauri::command]
-pub fn create_sticky(
+pub async fn create_sticky(
   app: AppHandle,
   state: State<'_, Shared>,
   kind: String,
@@ -533,7 +535,12 @@ pub fn create_sticky(
       pos = Some([p.x + 32 * index as i32, p.y + 32 * index as i32]);
     }
   }
-  runtime::open_note_window(&app, &note.id, note.pinned, true, None)?;
+  if let Err(e) = runtime::open_note_window(&app, &note.id, note.pinned, true, None) {
+    let mut store = lock(&state);
+    let _ = store.delete_sticky(&note.id);
+    let _ = store.save();
+    return Err(e);
+  }
   if let (Some([x, y]), Some(w)) = (pos, app.get_window(&runtime::note_label(&note.id))) {
     let _ = w.set_position(tauri::Position::Physical(tauri::PhysicalPosition::new(x, y)));
     // 级联位置即刻入档
@@ -593,8 +600,9 @@ pub fn sticky_self(
 }
 
 /// 更新便签：内容（free，≤500 字）/ 收起展开（联动窗口）/ 置顶（联动 always_on_top）。
+/// async：展开路径会建新窗（open_note_window），不可占用事件循环线程（同 create_sticky）。
 #[tauri::command]
-pub fn update_sticky(
+pub async fn update_sticky(
   app: AppHandle,
   state: State<'_, Shared>,
   id: String,
