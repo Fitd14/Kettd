@@ -230,12 +230,17 @@ type TauriGlobal = {
   emit?: (name: string, payload?: unknown) => Promise<void>
 }
 
-const T: TauriGlobal = (globalThis as { __TAURI__?: TauriGlobal }).__TAURI__ ?? {}
-const rawInvoke = T.tauri?.invoke ?? T.core?.invoke ?? T.invoke
-const rawListen = T.event?.listen ?? T.listen
-const rawEmit = T.event?.emit ?? T.emit
+/** 调用时惰性取桥（v2.2 加固）：__TAURI__ 注入晚于模块求值也能接上，不再信任加载时序 */
+function tauriBridge(): TauriGlobal {
+  return (globalThis as { __TAURI__?: TauriGlobal }).__TAURI__ ?? {}
+}
+
+const rawListen = tauriBridge().event?.listen ?? tauriBridge().listen
+const rawEmit = tauriBridge().event?.emit ?? tauriBridge().emit
 
 async function call<T>(command: string, args?: Record<string, unknown>): Promise<CallResult<T>> {
+  const T = tauriBridge()
+  const rawInvoke = T.tauri?.invoke ?? T.core?.invoke ?? T.invoke
   if (typeof rawInvoke !== 'function') return { data: null, err: '未连接桌面运行时，命令未执行' }
   try {
     const data = await rawInvoke(command, args ?? {})

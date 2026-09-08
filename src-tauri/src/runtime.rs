@@ -115,8 +115,16 @@ pub fn note_label(id: &str) -> String {
 }
 
 /// 打开（或创建）动态便签窗；show=false 时隐藏创建（收起态重启恢复）。
-/// 已存在则仅按需显示。位置：有存档且在屏内则恢复。
-pub fn open_note_window(app: &AppHandle, id: &str, pinned: bool, show: bool) -> Result<(), String> {
+/// 已存在则仅按需显示。位置：stored_pos 有存档且在屏内则恢复。
+/// stored_pos 由调用方在自己的锁作用域内取好传入——本函数不碰全局 Store 锁，
+/// 杜绝"命令持锁 → 这里重入同锁"的死锁（v2.2 修复）。
+pub fn open_note_window(
+  app: &AppHandle,
+  id: &str,
+  pinned: bool,
+  show: bool,
+  stored_pos: Option<[i32; 2]>,
+) -> Result<(), String> {
   let label = note_label(id);
   if let Some(existing) = app.get_window(&label) {
     if show {
@@ -124,10 +132,6 @@ pub fn open_note_window(app: &AppHandle, id: &str, pinned: bool, show: bool) -> 
     }
     return Ok(());
   }
-  let stored = app.try_state::<Mutex<Store>>().and_then(|s| {
-    let g = s.lock().ok()?;
-    g.runtime.note_pos.get(id).copied()
-  });
   let window = WindowBuilder::new(app, &label, WindowUrl::App("float.html".into()))
     .title("便签")
     .inner_size(380.0, 456.0)
@@ -139,7 +143,7 @@ pub fn open_note_window(app: &AppHandle, id: &str, pinned: bool, show: bool) -> 
     .visible(false)
     .build()
     .map_err(|_| "便签窗口创建失败".to_string())?;
-  if let Some([x, y]) = stored {
+  if let Some([x, y]) = stored_pos {
     if capture_pos_on_screen(&window, x, y) {
       let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
     }

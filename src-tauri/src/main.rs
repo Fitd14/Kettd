@@ -186,12 +186,13 @@ fn main() {
       runtime::restore_sticky_pos(&handle);
       // 多便签：恢复额外便签窗（收起态隐藏创建，清单可再展开）
       {
-        let stickies = state
+        let (stickies, note_pos) = state
           .lock()
-          .map(|g| g.data.stickies.clone())
+          .map(|g| (g.data.stickies.clone(), g.runtime.note_pos.clone()))
           .unwrap_or_default();
         for note in &stickies {
-          let _ = runtime::open_note_window(&handle, &note.id, note.pinned, !note.hidden);
+          let pos = note_pos.get(&note.id).copied();
+          let _ = runtime::open_note_window(&handle, &note.id, note.pinned, !note.hidden, pos);
         }
       }
       if let Some(tray) = handle.tray_handle_by_id(runtime::TRAY_ID) {

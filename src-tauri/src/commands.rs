@@ -533,7 +533,7 @@ pub fn create_sticky(
       pos = Some([p.x + 32 * index as i32, p.y + 32 * index as i32]);
     }
   }
-  runtime::open_note_window(&app, &note.id, note.pinned, true)?;
+  runtime::open_note_window(&app, &note.id, note.pinned, true, None)?;
   if let (Some([x, y]), Some(w)) = (pos, app.get_window(&runtime::note_label(&note.id))) {
     let _ = w.set_position(tauri::Position::Physical(tauri::PhysicalPosition::new(x, y)));
     // 级联位置即刻入档
@@ -624,7 +624,10 @@ pub fn update_sticky(
     note.updated_at = now_text();
   }
   let note = store.find_sticky(&id).ok_or_else(|| "找不到这张便签".to_string())?;
+  let stored = store.runtime.note_pos.get(&id).copied();
   store.save()?;
+  // 窗口操作前必须放锁：open_note_window 内部建窗，且不再取全局锁（v2.2 死锁修复）
+  drop(store);
   let label = runtime::note_label(&id);
   if let Some(h) = hidden {
     if h {
@@ -632,7 +635,7 @@ pub fn update_sticky(
       crate::telemetry::record_str("sticky_close", &[("type", note.kind.as_str())]);
       runtime::hide_window(&app, &label)?;
     } else {
-      runtime::open_note_window(&app, &id, note.pinned, true)?;
+      runtime::open_note_window(&app, &id, note.pinned, true, stored)?;
     }
   }
   if let Some(p) = pinned {

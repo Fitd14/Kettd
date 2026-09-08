@@ -1,14 +1,14 @@
 {
   "build": {
     "beforeDevCommand": "",
-    "beforeBuildCommand": "",
+    "beforeBuildCommand": "npm run build:front",
     "devPath": "../src-react/dist",
     "distDir": "../src-react/dist",
     "withGlobalTauri": true
   },
   "package": {
     "productName": "待办列表",
-    "version": "2.1.0"
+    "version": "2.2.0"
   },
   "tauri": {
     "allowlist": {
