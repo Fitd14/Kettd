@@ -1,140 +1,162 @@
 {
- "skill": "qa",
- "generated_at": "2026-09-07T23:43:17+08:00",
- "project_name": "Kettd v2 · 个人待办记录汇总",
- "target": "v3/M3 复检自修：qa2 台账 21 项全量复核与修复 + 回归（cargo 78 / node 26 / tsc / vite build 全绿）；新台账仅余 2 项 minor",
- "review_mode": "auto (self-fix recheck)",
- "recheck_of": "qa2-01..qa2-21（2026-09-07T08:14 台账）",
- "deviations": [
-  {
-   "id": "qa3-01",
-   "dimension": "typography",
-   "severity": "minor",
-   "design_source": "today-list-ui-spec B.6（保留项）：今天空态文案「今天还是空的…」",
-   "implementation": "实现为「今天还没有挑出来的事项。」（M3 改稿，check 走查按保留项处理）",
-   "delta": "空态文案改稿未回写规格",
-   "suggestion": "设计侧拍板：保留改稿则回写规格 §B.6；否则恢复原文",
-   "location": "src-react/src/views/TodayView.tsx 空态分支",
-   "relates_to_check_finding": null
-  },
-  {
-   "id": "qa3-02",
-   "dimension": "state-coverage",
-   "severity": "minor",
-   "design_source": "planned-settings-ui-spec A.3/B.4：shadcn Date Picker（Popover+Calendar）时刻选择器",
-   "implementation": "自研实现：日期用原生 type=date（可选）+ 自绘 HH:MM 时刻输入（校验/多时刻），未引入 react-day-picker/日历面板",
-   "delta": "满足「可编辑、无原生 type=time 堆叠」，但非 Calendar 视觉方案",
-   "suggestion": "后续如需对齐 shadcn Calendar 视觉，引入 react-day-picker 替换日期输入",
-   "location": "src-react/src/components/time-text.tsx、PlannedView rem-edit",
-   "relates_to_check_finding": null
-  }
- ],
- "resolved": [
-  {
-   "id": "qa2-01",
-   "resolution": "今天主列表合并为单一列表：kernel 新增 todayList()（due+carried 合并 + viewOrder），TodayView 渲染单段「今天要做的」，顺延行内 badge"
-  },
-  {
-   "id": "qa2-02",
-   "resolution": "进度区下新增「下一条提醒 · HH:MM」行（复用 nextReminderTime）；口径句补「今天计划 N 项」"
-  },
-  {
-   "id": "qa2-03",
-   "resolution": "TodayView 顶部内联输入框（placeholder 按规格原文），回车 addTask source=manual 放今天"
-  },
-  {
-   "id": "qa2-04",
-   "resolution": "window.prompt 全部移除：今天页改内联输入；收件箱批量排期改内联日期面板（全库 0 处 prompt/confirm）"
-  },
-  {
-   "id": "qa2-05",
-   "resolution": "Task.sort_order 字段 + reorder_tasks 命令 + 今天/便签拖拽排序 + Alt+↑/↓ 键盘排序（§12.2 全落）"
-  },
-  {
-   "id": "qa2-06",
-   "resolution": "Settings.sticky_fade 字段贯通（Rust coerce/patch → 设置页开关 → StickyWindow 条件淡化）+「显示/收起便签」按钮（show/hide_float）"
-  },
-  {
-   "id": "qa2-07",
-   "resolution": "clear_events 命令（重置 events.jsonl）+ 设置页两步内联确认按钮（无原生 confirm）"
-  },
-  {
-   "id": "qa2-08",
-   "resolution": "提醒时间编辑 = 日期(可选)+时刻输入弹层；免打扰 from/to = 自绘 HH:MM 时刻输入（TimeText，校验+非法红边）；原生 type=time 全库清除"
-  },
-  {
-   "id": "qa2-09",
-   "resolution": "「安排/提醒」Tabs（默认安排）；提醒行 hover 才出 编辑时间/稍后10分/删；手动加提醒折叠；段名统一"
-  },
-  {
-   "id": "qa2-10",
-   "resolution": "自研 CompletionTimeline（timeline-spec 全项：轨道+分类色圆点+MM-DD HH:mm <time> 语义+横向滚动+更早分页+节点点击下钻+role=list）"
-  },
-  {
-   "id": "qa2-11",
-   "resolution": "周期 Tabs 年(默认)/近90天/本月，热力列数 52/13/5 随周期裁剪"
-  },
-  {
-   "id": "qa2-12",
-   "resolution": "逾期折叠条改琥珀（--pri-med 系描边+文字）"
-  },
-  {
-   "id": "qa2-13",
-   "resolution": "按规格 §7 落 5 档绿（--heat-1..4 token，亮暗双栈，styles.css 同步对齐）"
-  },
-  {
-   "id": "qa2-14",
-   "resolution": "便签 固定/关闭 换 lucide Pin/PinOff/X（currentColor）"
-  },
-  {
-   "id": "qa2-15",
-   "resolution": "Bootstrap.version + 设置页「版本 vN」行；「恢复默认快捷键」按钮（Alt+Shift+A / Alt+Shift+O）"
-  },
-  {
-   "id": "qa2-16",
-   "resolution": "「⋯」改弹出菜单（详情/删除）；Enter/详情接 TaskDetail 只读详情层（今天/收件箱/回顾时间轴通用）"
-  },
-  {
-   "id": "qa2-17",
-   "resolution": "j/k 行间焦点导航（useRowNav hook，今天/收件箱/便签通用；输入态不劫持）"
-  },
-  {
-   "id": "qa2-18",
-   "resolution": "收件箱标题「收件箱 · N 条未整理」（与分组总数同源）"
-  },
-  {
-   "id": "qa2-19",
-   "resolution": "paper-cyan 色点对齐 hsl(190 45% 88%)"
-  },
-  {
-   "id": "qa2-20",
-   "resolution": "便签 badge 改「顺延 N 天」；stories.json story-4 术语回写；收件箱空态「都安排好了 ✓」"
-  },
-  {
-   "id": "qa2-21",
-   "resolution": "KPI 改四项：本周完成 · 连续打卡 · 本年总计（按年过滤）· 无日期完成（恒显）"
-  }
- ],
- "new_fixes": [
-  "【自修中发现的新缺陷】设置页「本地度量」开关是假控件：SettingsPayload 缺 telemetry_enabled 字段，set_settings 静默丢弃该补丁，telemetry::set_enabled 仅启动时读一次 → 已补字段贯通 + 即时 set_enabled",
-  "命令总数 46 → 48（reorder_tasks / clear_events），奇偶测试与 V2-API.md §2/§10 同步",
-  "story-5 便签形态 AC 按 H1 拍板回写 stories.json（三形态 AC 标注被取代）"
- ],
- "summary": {
-  "total": 2,
-  "blocker": 0,
-  "major": 0,
-  "minor": 2,
-  "pass_dimensions": [
-   "accessibility",
-   "assets",
-   "color",
-   "interaction-states",
-   "radius-shadow",
-   "responsive",
-   "spacing"
+  "skill": "qa",
+  "generated_at": "2026-09-08T21:05:00+08:00",
+  "project_name": "Kettd v2 · 个人待办记录汇总",
+  "target": "多便签（multi-sticky-spec 全量）+ 单张便签规格回归：src-react/src/sticky/*、SettingsView 便签卡、src-tauri models/store/runtime/commands 便签面",
+  "review_mode": "auto",
+  "deviations": [
+    {
+      "id": "qa3-01",
+      "dimension": "accessibility",
+      "severity": "major",
+      "design_source": "sticky-note-component-spec §8「正文常态对比 ≥4.5:1」+ check.json findings[4]",
+      "implementation": "kraft 牛皮纸未覆盖 --sticky-muted，继承基础 muted hsl(30 8% 40%)",
+      "delta": "muted/纸 3.55:1、muted/胶条 3.03:1（12px 胶条文字与完成划线/空态均 <4.5）",
+      "suggestion": ".paper-kraft 增加独立 --sticky-muted ≈ hsl(28 22% 26%)（实测对纸 6.14 / 对胶条 5.23）",
+      "location": "src-react/src/sticky/sticky.css:39-43",
+      "relates_to_check_finding": "findings[4]: 四纸色对比度需实测"
+    },
+    {
+      "id": "qa3-02",
+      "dimension": "accessibility",
+      "severity": "major",
+      "design_source": "同上",
+      "implementation": "cyan 淡青同样继承基础 muted",
+      "delta": "muted/胶条 3.89:1（胶条 12px 文字 <4.5）；muted/纸 4.50 踩线",
+      "suggestion": ".paper-cyan 增加独立 --sticky-muted（约 hsl(195 22% 30%)，按同法复算至双 ≥4.5）",
+      "location": "src-react/src/sticky/sticky.css:44-48",
+      "relates_to_check_finding": "findings[4]: 四纸色对比度需实测"
+    },
+    {
+      "id": "qa3-03",
+      "dimension": "color",
+      "severity": "major",
+      "design_source": "sticky-note-component-spec §12.1「dark 下默认落到暗墨，但用户可覆盖」",
+      "implementation": ".dark .sticky-note（sticky.css:57）在暗色下恒定覆盖 --sticky-paper/strip/ink，用户选 kraft/cyan 在暗色被吞",
+      "delta": "暗色下用户显式纸色选择无效（恒为暗墨）",
+      "suggestion": "dark 且 stickyPaper==='warm'（默认未选择）才落暗墨；显式 kraft/cyan/ink 尊重用户（调整规则顺序或加 :not 条件）",
+      "location": "src-react/src/sticky/sticky.css:57-63",
+      "relates_to_check_finding": null
+    },
+    {
+      "id": "qa3-04",
+      "dimension": "state-coverage",
+      "severity": "major",
+      "design_source": "multi-sticky-spec §3「自由便签 14 天未编辑且未钉 → 清单给建议清理标记」+ §6 AC4",
+      "implementation": "设置页便签清单无 14 天清理建议逻辑（全仓 grep 无对应实现）",
+      "delta": "spec AC4 后半（清理建议）0 实现",
+      "suggestion": "清单渲染时比较 updatedAt > 14 天且 !pinned && kind==='free' → 行内「建议清理」标记（可忽略）",
+      "location": "src-react/src/views/SettingsView.tsx 便签清单段",
+      "relates_to_check_finding": null
+    },
+    {
+      "id": "qa3-05",
+      "dimension": "radius-shadow",
+      "severity": "major",
+      "design_source": "sticky-note-component-spec §5「圆角（--r-lg）+ 柔和阴影（--shadow-md）」",
+      "implementation": "自定 box-shadow: 0 6px 24px hsl(30 10% 20%/.18)...，未引用 --shadow-md（token 已存在于 index.css）",
+      "delta": "阴影 token 不一致（--shadow-md vs 自定值）",
+      "suggestion": "改用 var(--shadow-md)（亮暗双态已随 token 翻转），纸色特调值如需保留并入 token 层",
+      "location": "src-react/src/sticky/sticky.css:21,55",
+      "relates_to_check_finding": null
+    },
+    {
+      "id": "qa3-06",
+      "dimension": "spacing",
+      "severity": "major",
+      "design_source": "brief 定性标准 + 项目 token 纪律（index.css --sp-1..8 已存在且便签窗加载该文件）",
+      "implementation": "sticky.css 间距全为裸 px（8/10/12/6/2px），未走 --sp-*",
+      "delta": "spacing token 覆盖率 0%",
+      "suggestion": "padding/gap 换算至 --sp 档位（4/8/12/16），确需 6px 的用 color-mix 无关的 calc(var(--sp-2) - 2px) 或收敛档位",
+      "location": "src-react/src/sticky/sticky.css 全文件",
+      "relates_to_check_finding": null
+    },
+    {
+      "id": "qa3-07",
+      "dimension": "state-coverage",
+      "severity": "minor",
+      "design_source": "PRD 6.9 状态矩阵（加载态）",
+      "implementation": "boot 未返回前 total=0 → 渲染空态文案，与「真空空态」无法区分（闪空态）",
+      "delta": "缺 loading 骨架/占位",
+      "suggestion": "boot===null 时渲染一条骨架行或空白（不渲染空态文案）",
+      "location": "src-react/src/sticky/StickyWindow.tsx:222-226",
+      "relates_to_check_finding": null
+    },
+    {
+      "id": "qa3-08",
+      "dimension": "interaction-states",
+      "severity": "minor",
+      "design_source": "multi-sticky-spec §2「contentEditable 单段纯文本（≤500 字）」",
+      "implementation": "textarea 实现（允许换行，功能超集、实现更稳）",
+      "delta": "单段约束未强制（可多行）",
+      "suggestion": "保存时折叠换行（content.replace(/\\s*\n\\s*/g,' ')）或回写规格为 textarea 方案",
+      "location": "src-react/src/sticky/StickyWindow.tsx:208-218",
+      "relates_to_check_finding": null
+    },
+    {
+      "id": "qa3-09",
+      "dimension": "state-coverage",
+      "severity": "minor",
+      "design_source": "multi-sticky-spec §2「存储：新文件 stickies.json」",
+      "implementation": "stickies 存于 data.json（AppData.stickies，ADR-0005 层次）",
+      "delta": "独立文件未拆；但获得轮转备份保护，优于 spec 原意「不进 runtime.json」",
+      "suggestion": "二选一：回写规格为 data.json 方案（推荐，备份语义更优）或按 spec 拆 stickies.json",
+      "location": "src-tauri/src/models.rs:419 AppData.stickies",
+      "relates_to_check_finding": null
+    },
+    {
+      "id": "qa3-10",
+      "dimension": "assets",
+      "severity": "minor",
+      "design_source": "sticky-note-component-spec §7 组件映射「进度 = shadcn Progress（复古描边覆盖）」",
+      "implementation": "进度以胶条文字「做完 N」承载，无 Progress 条",
+      "delta": "规格组件未挂载（信息无损、形式缺失）",
+      "suggestion": "胶条下加细 Progress（var(--sticky-accent) 填充）或回写规格为文字进度",
+      "location": "src-react/src/sticky/StickyWindow.tsx:194-200",
+      "relates_to_check_finding": null
+    }
   ],
-  "check_findings_resolved": 4,
-  "check_findings_unresolved": 1
- }
+  "check_finding_status": [
+    {
+      "finding": "check.json findings[0] brief-consistency: story-5 AC2 三态切换被定稿推翻但上游未回写",
+      "status": "unresolved（文档侧待回写；实现侧已按定稿执行）"
+    },
+    {
+      "finding": "check.json findings[1] window.prompt 在 Tauri wry 静默无效（qa2-04）",
+      "status": "resolved（src-react 已无 window.prompt；改两步内联确认/行内排期）"
+    },
+    {
+      "finding": "check.json findings[2] 规格内部矛盾：§7 宋体 vs §5 无衬线",
+      "status": "partial（实现正确跟随 §5；规格 §7 文案未改）"
+    },
+    {
+      "finding": "check.json findings[3] 老化术语三处不一（qa2-20）",
+      "status": "resolved（便签 badge 已改「顺延 N 天」，与 TaskRow 同词）"
+    },
+    {
+      "finding": "check.json findings[4] 四纸色对比度无实测",
+      "status": "partial（本轮已实测：正文 4/4 ≥4.5 过、琥珀文字已改墨字+琥珀底；kraft/cyan muted 残留 → qa3-01/02）"
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "blocker": 0,
+    "major": 6,
+    "minor": 4,
+    "pass_dimensions": [
+      "typography",
+      "assets",
+      "responsive"
+    ],
+    "check_findings_resolved": 0,
+    "check_findings_unresolved": 1,
+    "check_finding_note": "5 条上游 finding：2 resolved、2 partial、1 unresolved（文档侧）；partial/unresolved 的实现侧残留已列入 deviations qa3-01/02"
+  },
+  "runtime_evidence": {
+    "note": "2026-09-08 20:03-20:44 owner 真实使用痕迹",
+    "notePos": 4,
+    "dynamic_notes": 3,
+    "window_bounds_check": "1 号便签窗 [2029,647,380,456] 与 notePos.sticky 及规格 §3 尺寸一致",
+    "lifecycle": "创建/钉住/收起 全链路真实发生（hidden=true ×3）"
+  }
 }
