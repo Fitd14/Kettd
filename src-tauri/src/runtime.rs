@@ -5,8 +5,8 @@ use std::path::Path;
 use std::sync::Mutex;
 use tauri::{
   AppHandle, CustomMenuItem, GlobalShortcutManager, LogicalSize, Manager, PhysicalPosition,
-  Position, SystemTray, SystemTrayMenu, SystemTrayMenuItem, Window,
-  WindowBuilder, WindowUrl,
+  Position, SystemTray, SystemTrayMenu, SystemTrayMenuItem, Window, WindowBuilder, WindowEvent,
+  WindowUrl,
 };
 
 pub const MAIN_LABEL: &str = "main";
@@ -434,18 +434,58 @@ extern "system" {
 /// 所以圆角必须由 DWM 做（DWMWA_WINDOW_CORNER_PREFERENCE = 33，DWMWCP_ROUND = 2）。
 #[cfg(target_os = "windows")]
 fn apply_capture_rounding(window: &Window) {
+  set_window_corner(window, DWMWCP_ROUND);
+}
+
+// ── 主窗自定义标题栏（方案B）─────────────────────────────────────────────
+// main 窗 decorations:false 后栏归前端（title-bar 组件走 Tauri window API），
+// Win11 也不再自动圆角 —— 转交 DWM：还原态圆角、最大化态收直角（最大化还圆角
+// 会在屏幕四角露出桌面缺口，Win11 原生窗口同款行为）。
+pub const DWMWCP_ROUND: u32 = 2;
+pub const DWMWCP_DONOTROUND: u32 = 1;
+
+pub fn corner_preference_for(maximized: bool) -> u32 {
+  if maximized {
+    DWMWCP_DONOTROUND
+  } else {
+    DWMWCP_ROUND
+  }
+}
+
+#[cfg(target_os = "windows")]
+fn set_window_corner(window: &Window, preference: u32) {
   const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
-  const DWMWCP_ROUND: u32 = 2;
   if let Ok(hwnd) = window.hwnd() {
     unsafe {
       DwmSetWindowAttribute(
         hwnd.0 as *mut core::ffi::c_void,
         DWMWA_WINDOW_CORNER_PREFERENCE,
-        &DWMWCP_ROUND,
+        &preference,
         core::mem::size_of::<u32>() as u32,
       );
     }
   }
+}
+
+#[cfg(target_os = "windows")]
+fn apply_main_rounding(window: &Window, maximized: bool) {
+  set_window_corner(window, corner_preference_for(maximized));
+}
+
+#[cfg(not(target_os = "windows"))]
+fn apply_main_rounding(_window: &Window, _maximized: bool) {}
+
+/// 主窗框架维护：挂初始圆角，并在尺寸变化（最大化 ↔ 还原）时切换圆角偏好。
+/// Resized 在交互缩放期间高频触发，但这里只是写一个 DWM 标志位，无需防抖。
+pub fn watch_main_window_frame(window: &Window) {
+  apply_main_rounding(window, false);
+  let watched = window.clone();
+  window.on_window_event(move |event| {
+    if matches!(event, WindowEvent::Resized(_)) {
+      let maximized = watched.is_maximized().unwrap_or(false);
+      apply_main_rounding(&watched, maximized);
+    }
+  });
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -777,5 +817,20 @@ mod capture_resize_tests {
     assert_eq!(sanitize_capture_height(f64::NAN), CAPTURE_MIN_H);
     assert_eq!(sanitize_capture_height(f64::INFINITY), CAPTURE_MAX_H);
     assert_eq!(sanitize_capture_height(f64::NEG_INFINITY), CAPTURE_MIN_H);
+  }
+}
+
+#[cfg(test)]
+mod main_titlebar_tests {
+  use super::*;
+
+  #[test]
+  fn restored_window_gets_round_corners() {
+    assert_eq!(corner_preference_for(false), 2, "还原态 = DWMWCP_ROUND");
+  }
+
+  #[test]
+  fn maximized_window_gets_square_corners() {
+    assert_eq!(corner_preference_for(true), 1, "最大化态 = DWMWCP_DONOTROUND");
   }
 }

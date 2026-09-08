@@ -332,9 +332,59 @@ details.overdue[open] summary::before {
 }
 
 /* ---------------- 应用外壳 ---------------- */
+/* 自定义标题栏（方案B）：main 窗 decorations:false，栏归前端令牌管 ——
+   暗色即时跟随 .dark 类，根除原生栏「系统黑 ≠ 应用暖黑」的色差。
+   拖动/双击最大化靠 data-tauri-drag-region；圆角归 DWM（runtime::watch_main_window_frame）。 */
+.app-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+.titlebar {
+  display: flex;
+  align-items: stretch;
+  height: 36px;
+  flex: none;
+  background: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+  user-select: none;
+}
+.titlebar-drag {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-3);
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+.titlebar-actions {
+  display: flex;
+  flex: none;
+}
+.titlebar-btn {
+  width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: hsl(var(--foreground));
+  font-size: 13px;
+  line-height: 1;
+  cursor: default;
+}
+.titlebar-btn:hover {
+  background: hsl(var(--muted));
+}
+.titlebar-btn.close:hover {
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
+}
 .shell {
   display: flex;
-  height: 100vh;
+  flex: 1;
+  min-height: 0;
   background: hsl(var(--background));
   color: hsl(var(--foreground));
 }
