@@ -224,7 +224,8 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 
 ## 5. 托盘与窗口（配置侧）
 
-- `tauri.conf.json`：`productName: "待办列表"`；三窗 `main`(1100×720, min 1024×640, visible:false) / `float`(380×520, resizable:false, alwaysOnTop:true, skipTaskbar:false) / `capture`(560×46 首帧值——挂载后由 `capture_resize` 按内容校正, decorations:false, transparent:true, alwaysOnTop:true, skipTaskbar:true, visible:false)；`allowlist` 沿用 v1 的 `api-all`。
+- `tauri.conf.json`：`productName: "待办列表"`；三窗 `main`(1100×720, min 1024×640, visible:false, **decorations:false** —— 自定义标题栏，见下) / `float`(380×520, resizable:false, alwaysOnTop:true, skipTaskbar:false) / `capture`(560×46 首帧值——挂载后由 `capture_resize` 按内容校正, decorations:false, transparent:true, alwaysOnTop:true, skipTaskbar:true, visible:false)；`allowlist` 沿用 v1 的 `api-all`。
+  - main 窗取向为「**标题栏归前端令牌管**」（方案B）：原生栏颜色只跟系统走、喂不进应用暖黑令牌（暗色下「系统黑 ≠ 应用暖黑」色差的根因），故 `decorations:false`，栏由 React `title-bar` 组件绘制（`.titlebar`，拖动/双击最大化走 `data-tauri-drag-region`，─ □ ⧉ × 走 `__TAURI__.window.appWindow`，均经 `api.ts` 惰性取桥）。窗口框架侧由 `runtime::watch_main_window_frame` 接管：还原态 DWM 圆角（`DWMWCP_ROUND`）、最大化态收直角（`DWMWCP_DONOTROUND`，最大化还圆角会在屏幕四角露缺口）。已知取舍：Win11 hover 最大化钮的贴齐布局菜单随原生栏一起消失（tauri v1 无 WCO）；无边框窗边缘缩放由 tao 命中测试承担，手感需真机验证。
   - capture 窗取向为「**窗口即硫酸纸条**」：透明窗 + OS 磨砂材质（`apply_blur` 暖纸 tint）+ DWM 圆角，CSS 只画反光描边与厚度（`--vellum-*` 令牌）。
   - 该窗实际由 `runtime::create_capture_window` 用 `WindowBuilder` 创建，`tauri.conf.json` 的声明必须与 `inner_size` 手工对齐（宽度另有 `runtime::CAPTURE_W` 常量供 `capture_resize` 共用）；`center_capture` 已改为读窗口实际 `outer_size` 居中，不再重复写死尺寸常量。
 - 托盘在代码里创建，`id = "main"`（v1 的 `tauri.systemTray` 配置项只吃 `iconPath`，没有 `id` 字段，v1 运行时的托盘菜单必须由代码构建）。

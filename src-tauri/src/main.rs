@@ -105,6 +105,10 @@ fn main() {
     .setup(|app| {
       let handle = app.handle().clone();
       let state = app.state::<Mutex<store::Store>>();
+      // 主窗自定义标题栏（方案B）：decorations 已关，圆角与最大化态由这里接管
+      if let Some(main_window) = app.get_window(runtime::MAIN_LABEL) {
+        runtime::watch_main_window_frame(&main_window);
+      }
       let combo = match state.lock() {
         Ok(guard) => (
           guard.data.settings.capture_hotkey.clone(),

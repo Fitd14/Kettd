@@ -9,6 +9,7 @@ import {
 import { todaySections } from './kernel/selectors.js'
 import { localToday } from './kernel/time.js'
 import { useUndoToast, UndoToast } from '@/components/undo-toast'
+import { TitleBar } from '@/components/title-bar'
 import { TodayView } from '@/views/TodayView'
 import { InboxView } from '@/views/InboxView'
 import { PlannedView } from '@/views/PlannedView'
@@ -89,43 +90,46 @@ export default function App() {
   }
 
   return (
-    <div className="shell">
-      <nav className="shell-side" aria-label="视图">
-        <div className="brand">Kettd</div>
-        {ROUTES.map((r) => (
-          <button
-            key={r.hash}
-            className={`side-item${route === r.hash ? ' on' : ''}`}
-            title={r.label}
-            onClick={() => { window.location.hash = r.hash; setRoute(r.hash) }}
-          >
-            <span className="label">{r.label}</span>
-            {counts[r.hash] ? <span className="count">{counts[r.hash]}</span> : null}
-          </button>
-        ))}
-      </nav>
-      <main className="shell-main">
-        {error && (
-          <div className="view">
-            <div className="inline-err" role="alert">{error}</div>
-          </div>
-        )}
-        {!error && !boot && (
-          <div className="view">
-            <div className="empty">加载中…</div>
-          </div>
-        )}
-        {boot && route === '#/today' && (
-          <TodayView boot={boot} refresh={refresh} undo={undo} />
-        )}
-        {boot && route === '#/inbox' && (
-          <InboxView boot={boot} refresh={refresh} undo={undo} />
-        )}
-        {boot && route === '#/planned' && <PlannedView boot={boot} refresh={refresh} />}
-        {boot && route === '#/review' && <ReviewView boot={boot} />}
-        {boot && route === '#/settings' && <SettingsView boot={boot} refresh={refresh} />}
-      </main>
-      <UndoToast state={undo.state} onUndo={() => { void undo.undo() }} onDismiss={undo.dismiss} />
+    <div className="app-frame">
+      <TitleBar />
+      <div className="shell">
+        <nav className="shell-side" aria-label="视图">
+          <div className="brand">Kettd</div>
+          {ROUTES.map((r) => (
+            <button
+              key={r.hash}
+              className={`side-item${route === r.hash ? ' on' : ''}`}
+              title={r.label}
+              onClick={() => { window.location.hash = r.hash; setRoute(r.hash) }}
+            >
+              <span className="label">{r.label}</span>
+              {counts[r.hash] ? <span className="count">{counts[r.hash]}</span> : null}
+            </button>
+          ))}
+        </nav>
+        <main className="shell-main">
+          {error && (
+            <div className="view">
+              <div className="inline-err" role="alert">{error}</div>
+            </div>
+          )}
+          {!error && !boot && (
+            <div className="view">
+              <div className="empty">加载中…</div>
+            </div>
+          )}
+          {boot && route === '#/today' && (
+            <TodayView boot={boot} refresh={refresh} undo={undo} />
+          )}
+          {boot && route === '#/inbox' && (
+            <InboxView boot={boot} refresh={refresh} undo={undo} />
+          )}
+          {boot && route === '#/planned' && <PlannedView boot={boot} refresh={refresh} />}
+          {boot && route === '#/review' && <ReviewView boot={boot} />}
+          {boot && route === '#/settings' && <SettingsView boot={boot} refresh={refresh} />}
+        </main>
+        <UndoToast state={undo.state} onUndo={() => { void undo.undo() }} onDismiss={undo.dismiss} />
+      </div>
     </div>
   )
 }

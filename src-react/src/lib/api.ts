@@ -218,6 +218,14 @@ export type CallResult<T> = { data: T | null; err: string | null }
 
 /* ---------------------------------------------------------------- 桥接原语 */
 
+type TauriWindowApi = {
+  minimize?: () => Promise<void>
+  toggleMaximize?: () => Promise<void>
+  close?: () => Promise<void>
+  isMaximized?: () => Promise<boolean>
+  onResized?: (handler: (ev: unknown) => void) => Promise<() => void>
+}
+
 type TauriGlobal = {
   tauri?: { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> }
   core?: { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> }
@@ -228,11 +236,17 @@ type TauriGlobal = {
   }
   listen?: (name: string, handler: (ev: unknown) => void) => Promise<() => void>
   emit?: (name: string, payload?: unknown) => Promise<void>
+  window?: { appWindow?: TauriWindowApi }
 }
 
 /** 调用时惰性取桥（v2.2 加固）：__TAURI__ 注入晚于模块求值也能接上，不再信任加载时序 */
 function tauriBridge(): TauriGlobal {
   return (globalThis as { __TAURI__?: TauriGlobal }).__TAURI__ ?? {}
+}
+
+/** 当前窗的窗口操作桥（自定义标题栏方案B：最小化/最大化/关闭）；未连接桌面运行时返回 null */
+export function mainWindowBridge(): TauriWindowApi | null {
+  return tauriBridge().window?.appWindow ?? null
 }
 
 const rawListen = tauriBridge().event?.listen ?? tauriBridge().listen
