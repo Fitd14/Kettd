@@ -145,6 +145,7 @@ fn main() {
       ai::commands::set_ai_config,
       ai::commands::get_ai_status,
       ai::commands::test_ai_connection,
+      ai::commands::search_kb_hybrid,
     ])
     .system_tray(runtime::build_tray(todo_visible))
     .setup(|app| {

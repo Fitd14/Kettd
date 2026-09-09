@@ -605,6 +605,8 @@ pub struct Store {
   pub runtime: RuntimeState,
   /// 知识条目（notes.json，frame H1b）：与 data.json 物理隔离
   pub kb: Vec<KbItem>,
+  /// AI 向量索引（kb_index.json，Phase 3）：衍生数据，可全量重建
+  pub kb_index: Vec<crate::ai::embedding::ChunkIndex>,
   pub health: String,
   pub corrupt_file: Option<String>,
   pub last_error: Option<String>,
@@ -620,6 +622,7 @@ impl Store {
       data: AppData::default(),
       runtime: RuntimeState::default(),
       kb: Vec::new(),
+      kb_index: Vec::new(),
       health: HEALTH_OK.to_string(),
       corrupt_file: None,
       last_error: None,

@@ -8,6 +8,8 @@
 pub mod secrets;
 pub mod config;
 pub mod commands;
+pub mod embedding;
+pub mod hybrid;
 
 use std::sync::Arc;
 use secrets::SecretsKeeper;
