@@ -1,0 +1,60 @@
+{
+  "skill": "scope",
+  "generated_at": "2026-09-09T21:30:00+08:00",
+  "project_name": "Kettd · kb 知识库（H2 转正设计）",
+  "prd_source": {
+    "type": "file",
+    "reference": "spark-output/frame/kettd-knowledge-base-feasibility.md + spark-output/roadmap/kettd-roadmap-v2.md + src-tauri/docs/ARCHITECTURE-v3.md §扩展点 + spark-output/context/frame.json"
+  },
+  "product_summary": "Kettd 是离线、数据在本机的个人待办工具（愿景：待办+知识双主体，便签是界面层）；kb 知识库 = 「待办的上下文资料」层——让用户做一条待办时就地看到/搜到相关资料，而不是第二大脑工程。",
+  "goals": {
+    "business": [
+      "从「记待办」升到「我的工作台」提升粘性（NSM=4 周留存，metric 蓝图）",
+      "守住差异化空位：待办为主·知识为辅·离线轻量（竞品扫描确认无人做）"
+    ],
+    "product": [
+      "做某条待办时就地调出背景资料/链接（机会点 1，重要性 H×满足 L）",
+      "记任务时顺手存链接/片段且之后能搜回来（机会点 2，同上）",
+      "已完成任务连同资料沉淀成可检索记录（机会点 4，中优先）"
+    ]
+  },
+  "target_users": [
+    "小柯（persona，n=1 桌面用户）：手上一条待办要做，背景资料散在浏览器/微信/别处，不想来回切 app 搬上下文"
+  ],
+  "features": [
+    { "name": "KB 最小地基：笔记/片段 + 全文搜索（内存线性扫）", "description": "独立 KbItem 集合（title/content/tags/时间戳），搜索内存扫不加索引依赖", "priority": "p0", "explicit_in_prd": true },
+    { "name": "任务 ↔ 知识单向链接（Task 挂 KbRef）", "description": "任务详情/行打开关联资料；ACL 边界：KB 只持 KbRef(id) 不 import Task", "priority": "p0", "explicit_in_prd": true },
+    { "name": "KB 编辑/组织（Markdown、标签、搜索成熟化）", "description": "H2 成熟化项；编辑器档位（纯文本 vs Markdown 渲染）待 owner 拍板", "priority": "p1", "explicit_in_prd": true },
+    { "name": "知识便签（KB 片段钉到桌面常驻）", "description": "H2 命门假设压着：用户真会把资料钉桌面常驻而非壁纸化？未证前不上", "priority": "p2", "explicit_in_prd": true },
+    { "name": "活引用/轻量双向、跨便签关系可视化", "description": "H3 探索项不承诺；红线明确不做 Obsidian 式双链插件生态", "priority": "p2", "explicit_in_prd": true },
+    { "name": "导入/导出到 Obsidian", "description": "当桥不当核心（H3 可选）", "priority": "p2", "explicit_in_prd": true }
+  ],
+  "constraints": [
+    "红线：离线、不出网、数据只在本机、反功能广度（不做平台/第三方组件/双链插件生态）",
+    "技术：Tauri v1 + React 新栈；不加 ORM/SQLite/tantivy——一期内存线性扫（升级触发：条目>5k 或搜索 P95>200ms）",
+    "架构：KbItem 与 Task 用 ACL 解耦（KbRef(id)），假设失败时 KB 可整体降级不伤 Task 聚合",
+    "交互：不得破坏「3 秒记」捕获核心；UI 走 React 新栈 + 既有纸感令牌",
+    "时机（原计划）：KB 重投压在 H1 验证门之后（多便签真被用？钉发生？）——钉动作已被便签分离退役，判据需重释；owner 2026-09-09 主动要求设计 KB 本身即是需求信号"
+  ],
+  "out_of_scope": [
+    "第二大脑工程/知识管理平台化",
+    "Obsidian 式双链与插件生态",
+    "云端同步、多端、账号",
+    "语义/AI 检索（khoj 类）"
+  ],
+  "design_implications": [
+    "知识库进主窗侧栏成为第六视图（今天/收件箱/计划/回顾/设置之后），不新开窗口——多窗是便签网的前提不是 KB 的",
+    "搜索是 KB 的第一交互（机会点 1/2 都是「查回来」），搜索框置顶、键入即过滤，结果高亮命中片段",
+    "任务↔资料链接的入口长在任务详情/任务行上（就地可达），KB 侧反向列表是次要视图",
+    "一切新增入口都要过「3 秒记不变重」审查：捕获条加片段能力属可选增量，默认关闭也可",
+    "视觉沿用纸感令牌/卡片家族语言（时间轴卡片化已定调），KB 条目=纸片隐喻顺理成章"
+  ],
+  "gaps": [
+    { "field": "一期范围档位", "why_needed": "roadmap H1 写最小地基、H2 写知识便签+链接+成熟化——一期切多大直接决定工作量与膨胀风险", "suggested_next_step": "AskUserQuestion 拍板：仅地基 / 地基+单向链接 / 全 H2 套餐" },
+    { "field": "捕捉入口", "why_needed": "机会点 2「记任务时顺手存片段」是否一期兑现，决定捕获条要不要动（3 秒记风险）", "suggested_next_step": "拍板：仅视图内新建 / 加捕获条片段模式 / 加便签一键沉淀" },
+    { "field": "编辑器与组织档位", "why_needed": "Markdown 渲染+标签 vs 纯文本，决定编辑器组件复杂度与数据 schema（tags 数组要不要一期进）", "suggested_next_step": "拍板三档：纯文本 / Markdown+标签 / Markdown+标签+轻引用" },
+    { "field": "视图形态", "why_needed": "master-detail / 卡片流 / 原地展开三种形态差异大，需与现有五视图语言一致", "suggested_next_step": "拍板后进设计稿" },
+    { "field": "jtbd 验证信号", "why_needed": "H1 验证门判据（多便签使用/钉动作）被便签分离改写，KB 上线后看什么数需要先定", "suggested_next_step": "设计稿里定埋点：kb_create/kb_search/kb_open_from_task/任务挂链率" },
+    { "field": "persona 扩展", "why_needed": "n=1 用户即 owner 本人，价值验证=自用 dogfood", "suggested_next_step": "接受 n=1，以 owner 使用埋点为验证" }
+  ]
+}

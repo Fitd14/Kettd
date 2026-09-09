@@ -1,0 +1,22 @@
+{
+  "skill": "design",
+  "generated_at": "2026-09-09T22:10:00+08:00",
+  "project_name": "Kettd · kb 知识库",
+  "pipeline": "scope → brainstorming（六轮拍板）→ kb-spec 落盘 → 待 owner 审阅 → writing-plans → 实施",
+  "decisions": [
+    "知识便签 = KB 条目实时视口（编辑即改 KB，关闭只拆窗，无分叉）",
+    "编辑形态 = 所见即所得（TipTap/ProseMirror 级，本地 bundle）",
+    "AI 一期 = 配置＋混合检索（embedding 轨已配才启用语义；未配零差异回落纯本地）",
+    "便签字数分线：自由便签 ≤500 保持；知识便签正文存 KB 不限",
+    "做「条目→建待办」（链接方向仍 task→KB，ACL 零破坏）",
+    "检索呈现 = 混合单列表＋AI 徽标",
+    "KEY 安全 = 永不进 WebView；DPAPI per-user 静态加密 secrets.json；仅 HTTPS（豁免 127.0.0.1）；日志无内容",
+    "渲染扩展 = RendererRegistry（fenced block lang 即扩展点）；mermaid 首个规划扩展；便签窗只载核心渲染器",
+    "红线演进 = 默认不出网不变；AI opt-in 后仅向所配厂商 endpoint 出网",
+    "命令面 55→58（set_ai_config/get_ai_status/test_ai_connection）；create_sticky 加 kb_ref 参数；add_task 放开 kb_refs"
+  ],
+  "spec": "spark-output/design/kb-spec.md",
+  "scope_report": "spark-output/scope/kb-scope.md",
+  "backend_baseline": "KbItem/notes.json/Task.kb_refs/5 命令已落地（55 对账含在内）；UI 层为零",
+  "next": "owner 审阅 kb-spec.md → writing-plans 技能出实施计划（不写业务代码）"
+}
