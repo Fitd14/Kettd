@@ -12,6 +12,7 @@ import {
   type StickySelf,
 } from '@/lib/api'
 import { PaperPattern } from './paper-patterns'
+import { MdStaticRenderer } from '@/rendering/md-static-render'
 import './sticky.css'
 
 const FREE_MAX = 500
@@ -29,6 +30,7 @@ export default function StickyWindow() {
   const [self, setSelf] = useState<StickySelf | null>(null)
   const [faded, setFaded] = useState(false)
   const [freeText, setFreeText] = useState('')
+  const [mdPreview, setMdPreview] = useState(false)
   const freeRef = useRef<HTMLTextAreaElement>(null)
 
   const refresh = useCallback(async () => {
@@ -122,6 +124,17 @@ export default function StickyWindow() {
         <span className="sticky-head" data-tauri-drag-region title="按住拖动">
           便签{freeText.trim() && ' · 已保存'}
         </span>
+        <button
+          className={`btn xs ${mdPreview ? 'primary' : 'ghost'}`}
+          title={mdPreview ? '返回编辑' : '切换 Markdown 预览'}
+          onClick={() => {
+            const next = !mdPreview
+            setMdPreview(next)
+            void trackEvent('sticky_md_toggle', { on: next })
+          }}
+        >
+          MD
+        </button>
         <button className="sticky-btn" title="缩小为悬浮条" aria-label="缩小便签" onClick={() => { void setMini(true) }}>
           <Minus size={14} aria-hidden />
         </button>
@@ -131,17 +144,30 @@ export default function StickyWindow() {
       </div>
 
       <div className="sticky-body">
-        <textarea
-          ref={freeRef}
-          className="sticky-free"
-          value={freeText}
-          maxLength={FREE_MAX}
-          placeholder="自由写点什么…（失焦自动保存）"
-          aria-label="便签内容"
-          onChange={(e) => setFreeText(e.target.value.slice(0, FREE_MAX))}
-          onBlur={() => { void commitFree() }}
-        />
-        <span className="sticky-count tiny">{freeText.length}/{FREE_MAX}</span>
+        {mdPreview ? (
+          <div
+            className="sticky-free md-preview"
+            onClick={() => setMdPreview(false)}
+            title="点击回到编辑"
+            style={{ cursor: 'pointer', minHeight: 80 }}
+          >
+            <MdStaticRenderer markdown={freeText} />
+          </div>
+        ) : (
+          <>
+            <textarea
+              ref={freeRef}
+              className="sticky-free"
+              value={freeText}
+              maxLength={FREE_MAX}
+              placeholder="自由写点什么…（失焦自动保存）"
+              aria-label="便签内容"
+              onChange={(e) => setFreeText(e.target.value.slice(0, FREE_MAX))}
+              onBlur={() => { void commitFree() }}
+            />
+            <span className="sticky-count tiny">{freeText.length}/{FREE_MAX}</span>
+          </>
+        )}
       </div>
       <i className="sticky-fold" aria-hidden />
     </div>
