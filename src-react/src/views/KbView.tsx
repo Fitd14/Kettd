@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { getKbItems, searchKb, addKbItem, deleteKbItem } from '@/lib/api'
+import { getKbItems, searchKb, addKbItem } from '@/lib/api'
 import type { KbItem } from '@/lib/api'
 import { KbSearchBar } from '@/components/kb/kb-search-bar'
 import { KbTagFilter } from '@/components/kb/kb-tag-filter'
 import { KbItemRow } from '@/components/kb/kb-item-row'
 import { KbEmptyState } from '@/components/kb/kb-empty-state'
+import { KbItemDetail } from '@/components/kb/kb-item-detail'
 import './kb.css'
 
 interface Props {
@@ -80,19 +81,6 @@ export function KbView(_props: Props) {
     }
   }, [refresh])
 
-  // 删除条目
-  const handleDelete = useCallback(async (id: string) => {
-    await deleteKbItem(id)
-    if (selectedId === id) setSelectedId(null)
-    await refresh()
-  }, [selectedId, refresh])
-
-  // 更新条目（来自右详情面板——Task 5 接入）
-  // const handleUpdate = useCallback(async (id: string, patch: { title?: string; bodyMd?: string; tags?: string[] }) => {
-  //   await updateKbItem(id, patch)
-  //   await refresh()
-  // }, [refresh])
-
   return (
     <div className="kb-view">
       <KbSearchBar
@@ -134,29 +122,11 @@ export function KbView(_props: Props) {
             <div className="kb-empty">选择一条知识查看详情</div>
           )}
           {selected && (
-            <div>
-              <div className="kb-detail-toolbar">
-                <h3 className="kb-detail-title">{selected.title}</h3>
-                <span style={{ flex: 1 }} />
-                <button className="btn xs primary" onClick={handleCreate}>+ 新建</button>
-                <button
-                  className="btn xs danger"
-                  onClick={() => handleDelete(selected.id)}
-                >
-                  🗑 删除
-                </button>
-              </div>
-              <p style={{ color: 'var(--muted-foreground)', fontSize: '0.9em' }}>
-                {selected.bodyMd ? `${selected.bodyMd.length} 字 · ` : '空白 · '}
-                标签: {selected.tags?.join(', ') || '无'}
-              </p>
-              {/* Task 5: TipTap WYSIWYG editor + MdStaticRenderer read/edit toggle */}
-              <div className="kb-detail-body">
-                <p style={{ fontSize: '0.85em', color: 'var(--muted-foreground)' }}>
-                  WYSIWYG 编辑器将在 Task 5 接入
-                </p>
-              </div>
-            </div>
+            <KbItemDetail
+              item={selected}
+              onDeleted={(id) => { if (selectedId === id) setSelectedId(null); void refresh() }}
+              onRefresh={refresh}
+            />
           )}
         </div>
       </div>
