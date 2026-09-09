@@ -41,6 +41,10 @@ export function SettingsView({ boot, refresh }: Props) {
   const [stickyList, setStickyList] = useState<StickyNoteItem[]>([])
   const clearTimer = useRef<number | null>(null)
 
+  // 分池计数（Phase 2）
+  const freeCount = stickyList.filter((s) => !s.kbRef).length
+  const kbCount = stickyList.filter((s) => !!s.kbRef).length
+
   useEffect(() => {
     void getHotkeyStatus().then((r) => { if (!r.err && r.data) setHotkeys(r.data) })
     void loadStickies()
@@ -215,7 +219,7 @@ export function SettingsView({ boot, refresh }: Props) {
           </span>
         </div>
         <div className="set-row"><span>新建便签
-          <div className="tiny text-muted">随手写一张纸（≤500 字）· 上限 6 张 · 也可按热键 {stickyCombo.trim() || '（未绑定）'} 新建</div>
+          <div className="tiny text-muted">随手写一张纸（≤500 字）· 自由便签 {freeCount}/6 · 知识便签 {kbCount}/4 · 热键 {stickyCombo.trim() || '（未绑定）'}</div>
         </span>
           <span className="row-flex items-center gap-1.5">
             <button className="btn xs outline" onClick={() => { void doCreateSticky() }}>新建便签</button>
@@ -229,8 +233,12 @@ export function SettingsView({ boot, refresh }: Props) {
               {stickyList.map((st) => (
                 <span key={st.id} className="row-flex items-center gap-1.5">
                   <span className="tiny grow truncate" style={{ maxWidth: 200 }}>
-                    {/* ?? '' 是黑屏教训（2026-09-09）：content 一旦缺字段，.split 抛 TypeError = 整树卸载 */}
-                    {(st.content ?? '').split('\n')[0] || '（空）'}
+                    {st.kbRef ? (
+                      <span className="text-muted">📎 {st.content || '（知识便签）'}</span>
+                    ) : (
+                      /* ?? '' 是黑屏教训（2026-09-09）：content 一旦缺字段，.split 抛 TypeError = 整树卸载 */
+                      (st.content ?? '').split('\n')[0] || '（空）'
+                    )}
                   </span>
                   {st.mini && <span className="tiny text-muted">已缩小</span>}
                   <button className="btn ghost xs" onClick={() => { void doToggleSticky(st) }}>{st.mini ? '展开' : '缩小'}</button>
