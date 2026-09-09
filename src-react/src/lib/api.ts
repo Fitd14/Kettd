@@ -318,6 +318,8 @@ export interface StickyNoteItem {
   content: string
   /** 缩小态：置顶悬浮文本条（显示正文第一行，点击展开） */
   mini: boolean
+  /** Phase 2：知识便签视口指针（None = 自由便签） */
+  kbRef?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -326,9 +328,12 @@ export interface StickySelf {
   id: string
   content: string
   mini: boolean
+  /** Phase 2：知识便签视口指针（None = 自由便签） */
+  kbRef?: string | null
 }
 
-export const createSticky = () => call<StickyNoteItem>('create_sticky')
+export const createSticky = (args?: { kbRef?: string }) =>
+  call<StickyNoteItem>('create_sticky', { args: args ?? {} })
 export const listStickies = () => call<StickyNoteItem[]>('list_stickies')
 export const updateSticky = (
   id: string,

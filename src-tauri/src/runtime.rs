@@ -227,22 +227,37 @@ pub fn open_note_window(
   Ok(())
 }
 
-/// 新建一张自由便签（sticky-separation）：设置页命令与全局热键共用的唯一入口。
+/// 新建一张便签（sticky-separation + Phase 2 知识便签）：设置页命令与全局热键共用的唯一入口。
 /// 建窗可能被 WebView2 层挂起 → 调用方绝不能在事件循环线程上
 /// （命令是 async 跑在线程池；热键回调 spawn 后台线程）。
 /// 失败回滚已入库便签，不留「数据有窗没有」的幽灵行。
-pub fn create_note(app: &AppHandle) -> Result<crate::models::StickyNote, String> {
-  use crate::models::{StickyNote, StoreEvent, STICKY_CAP};
+pub fn create_note(
+  app: &AppHandle,
+  kb_ref: Option<String>,
+) -> Result<crate::models::StickyNote, String> {
+  use crate::models::{StickyNote, StoreEvent, STICKY_CAP, STICKY_KB_CAP};
   let Some(state) = app.try_state::<Mutex<Store>>() else {
     return Err("应用还没准备好".to_string());
   };
   let mut guard = state.lock().map_err(|_| "应用状态忙，请重试".to_string())?;
   guard.ensure_writable()?;
-  if guard.data.stickies.len() >= STICKY_CAP {
-    return Err("便签最多 6 张，先关闭一张".to_string());
+
+  // 分池上限检查
+  if kb_ref.is_some() {
+    let kb_count = guard.data.stickies.iter().filter(|s| s.kb_ref.is_some()).count();
+    if kb_count >= STICKY_KB_CAP {
+      return Err(format!("知识便签已达上限（{}张），请先拆掉不需要的", STICKY_KB_CAP));
+    }
+  } else {
+    let free_count = guard.data.stickies.iter().filter(|s| s.kb_ref.is_none()).count();
+    if free_count >= STICKY_CAP {
+      return Err(format!("自由便签已达上限（{}张），请先关闭一张", STICKY_CAP));
+    }
   }
+
   let note = guard.add_sticky(StickyNote {
     id: crate::models::new_id("n"),
+    kb_ref,
     ..Default::default()
   });
   if let Err(error) = guard.save() {
@@ -782,7 +797,7 @@ fn bind_global_hotkey<M: GlobalShortcutManager>(
           // register 的闭包是 Fn（可多次触发），handle 只能克隆不能移动。
           let handle = handle.clone();
           std::thread::spawn(move || {
-            let _ = create_note(&handle);
+            let _ = create_note(&handle, None);
           });
         })
         .is_ok()
@@ -925,7 +940,7 @@ pub fn handle_tray_click(app: &AppHandle, id: &str) -> bool {
     "sticky_new" => {
       let handle = app.clone();
       std::thread::spawn(move || {
-        let _ = create_note(&handle);
+        let _ = create_note(&handle, None);
       });
     }
     "todo_float" => {

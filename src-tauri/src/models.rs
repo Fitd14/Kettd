@@ -414,6 +414,11 @@ pub struct StickyNote {
   /// 缩小态：置顶悬浮文本条（显示正文第一行，点击展开）
   #[serde(default, skip_serializing_if = "is_false")]
   pub mini: bool,
+  /// Phase 2：知识便签视口指针（指向 KbItem.id）。
+  /// None = 自由便签；Some = 知识便签（正文不落便签，由 KB 条目持有）。
+  /// skip_serializing_if = None：旧数据无此字段→默认 None→零迁移。
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub kb_ref: Option<String>,
   pub created_at: String,
   pub updated_at: String,
 }
@@ -425,6 +430,7 @@ impl Default for StickyNote {
       id: String::new(),
       content: String::new(),
       mini: false,
+      kb_ref: None,
       created_at: stamp.clone(),
       updated_at: stamp,
     }
@@ -468,6 +474,8 @@ pub const STICKY_PAPERS: [&str; 4] = ["warm", "kraft", "cyan", "ink"];
 pub const STICKY_PATTERNS: [&str; 3] = ["none", "bamboo", "mountain"];
 /// 便签总数上限（含 float 主便签）——防「贴满废纸」，对应 metric Counter 壁纸化
 pub const STICKY_CAP: usize = 6;
+/// 知识便签上限（分池：与自由便签 STICKY_CAP 互不影响）
+pub const STICKY_KB_CAP: usize = 4;
 
 fn default_sticky_fade_opacity() -> u32 {
   38

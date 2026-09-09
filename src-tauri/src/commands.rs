@@ -492,14 +492,20 @@ pub struct StickySelf {
   pub id: String,
   pub content: String,
   pub mini: bool,
+  /// Phase 2：知识便签视口指针（None = 自由便签）
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub kb_ref: Option<String>,
 }
 
 /// 新建一张自由便签（sticky-separation：便签只有这一种）。
 /// async：建窗可能被 WebView2 层无限挂起（真机复盘 2026-09-08），绝不能在事件循环
 /// 线程上执行；建窗逻辑全在 runtime::create_note，与全局热键共用同一入口。
 #[tauri::command]
-pub async fn create_sticky(app: AppHandle) -> Result<StickyNote, String> {
-  runtime::create_note(&app)
+pub async fn create_sticky(
+  app: AppHandle,
+  kb_ref: Option<String>,
+) -> Result<StickyNote, String> {
+  runtime::create_note(&app, kb_ref)
 }
 
 #[tauri::command]
@@ -527,6 +533,7 @@ pub fn sticky_self(
     id,
     content: note.content,
     mini: note.mini,
+    kb_ref: note.kb_ref,
   })
 }
 
