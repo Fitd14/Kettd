@@ -4,15 +4,19 @@ import {
   applyTheme,
   deleteSticky,
   getBootstrap,
+  getKbItems,
   onEvent,
   stickySelf,
   trackEvent,
+  updateKbItem,
   updateSticky,
   type Bootstrap,
+  type KbItem,
   type StickySelf,
 } from '@/lib/api'
 import { PaperPattern } from './paper-patterns'
 import { MdStaticRenderer } from '@/rendering/md-static-render'
+import { TipTapEditor } from '@/rendering/tiptap-editor'
 import './sticky.css'
 
 const FREE_MAX = 500
@@ -31,7 +35,26 @@ export default function StickyWindow() {
   const [faded, setFaded] = useState(false)
   const [freeText, setFreeText] = useState('')
   const [mdPreview, setMdPreview] = useState(false)
+  const [kbItem, setKbItem] = useState<KbItem | null>(null)
+  const [kbInvalid, setKbInvalid] = useState(false)
   const freeRef = useRef<HTMLTextAreaElement>(null)
+
+  // 知识便签：加载 KB 条目
+  const isKnowledge = !!self?.kbRef
+  useEffect(() => {
+    if (!self?.kbRef) return
+    let cancelled = false
+    getKbItems().then((r) => {
+      if (cancelled) return
+      const items = r.data ?? []
+      const found = items.find((i) => i.id === self.kbRef)
+      if (found) setKbItem(found)
+      else setKbInvalid(true)
+    }).catch(() => {
+      if (!cancelled) setKbInvalid(true)
+    })
+    return () => { cancelled = true }
+  }, [self?.kbRef])
 
   const refresh = useCallback(async () => {
     const [b, s] = await Promise.all([getBootstrap(), stickySelf()])
@@ -86,10 +109,12 @@ export default function StickyWindow() {
 
   /* ---- 缩小态：置顶悬浮文本条（380×40）---- */
   if (mini) {
-    const firstLine = (self?.content ?? '').split('\n')[0].trim() || '（空便签）'
+    const displayName = isKnowledge
+      ? (kbItem?.title ?? '加载中...')
+      : ((self?.content ?? '').split('\n')[0].trim() || '（空便签）')
     return (
       <div
-        className={`sticky-note is-mini paper-${paper}`}
+        className={`sticky-note is-mini paper-${paper}${isKnowledge ? ' knowledge-sticky' : ''}`}
         onMouseLeave={() => setFaded(true)}
         onMouseEnter={() => setFaded(false)}
       >
@@ -99,10 +124,10 @@ export default function StickyWindow() {
         <button
           className="sticky-mini-text"
           title="点击展开"
-          aria-label={`展开便签：${firstLine}`}
+          aria-label={`展开便签：${displayName}`}
           onClick={() => { void setMini(false) }}
         >
-          {firstLine}
+          {isKnowledge && '📎 '}{displayName}
         </button>
         <button className="sticky-btn" title="关闭并删除" aria-label="关闭并删除便签" onClick={() => { void close() }}>
           <X size={12} aria-hidden />
@@ -112,6 +137,64 @@ export default function StickyWindow() {
   }
 
   /* ---- 展开态：纸片 ---- */
+  // 知识便签失效态
+  if (isKnowledge && kbInvalid) {
+    return (
+      <div className={`sticky-note paper-${paper} knowledge-sticky is-invalid`}>
+        <PaperPattern pattern={pattern} />
+        <div className="sticky-strip">
+          <span className="sticky-head" data-tauri-drag-region title="按住拖动">
+            ⚠️ 已失效（原资料已删除）
+          </span>
+          <button className="sticky-btn" title="拆除便签" aria-label="拆除便签" onClick={() => { void close() }}>
+            <X size={14} aria-hidden />
+          </button>
+        </div>
+        <div className="sticky-body">
+          <div className="kb-empty">
+            <span>此知识条目已被删除</span>
+            <button className="btn primary" onClick={() => { void close() }}>拆除便签</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 知识便签正常态
+  if (isKnowledge && kbItem) {
+    return (
+      <div
+        className={`sticky-note paper-${paper} knowledge-sticky${faded && fadeOn ? ' faded' : ''}`}
+        style={{ '--sticky-fade-opacity': `${fadeOpacity}%` } as React.CSSProperties}
+        onMouseLeave={() => setFaded(true)}
+        onMouseEnter={() => setFaded(false)}
+      >
+        <PaperPattern pattern={pattern} />
+        <div className="sticky-strip">
+          <span className="sticky-head" data-tauri-drag-region title="按住拖动">
+            📎 {kbItem.title}
+          </span>
+          <button className="sticky-btn" title="缩小为悬浮条" aria-label="缩小便签" onClick={() => { void setMini(true) }}>
+            <Minus size={14} aria-hidden />
+          </button>
+          <button className="sticky-btn" title="关闭便签（数据保留在知识库）" aria-label="关闭便签" onClick={() => { void close() }}>
+            <X size={14} aria-hidden />
+          </button>
+        </div>
+
+        <div className="sticky-body">
+          <TipTapEditor
+            markdown={kbItem.bodyMd}
+            onSave={(md) => { void updateKbItem(kbItem.id, { bodyMd: md }) }}
+            placeholder="开始写知识..."
+          />
+        </div>
+        <i className="sticky-fold" aria-hidden />
+      </div>
+    )
+  }
+
+  // 自由便签展开态
   return (
     <div
       className={`sticky-note paper-${paper}${faded && fadeOn ? ' faded' : ''}`}

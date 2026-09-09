@@ -368,3 +368,31 @@ body {
 .sticky-mini-text:focus-visible {
   outline: 1px solid color-mix(in srgb, var(--sticky-accent) 55%, transparent);
 }
+
+/* ─── 知识便签（Phase 2）─────────────────────────────────────────────────── */
+.sticky-note.knowledge-sticky {
+  /* 知识便签纸色略深一档（视觉暗示「这是知识」） */
+  --sticky-paper: hsl(44 35% 93%);
+  --sticky-strip: hsl(44 28% 88%);
+}
+.dark .sticky-note.knowledge-sticky {
+  --sticky-paper: hsl(30 8% 14%);
+  --sticky-strip: hsl(30 6% 18%);
+}
+.sticky-note.knowledge-sticky.is-invalid {
+  opacity: 0.6;
+}
+.sticky-note.knowledge-sticky .sticky-head {
+  font-weight: 500;
+}
+/* 知识便签编辑器填满可用空间 */
+.sticky-note.knowledge-sticky .sticky-body {
+  flex: 1;
+  overflow-y: auto;
+}
+.sticky-note.knowledge-sticky .kb-editor {
+  height: 100%;
+}
+.sticky-note.knowledge-sticky .kb-editor .kb-editor-content {
+  min-height: 100%;
+}

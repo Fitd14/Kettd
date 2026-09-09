@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { getKbItems, searchKb, addKbItem } from '@/lib/api'
+import { getKbItems, searchKb, addKbItem, createSticky, trackEvent } from '@/lib/api'
 import type { KbItem } from '@/lib/api'
 import { KbSearchBar } from '@/components/kb/kb-search-bar'
 import { KbTagFilter } from '@/components/kb/kb-tag-filter'
@@ -129,6 +129,12 @@ export function KbView(_props: Props) {
               onDeleted={(id) => { if (selectedId === id) setSelectedId(null); void refresh() }}
               onRefresh={refresh}
               onCreateTask={(item) => setCreateTaskItem(item)}
+              onPin={async (item) => {
+                const result = await createSticky({ kbRef: item.id })
+                if (!result.err) {
+                  void trackEvent('kb_pin_desktop', { itemId: item.id })
+                }
+              }}
             />
           )}
         </div>
