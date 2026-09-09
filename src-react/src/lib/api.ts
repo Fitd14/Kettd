@@ -388,6 +388,52 @@ export const updateKbItem = (id: string, patch: KbPayload) => call<KbItem>('upda
 export const deleteKbItem = (id: string) => call<void>('delete_kb_item', { id })
 export const searchKb = (query?: string) => call<KbItem[]>('search_kb', { query: query ?? null })
 
+/* ─── AI 配置与混合检索（Phase 3）────────────────────────────────────────── */
+
+export interface AiTrackStatus {
+  configured: boolean
+  model?: string
+  baseUrl?: string
+}
+
+export interface AiStatus {
+  chat: AiTrackStatus
+  embedding: AiTrackStatus
+  enabled: boolean
+  keyMask?: string
+}
+
+export interface AiTestResult {
+  ok: boolean
+  message: string
+}
+
+export interface HybridResult {
+  id: string
+  source: 'local' | 'ai'
+}
+
+export interface AiConfigPatch {
+  baseUrl?: string
+  model?: string
+  apiKey?: string
+  embeddingBaseUrl?: string
+  embeddingModel?: string
+  embeddingApiKey?: string
+  enabled?: boolean
+}
+
+export const setAiConfig = (patch: AiConfigPatch) =>
+  call<AiStatus>('set_ai_config', { patch })
+
+export const getAiStatus = () => call<AiStatus>('get_ai_status')
+
+export const testAiConnection = (track: 'chat' | 'embedding') =>
+  call<AiTestResult>('test_ai_connection', { track })
+
+export const searchKbHybrid = (query: string) =>
+  call<HybridResult[]>('search_kb_hybrid', { query })
+
 /* ---------------------------------------------------------------- 跨窗导航（E14 localStorage 兜底，原样保留） */
 
 export function emitNavigate(route: string) {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { getKbItems, searchKb, addKbItem, createSticky, trackEvent } from '@/lib/api'
+import { getKbItems, searchKb, addKbItem, createSticky, trackEvent, searchKbHybrid } from '@/lib/api'
 import type { KbItem } from '@/lib/api'
 import { KbSearchBar } from '@/components/kb/kb-search-bar'
 import { KbTagFilter } from '@/components/kb/kb-tag-filter'
@@ -28,19 +28,38 @@ export function KbView(_props: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [createTaskItem, setCreateTaskItem] = useState<KbItem | null>(null)
+  const [aiHits, setAiHits] = useState<Set<string>>(new Set())
 
   const refresh = useCallback(async () => {
     setLoading(true)
     setError(null)
+    setAiHits(new Set())
     try {
       const result = await getKbItems()
       const all = result.data ?? []
       if (query.trim()) {
-        const rankedResult = await searchKb(query.trim())
-        const ranked = rankedResult.data ?? []
-        const rankedIds = new Set(ranked.map((i) => i.id))
-        const rest = all.filter((i) => !rankedIds.has(i.id))
-        setItems([...ranked, ...rest])
+        // 尝试混合检索（AI 徽标）
+        const hybridResult = await searchKbHybrid(query.trim())
+        if (hybridResult.data && hybridResult.data.length > 0) {
+          // 混合结果带 source 标记
+          const idMap = new Map(all.map((i) => [i.id, i]))
+          const ranked = hybridResult.data
+            .map((r) => idMap.get(r.id))
+            .filter((i): i is KbItem => !!i)
+          const rankedIds = new Set(ranked.map((i) => i.id))
+          const rest = all.filter((i) => !rankedIds.has(i.id))
+          setItems([...ranked, ...rest])
+          // 标记 AI 命中
+          const aiIds = new Set(hybridResult.data.filter((r) => r.source === 'ai').map((r) => r.id))
+          setAiHits(aiIds)
+        } else {
+          // 回落纯本地
+          const rankedResult = await searchKb(query.trim())
+          const ranked = rankedResult.data ?? []
+          const rankedIds = new Set(ranked.map((i) => i.id))
+          const rest = all.filter((i) => !rankedIds.has(i.id))
+          setItems([...ranked, ...rest])
+        }
       } else {
         setItems([...all].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)))
       }
@@ -132,6 +151,7 @@ export function KbView(_props: Props) {
               item={item}
               isActive={selectedId === item.id}
               onSelect={setSelectedId}
+              isAiHit={aiHits.has(item.id)}
             />
           ))}
         </div>
