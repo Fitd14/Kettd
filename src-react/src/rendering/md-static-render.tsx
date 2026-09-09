@@ -34,11 +34,8 @@ md.renderer.rules.fence = (tokens, idx) => {
   return `<pre class="kb-code-block hljs" data-lang="${info || 'auto'}"><code>${highlighted}</code></pre>`
 }
 
-// 表格：给 th/td 加 class 以便 CSS 美化
-const defaultTableOpen = md.renderer.rules.table_open!
-md.renderer.rules.table_open = (tokens, idx, options, env, self) => {
-  return '<table class="kb-table">\n'
-}
+// 表格：统一 class（kb-table）以便 CSS 美化（见 prosemirror.css）
+md.renderer.rules.table_open = () => '<table class="kb-table">\n'
 
 /**
  * 阅读态 Markdown→React 渲染器。
