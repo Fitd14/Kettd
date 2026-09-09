@@ -14,6 +14,7 @@ import { TodayView } from '@/views/TodayView'
 import { InboxView } from '@/views/InboxView'
 import { PlannedView } from '@/views/PlannedView'
 import { ReviewView } from '@/views/ReviewView'
+import { KbView } from '@/views/KbView'
 import { SettingsView } from '@/views/SettingsView'
 import './styles/app.css'
 
@@ -22,6 +23,7 @@ const ROUTES = [
   { hash: '#/inbox', label: '收件箱' },
   { hash: '#/planned', label: '计划' },
   { hash: '#/review', label: '回顾' },
+  { hash: '#/kb', label: '知识库' },
   { hash: '#/settings', label: '设置' },
 ] as const
 
@@ -126,6 +128,7 @@ export default function App() {
           )}
           {boot && route === '#/planned' && <PlannedView boot={boot} refresh={refresh} />}
           {boot && route === '#/review' && <ReviewView boot={boot} />}
+          {boot && route === '#/kb' && <KbView boot={boot} />}
           {boot && route === '#/settings' && <SettingsView boot={boot} refresh={refresh} />}
         </main>
         <UndoToast state={undo.state} onUndo={() => { void undo.undo() }} onDismiss={undo.dismiss} />
