@@ -1,0 +1,166 @@
+/* ─── TipTap / ProseMirror 编辑器基础样式 ─────────────────────────────── */
+
+.kb-editor-content {
+  outline: none;
+  min-height: 200px;
+  font-family: var(--paper-font, system-ui, sans-serif);
+  line-height: 1.65;
+}
+
+.kb-editor-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--text-muted, #999);
+  pointer-events: none;
+  height: 0;
+  font-style: italic;
+}
+
+.kb-editor-content .ProseMirror-selectednode {
+  outline: 2px solid var(--accent, #4f8cff);
+  border-radius: 2px;
+}
+
+/* 代码块 */
+.kb-editor-content pre {
+  background: var(--code-bg, rgba(0, 0, 0, 0.04));
+  padding: 0.75em 1em;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.9em;
+  margin: 0.5em 0;
+}
+
+.kb-editor-content code {
+  font-family: var(--font-mono, 'SF Mono', Consolas, monospace);
+  font-size: 0.9em;
+  background: var(--code-bg, rgba(0, 0, 0, 0.04));
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+}
+
+.kb-editor-content pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* 引用块 */
+.kb-editor-content blockquote {
+  border-left: 3px solid var(--text-muted, #ccc);
+  padding-left: 1em;
+  margin-left: 0;
+  color: var(--text-secondary, #666);
+}
+
+/* 表格 */
+.kb-editor-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+}
+
+.kb-editor-content th,
+.kb-editor-content td {
+  border: 1px solid var(--border, #e0e0e0);
+  padding: 0.4em 0.8em;
+}
+
+.kb-editor-content th {
+  font-weight: 600;
+  background: var(--hover-bg, rgba(0, 0, 0, 0.02));
+}
+
+/* 任务列表 */
+.kb-editor-content ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.kb-editor-content ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+/* ─── 阅读态 MD 渲染 ─────────────────────────────────────────────────── */
+
+.kb-md-render {
+  line-height: 1.65;
+  font-size: 0.95em;
+}
+
+.kb-md-render h1,
+.kb-md-render h2,
+.kb-md-render h3,
+.kb-md-render h4 {
+  margin-top: 1.2em;
+  margin-bottom: 0.4em;
+  line-height: 1.3;
+}
+
+.kb-md-render h1 { font-size: 1.5em; }
+.kb-md-render h2 { font-size: 1.3em; }
+.kb-md-render h3 { font-size: 1.15em; }
+
+.kb-md-render ul,
+.kb-md-render ol {
+  padding-left: 1.5em;
+  margin: 0.4em 0;
+}
+
+.kb-md-render li { margin: 0.2em 0; }
+
+.kb-md-render pre.kb-code-block {
+  background: var(--code-bg, rgba(0, 0, 0, 0.04));
+  padding: 0.75em 1em;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+
+.kb-md-render table.kb-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+}
+
+.kb-md-render table.kb-table th,
+.kb-md-render table.kb-table td {
+  border: 1px solid var(--border, #e0e0e0);
+  padding: 0.4em 0.8em;
+}
+
+.kb-md-render table.kb-table th {
+  font-weight: 600;
+  background: var(--hover-bg, rgba(0, 0, 0, 0.02));
+}
+
+.kb-md-render .task-list-item {
+  list-style: none;
+}
+
+.kb-md-render .task-list-item input[type="checkbox"] {
+  margin-right: 0.5em;
+}
+
+.kb-md-render blockquote {
+  border-left: 3px solid var(--text-muted, #ccc);
+  padding-left: 1em;
+  margin-left: 0;
+  color: var(--text-secondary, #666);
+}
+
+.kb-md-render a {
+  color: var(--accent, #4f8cff);
+  text-decoration: none;
+}
+
+.kb-md-render a:hover {
+  text-decoration: underline;
+}
+
+.kb-md-render img {
+  max-width: 100%;
+  border-radius: 4px;
+}
