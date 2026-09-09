@@ -24,6 +24,7 @@ mod runtime;
 mod scheduler;
 mod store;
 mod telemetry;
+mod ai;
 
 use std::sync::Mutex;
 use tauri::Manager;
@@ -82,6 +83,9 @@ fn main() {
     .manage(runtime::HotkeyLock(Mutex::new(
       runtime::HotkeyRegistry::default(),
     )))
+    .manage(ai::AiKeeper::new(std::sync::Arc::new(
+      ai::secrets::InMemoryKeeper::new(),
+    )))
     .invoke_handler(tauri::generate_handler![
       commands::get_bootstrap,
       commands::get_tasks,
@@ -137,7 +141,10 @@ fn main() {
       commands::list_stickies,
       commands::update_sticky,
       commands::delete_sticky,
-      commands::sticky_self
+      commands::sticky_self,
+      ai::commands::set_ai_config,
+      ai::commands::get_ai_status,
+      ai::commands::test_ai_connection,
     ])
     .system_tray(runtime::build_tray(todo_visible))
     .setup(|app| {

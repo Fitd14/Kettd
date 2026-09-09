@@ -1,8 +1,8 @@
 [package]
-name = "todo-list-tauri"
+name = "kettd"
 version = "2.1.0"
 description = "待办列表 - 一款简洁高效的待办列表应用"
-authors = ["you"]
+authors = ["lamb"]
 license = ""
 repository = ""
 edition = "2021"
@@ -17,6 +17,7 @@ serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.0.0", features = [ "api-all", "system-tray" ] }
 dirs = "4.0"
 chrono = { version = "0.4", features = [ "clock", "std" ] }
+reqwest = { version = "0.11", features = [ "json", "rustls-tls" ], default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 window-vibrancy = "0.4"
