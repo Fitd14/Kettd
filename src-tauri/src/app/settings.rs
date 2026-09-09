@@ -1,8 +1,8 @@
-//! 设置规则：热键换绑的**两槽位事务**（ADR-0003 一期，原 commands.rs set_settings 内嵌）。
+//! 设置规则：热键换绑的**三槽位事务**（ADR-0003，原两槽位扩展 sticky-separation）。
 //!
-//! 事务语义：主题/形态/两个热键是一次设置动作 —— 任一热键换绑失败，
-//! 已写入的字段全部回滚；若主界面键失败而捕获键已换上新值，还要把捕获键
-//! 在 OS 侧还原（用户不能因为换绑失败而失去热键）。
+//! 事务语义：主题/热键是一次设置动作 —— 任一热键换绑失败，
+//! 已写入的字段全部回滚；且先前已换上新值的槽位要在 OS 侧还原
+//! （用户不能因为换绑失败而失去热键）。
 
 use crate::models::{Settings, SettingsPayload};
 use crate::ports::hotkeys::{HotkeyPort, HotkeySlot};
@@ -29,8 +29,25 @@ pub fn apply_with_hotkeys(
   if next_main != snapshot.main_hotkey {
     if let Err(error) = hotkeys.bind(HotkeySlot::Main, next_main.as_deref()) {
       restore(store, &snapshot);
-      // 捕获键已经换上新值了：两槽位是一个事务，一起还原
-      let _ = hotkeys.bind(HotkeySlot::Capture, Some(&snapshot.capture_hotkey));
+      // 捕获键已经换上新值了：三槽位是一个事务，把变更过的槽位一起还原
+      if next_capture != snapshot.capture_hotkey {
+        let _ = hotkeys.bind(HotkeySlot::Capture, Some(&snapshot.capture_hotkey));
+      }
+      return Err(error);
+    }
+  }
+
+  let next_sticky = store.data.settings.sticky_hotkey.clone();
+  if next_sticky != snapshot.sticky_hotkey {
+    if let Err(error) = hotkeys.bind(HotkeySlot::Sticky, next_sticky.as_deref()) {
+      restore(store, &snapshot);
+      // 只还原**实际换过新值**的槽位：没动过的槽位本就绑在旧键上
+      if next_capture != snapshot.capture_hotkey {
+        let _ = hotkeys.bind(HotkeySlot::Capture, Some(&snapshot.capture_hotkey));
+      }
+      if next_main != snapshot.main_hotkey {
+        let _ = hotkeys.bind(HotkeySlot::Main, snapshot.main_hotkey.as_deref());
+      }
       return Err(error);
     }
   }
@@ -39,10 +56,10 @@ pub fn apply_with_hotkeys(
 
 fn restore(store: &mut Store, snapshot: &Settings) {
   store.data.settings.theme = snapshot.theme.clone();
-  store.data.settings.sticky_pinned = snapshot.sticky_pinned;
   store.data.settings.sticky_paper = snapshot.sticky_paper.clone();
   store.data.settings.capture_hotkey = snapshot.capture_hotkey.clone();
   store.data.settings.main_hotkey = snapshot.main_hotkey.clone();
+  store.data.settings.sticky_hotkey = snapshot.sticky_hotkey.clone();
 }
 
 #[cfg(test)]
@@ -62,7 +79,6 @@ mod tests {
     store.data = AppData::default();
     store.data.settings.capture_hotkey = "Alt+Shift+A".to_string();
     store.data.settings.theme = "纸白".to_string();
-    store.data.settings.sticky_pinned = true;
     store
   }
 
@@ -92,7 +108,6 @@ mod tests {
     hotkeys.fail_when = Some("Ctrl+Shift+C".to_string());
     let patch = SettingsPayload {
       theme: Some("石墨".to_string()),
-      sticky_pinned: Some(false),
       capture_hotkey: Some("Ctrl+Shift+C".to_string()),
       ..Default::default()
     };
@@ -100,7 +115,6 @@ mod tests {
     assert!(error.contains("占用"), "失败要给可展示的中文短句：{error}");
     let settings = &store.data.settings;
     assert_eq!(settings.theme, "纸白", "主题回滚");
-    assert!(settings.sticky_pinned, "置顶回滚");
     assert_eq!(settings.capture_hotkey, "Alt+Shift+A", "捕获键回滚");
   }
 
@@ -169,5 +183,55 @@ mod tests {
       None,
       "空串=解绑，槽位清空"
     );
+  }
+
+  /// 便签热键（sticky-separation 第三槽）与其他槽位同一事务语义。
+  #[test]
+  fn sticky_conflict_rolls_back_all_preceding_slots() {
+    let mut store = mem_store();
+    store.data.settings.sticky_hotkey = Some("Alt+Shift+S".to_string());
+    let mut hotkeys = StubHotkeys::new();
+    hotkeys.fail_when = Some("Ctrl+Shift+S".to_string());
+    let patch = SettingsPayload {
+      capture_hotkey: Some("Alt+Shift+Q".to_string()),
+      sticky_hotkey: Some("Ctrl+Shift+S".to_string()),
+      ..Default::default()
+    };
+    assert!(apply_with_hotkeys(&mut store, &patch, &mut hotkeys).is_err());
+
+    let calls = hotkeys.calls.lock().unwrap();
+    let seq: Vec<_> = calls
+      .iter()
+      .map(|(slot, combo)| (*slot, combo.clone()))
+      .collect();
+    assert_eq!(
+      seq,
+      vec![
+        (HotkeySlot::Capture, Some("Alt+Shift+Q".to_string())),
+        (HotkeySlot::Sticky, Some("Ctrl+Shift+S".to_string())),
+        (HotkeySlot::Capture, Some("Alt+Shift+A".to_string())),
+      ],
+      "捕获键先换新 → 便签键失败 → 把捕获键还原（三槽位一个事务）"
+    );
+    assert_eq!(store.data.settings.capture_hotkey, "Alt+Shift+A");
+    assert_eq!(
+      store.data.settings.sticky_hotkey,
+      Some("Alt+Shift+S".to_string()),
+      "便签键回滚到换绑前的值"
+    );
+  }
+
+  #[test]
+  fn unbinding_sticky_hotkey_is_a_valid_operation() {
+    let mut store = mem_store();
+    store.data.settings.sticky_hotkey = Some("Alt+Shift+S".to_string());
+    let mut hotkeys = StubHotkeys::new();
+    let patch = SettingsPayload {
+      sticky_hotkey: Some("".to_string()),
+      ..Default::default()
+    };
+    apply_with_hotkeys(&mut store, &patch, &mut hotkeys).unwrap();
+    assert_eq!(store.data.settings.sticky_hotkey, None);
+    assert_eq!(hotkeys.bound(HotkeySlot::Sticky), None, "空串=解绑");
   }
 }

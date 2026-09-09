@@ -140,14 +140,9 @@ pub fn update_task(
 ) -> Result<Task, String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
-  let pinned_changed = patch.sticky_pinned;
   // 规则在 app/tasks：拖留只增不减
   let next = crate::app::tasks::update(&mut store, &id, patch, &now_text(), today())?;
   save_and_emit(&mut store, &app, &id)?;
-  if let Some(p) = pinned_changed {
-    // H1 验证门：「钉」的动作有没有发生（sticky-background / roadmap H1）
-    crate::telemetry::record_str("sticky_pin", &[("action", if p { "pin" } else { "unpin" })]);
-  }
   Ok(next)
 }
 
@@ -490,65 +485,16 @@ pub fn clear_events() -> Result<(), String> {
 #[serde(rename_all = "camelCase")]
 pub struct StickySelf {
   pub id: String,
-  pub kind: String,
-  pub page: usize,
   pub content: String,
-  pub pinned: bool,
-  pub hidden: bool,
+  pub mini: bool,
 }
 
-fn sticky_kind_of(kind: &str) -> Result<(), String> {
-  if kind != "todo" && kind != "free" {
-    return Err("便签类型只能是 todo / free".to_string());
-  }
-  Ok(())
-}
-
-/// 新建一张便签（todo=镜像今天分页 / free=自由便签）；总数含 float 主便签 ≤ STICKY_CAP。
+/// 新建一张自由便签（sticky-separation：便签只有这一种）。
 /// async：建窗可能被 WebView2 层无限挂起（真机复盘 2026-09-08），绝不能在事件循环
-/// 线程上执行；挂起时走 6s 超时回错，并回滚已入库的便签（不留"清单有窗没有"的幽灵行）。
+/// 线程上执行；建窗逻辑全在 runtime::create_note，与全局热键共用同一入口。
 #[tauri::command]
-pub async fn create_sticky(
-  app: AppHandle,
-  state: State<'_, Shared>,
-  kind: String,
-) -> Result<StickyNote, String> {
-  sticky_kind_of(kind.trim())?;
-  let mut store = lock(&state);
-  store.ensure_writable()?;
-  if 1 + store.data.stickies.len() >= crate::models::STICKY_CAP {
-    return Err("便签最多 6 张，先收起或删除一张".to_string());
-  }
-  let note = crate::models::StickyNote {
-    id: new_id("n"),
-    kind: kind.trim().to_string(),
-    ..Default::default()
-  };
-  let note = store.add_sticky(note);
-  store.save()?;
-  let index = store.data.stickies.len();
-  drop(store);
-  // 级联错位：从 float 主便签位置向右下偏移，避免完全重叠
-  let mut pos: Option<[i32; 2]> = None;
-  if let Some(float) = app.get_window(runtime::FLOAT_LABEL) {
-    if let Ok(p) = float.outer_position() {
-      pos = Some([p.x + 32 * index as i32, p.y + 32 * index as i32]);
-    }
-  }
-  if let Err(e) = runtime::open_note_window(&app, &note.id, note.pinned, true, None) {
-    let mut store = lock(&state);
-    let _ = store.delete_sticky(&note.id);
-    let _ = store.save();
-    return Err(e);
-  }
-  if let (Some([x, y]), Some(w)) = (pos, app.get_window(&runtime::note_label(&note.id))) {
-    let _ = w.set_position(tauri::Position::Physical(tauri::PhysicalPosition::new(x, y)));
-    // 级联位置即刻入档
-    runtime::save_sticky_pos_window(&w);
-  }
-  crate::telemetry::record_str("sticky_create", &[("type", kind.trim())]);
-  emit(&app, StoreEvent::changed("stickies"));
-  Ok(note)
+pub async fn create_sticky(app: AppHandle) -> Result<StickyNote, String> {
+  runtime::create_note(&app)
 }
 
 #[tauri::command]
@@ -557,120 +503,82 @@ pub fn list_stickies(state: State<'_, Shared>) -> Result<Vec<StickyNote>, String
   Ok(store.stickies())
 }
 
-/// 便签自述：前端窗启动时调一次，拿到 身份/类型/分页/内容（float = 1 号待办便签）。
+/// 便签自述：前端窗启动时调一次，拿到 身份/内容/形态（缩小悬浮条 or 展开纸片）。
 #[tauri::command]
 pub fn sticky_self(
   window: tauri::Window,
   state: State<'_, Shared>,
 ) -> Result<StickySelf, String> {
   let label = window.label().to_string();
-  let store = lock(&state);
-  if label == runtime::FLOAT_LABEL {
-    return Ok(StickySelf {
-      id: "sticky".to_string(),
-      kind: "todo".to_string(),
-      page: 0,
-      content: String::new(),
-      pinned: store.data.settings.sticky_pinned,
-      hidden: false,
-    });
-  }
   let id = label
     .strip_prefix("note:")
     .ok_or_else(|| "不是便签窗口".to_string())?
     .to_string();
+  let store = lock(&state);
   let note = store
     .find_sticky(&id)
     .ok_or_else(|| "找不到这张便签".to_string())?;
-  let page = 1 + store
-    .data
-    .stickies
-    .iter()
-    .filter(|s| s.kind == "todo")
-    .position(|s| s.id == id)
-    .unwrap_or(0);
   Ok(StickySelf {
     id,
-    kind: note.kind,
-    page,
     content: note.content,
-    pinned: note.pinned,
-    hidden: note.hidden,
+    mini: note.mini,
   })
 }
 
-/// 更新便签：内容（free，≤500 字）/ 收起展开（联动窗口）/ 置顶（联动 always_on_top）。
-/// async：展开路径会建新窗（open_note_window），不可占用事件循环线程（同 create_sticky）。
+/// 更新便签：内容（≤500 字）/ 形态（缩小悬浮条 ↔ 展开纸片，联动窗口 set_size）。
 #[tauri::command]
-pub async fn update_sticky(
+pub fn update_sticky(
   app: AppHandle,
   state: State<'_, Shared>,
   id: String,
   content: Option<String>,
-  hidden: Option<bool>,
-  pinned: Option<bool>,
+  mini: Option<bool>,
 ) -> Result<StickyNote, String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
   {
     let note = store
       .find_sticky_mut(&id)
-      .ok_or_else(|| "找不到这张便签，可能已经被删除".to_string())?;
+      .ok_or_else(|| "找不到这张便签，可能已经被关闭".to_string())?;
     if let Some(c) = &content {
       let c = c.trim();
       if c.chars().count() > 500 {
-        return Err("自由便签最多 500 字".to_string());
+        return Err("便签最多 500 字".to_string());
       }
       note.content = c.to_string();
     }
-    if let Some(h) = hidden {
-      note.hidden = h;
-    }
-    if let Some(p) = pinned {
-      note.pinned = p;
+    if let Some(m) = mini {
+      note.mini = m;
     }
     note.updated_at = now_text();
   }
   let note = store.find_sticky(&id).ok_or_else(|| "找不到这张便签".to_string())?;
-  let stored = store.runtime.note_pos.get(&id).copied();
   store.save()?;
-  // 窗口操作前必须放锁：open_note_window 内部建窗，且不再取全局锁（v2.2 死锁修复）
+  // 窗口操作前放锁（v2.2 死锁修复的铁律）
   drop(store);
-  let label = runtime::note_label(&id);
-  if let Some(h) = hidden {
-    if h {
-      // 收起 = 记 sticky_close（metric：多张便签使用强度）
-      crate::telemetry::record_str("sticky_close", &[("type", note.kind.as_str())]);
-      runtime::hide_window(&app, &label)?;
-    } else {
-      runtime::open_note_window(&app, &id, note.pinned, true, stored)?;
-    }
-  }
-  if let Some(p) = pinned {
-    if let Some(w) = app.get_window(&label) {
-      let _ = w.set_always_on_top(p);
-    }
+  if let Some(m) = mini {
+    runtime::apply_note_shape(&app, &id, m)?;
   }
   emit(&app, StoreEvent::changed("stickies"));
   Ok(note)
 }
 
-/// 删除便签：待办便签数据无损；自由便签内容销毁（前端二次确认）。
+/// 关闭即销毁（sticky-separation）：便签数据与窗口一并回收，无确认无撤销；
+/// 误关靠写前轮转备份兜底。设置页清单管理是另一处删除入口（那边有两步确认）。
 #[tauri::command]
 pub fn delete_sticky(app: AppHandle, state: State<'_, Shared>, id: String) -> Result<(), String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
-  let kind = store
+  store
     .find_sticky(&id)
-    .ok_or_else(|| "找不到这张便签，可能已经被删除".to_string())?
-    .kind;
+    .ok_or_else(|| "找不到这张便签，可能已经被关闭".to_string())?;
   store.delete_sticky(&id)?;
   store.save()?;
   store.save_runtime_only()?;
   if let Some(w) = app.get_window(&runtime::note_label(&id)) {
     let _ = w.close();
   }
-  crate::telemetry::record_str("sticky_delete", &[("type", kind.as_str())]);
+  crate::telemetry::record_str("sticky_delete", &[]);
   emit(&app, StoreEvent::changed("stickies"));
   Ok(())
 }
@@ -697,35 +605,6 @@ pub fn track_event(name: String, props: Option<String>) -> Result<(), String> {
 #[tauri::command]
 pub fn open_main_window(app: AppHandle) -> Result<(), String> {
   runtime::show_main(&app, None)
-}
-
-#[tauri::command]
-pub fn show_float(app: AppHandle) -> Result<(), String> {
-  runtime::show_window(&app, runtime::FLOAT_LABEL)
-}
-
-#[tauri::command]
-pub fn hide_float(app: AppHandle) -> Result<(), String> {
-  runtime::hide_window(&app, runtime::FLOAT_LABEL)
-}
-
-#[tauri::command]
-pub fn set_sticky_pinned(
-  app: AppHandle,
-  state: State<'_, Shared>,
-  pinned: bool,
-) -> Result<(), String> {
-  runtime::set_sticky_pinned(&app, pinned)?;
-  let mut store = lock(&state);
-  if store.data.settings.sticky_pinned != pinned {
-    store.ensure_writable()?;
-    store.data.settings.sticky_pinned = pinned;
-    store.data.settings.coerce();
-    store.save()?;
-    emit(&app, StoreEvent::changed("settings"));
-  }
-  runtime::sync_tray_pinned(&app, pinned);
-  Ok(())
 }
 
 #[tauri::command]
@@ -806,6 +685,36 @@ pub fn register_main_hotkey(
   if let Err(error) = store.save() {
     store.data.settings.main_hotkey = previous.clone();
     let _ = runtime::register_main_hotkey(&app, &previous);
+    return Err(error);
+  }
+  emit(&app, StoreEvent::changed("settings"));
+  Ok(store.data.settings.clone())
+}
+
+/// 换绑/解绑「新建便签」热键；空串 = 解绑；失败保持旧值（sticky-separation）
+#[tauri::command]
+pub fn register_sticky_hotkey(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  combo: String,
+) -> Result<Settings, String> {
+  let trimmed = combo.trim().to_string();
+  let next = if trimmed.is_empty() {
+    None
+  } else {
+    Some(trimmed)
+  };
+  let mut store = lock(&state);
+  let previous = store.data.settings.sticky_hotkey.clone();
+  runtime::register_sticky_hotkey(&app, &next)?;
+  if previous == next {
+    return Ok(store.data.settings.clone());
+  }
+  store.ensure_writable()?;
+  store.data.settings.sticky_hotkey = next.clone();
+  if let Err(error) = store.save() {
+    store.data.settings.sticky_hotkey = previous.clone();
+    let _ = runtime::register_sticky_hotkey(&app, &previous);
     return Err(error);
   }
   emit(&app, StoreEvent::changed("settings"));

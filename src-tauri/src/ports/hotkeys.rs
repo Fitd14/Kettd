@@ -1,13 +1,15 @@
-//! 全局热键端口（ADR-0002）。本应用只有两个热键槽位（快速记录 / 打开主界面），
+//! 全局热键端口（ADR-0002）。应用共三个热键槽位（快速记录 / 打开主界面 / 新建便签），
 //! 「换绑失败回滚旧键」的事务语义由实现负责（对应命令层原内嵌规则，ADR-0003 下沉目标）。
 
-/// 热键槽位：应用只有这两个，新增槽位 = 新增枚举值 + 设置项
+/// 热键槽位：新增槽位 = 新增枚举值 + 设置项
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HotkeySlot {
   /// 呼出快速记录条（默认 Alt+Shift+A）
   Capture,
   /// 打开主界面
   Main,
+  /// 新建一张便签（默认 Alt+Shift+S，sticky-separation）
+  Sticky,
 }
 
 pub trait HotkeyPort: Send {
@@ -26,7 +28,7 @@ pub mod test_double {
 
   /// 桩热键：bind 恒成功（或按 fail_when 指定组合失败），记录调用。
   pub struct StubHotkeys {
-    pub slots: Mutex<[Option<String>; 2]>,
+    pub slots: Mutex<[Option<String>; 3]>,
     /// 换绑到该组合时失败（模拟被占用）
     pub fail_when: Option<String>,
     pub calls: Mutex<Vec<(HotkeySlot, Option<String>)>>,
@@ -35,7 +37,7 @@ pub mod test_double {
   impl StubHotkeys {
     pub fn new() -> Self {
       Self {
-        slots: Mutex::new([None, None]),
+        slots: Mutex::new([None, None, None]),
         fail_when: None,
         calls: Mutex::new(Vec::new()),
       }
@@ -45,6 +47,7 @@ pub mod test_double {
       match slot {
         HotkeySlot::Capture => 0,
         HotkeySlot::Main => 1,
+        HotkeySlot::Sticky => 2,
       }
     }
   }

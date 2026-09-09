@@ -5,11 +5,9 @@ import {
   createSticky,
   deleteSticky,
   getHotkeyStatus,
-  hideFloat,
   listStickies,
   openDataFolder,
   setSettings,
-  showFloat,
   updateSticky,
   type StickyNoteItem,
 } from '@/lib/api'
@@ -21,9 +19,10 @@ interface Props {
   refresh: () => Promise<void>
 }
 
-/** 与 src-tauri/src/models.rs DEFAULT_HOTKEY / DEFAULT_MAIN_HOTKEY 保持一致 */
+/** 与 src-tauri/src/models.rs DEFAULT_HOTKEY / DEFAULT_MAIN_HOTKEY / DEFAULT_STICKY_HOTKEY 保持一致 */
 const DEFAULT_CAPTURE = 'Alt+Shift+A'
 const DEFAULT_MAIN = 'Alt+Shift+O'
+const DEFAULT_STICKY = 'Alt+Shift+S'
 
 /** 设置视图（planned-settings-ui-spec）：分区块控件，改动即存（set_settings 增量补丁）。 */
 export function SettingsView({ boot, refresh }: Props) {
@@ -33,6 +32,7 @@ export function SettingsView({ boot, refresh }: Props) {
   const [hotkeys, setHotkeys] = useState<HotkeyStatus | null>(null)
   const [capCombo, setCapCombo] = useState(s.captureHotkey)
   const [mainCombo, setMainCombo] = useState(s.mainHotkey ?? '')
+  const [stickyCombo, setStickyCombo] = useState(s.stickyHotkey ?? '')
   const [fadeOpacity, setFadeOpacity] = useState(s.stickyFadeOpacity)
   const [confirmClear, setConfirmClear] = useState(false)
   const [confirmDel, setConfirmDel] = useState<string | null>(null)
@@ -62,18 +62,20 @@ export function SettingsView({ boot, refresh }: Props) {
     await refresh()
   }
 
-  const rebind = async (slot: 'capture' | 'main') => {
+  const rebind = async (slot: 'capture' | 'main' | 'sticky') => {
     const r = slot === 'capture'
       ? await setSettings({ captureHotkey: capCombo.trim() })
-      : await setSettings({ mainHotkey: mainCombo.trim() || null })
+      : slot === 'main'
+        ? await setSettings({ mainHotkey: mainCombo.trim() || null })
+        : await setSettings({ stickyHotkey: stickyCombo.trim() || null })
     if (r.err) { setErr(r.err); return }
     const st = await getHotkeyStatus()
     if (!st.err && st.data) setHotkeys(st.data)
     await refresh()
   }
 
-  const doCreateSticky = async (kind: 'todo' | 'free') => {
-    const r = await createSticky(kind)
+  const doCreateSticky = async () => {
+    const r = await createSticky()
     if (r.err) { setErr(r.err); return }
     setErr(null)
     loadStickies()
@@ -81,7 +83,7 @@ export function SettingsView({ boot, refresh }: Props) {
   }
 
   const doToggleSticky = async (st: StickyNoteItem) => {
-    const r = await updateSticky(st.id, { hidden: !st.hidden })
+    const r = await updateSticky(st.id, { mini: !st.mini })
     if (r.err) { setErr(r.err); return }
     setErr(null)
     loadStickies()
@@ -97,10 +99,15 @@ export function SettingsView({ boot, refresh }: Props) {
   }
 
   const restoreDefaults = async () => {
-    const r = await setSettings({ captureHotkey: DEFAULT_CAPTURE, mainHotkey: DEFAULT_MAIN })
+    const r = await setSettings({
+      captureHotkey: DEFAULT_CAPTURE,
+      mainHotkey: DEFAULT_MAIN,
+      stickyHotkey: DEFAULT_STICKY,
+    })
     if (r.err) { setErr(r.err); return }
     setCapCombo(DEFAULT_CAPTURE)
     setMainCombo(DEFAULT_MAIN)
+    setStickyCombo(DEFAULT_STICKY)
     const st = await getHotkeyStatus()
     if (!st.err && st.data) setHotkeys(st.data)
     setNote('已恢复默认快捷键')
@@ -159,15 +166,7 @@ export function SettingsView({ boot, refresh }: Props) {
       </section>
 
       <section className="section" aria-label="便签">
-        <div className="section-head"><b>便签</b><span>单一便签 · 拖顶部胶条记位</span></div>
-        <div className="set-row"><span>便签置顶
-          <div className="tiny text-muted">固定 = 置顶；解除后便签沉到普通层，可被其他窗口盖住</div>
-        </span>
-          <div className="seg" role="group" aria-label="便签置顶">
-            <button className={`btn sm ${s.stickyPinned ? 'on' : ''}`} onClick={() => { void patch({ stickyPinned: true }) }}>固定</button>
-            <button className={`btn sm ${!s.stickyPinned ? 'on' : ''}`} onClick={() => { void patch({ stickyPinned: false }) }}>不固定</button>
-          </div>
-        </div>
+        <div className="section-head"><b>便签</b><span>随手一张纸 · 常驻置顶 · 关闭即销毁</span></div>
         <div className="set-row"><span>纸面花纹
           <div className="tiny text-muted">水印级纹样，选墨竹/远山时折角旁伴一枚朱印</div>
         </span>
@@ -184,7 +183,7 @@ export function SettingsView({ boot, refresh }: Props) {
           </div>
         </div>
         <div className="set-row"><span>移出淡化
-          <div className="tiny text-muted">鼠标移出便签时淡至下方透明度，融入桌面仍可扫读</div>
+          <div className="tiny text-muted">鼠标移出便签时淡至下方透明度，融入桌面仍可扫读（缩小条不淡化）</div>
         </span>
           <span className="row-flex items-center gap-2">
             <div className="seg" role="group" aria-label="移出淡化">
@@ -209,36 +208,26 @@ export function SettingsView({ boot, refresh }: Props) {
             <code className="tmeta mono" style={{ width: 34, textAlign: 'right' }}>{fadeOpacity}%</code>
           </span>
         </div>
-        <div className="set-row"><span>显示 / 收起
-          <div className="tiny text-muted">1 号待办便签；收起 = 收进托盘，进程常驻</div>
-        </span>
-          <span className="row-flex items-center gap-1.5">
-            <button className="btn xs outline" onClick={() => { void showFloat() }}>显示便签</button>
-            <button className="btn xs outline" onClick={() => { void hideFloat() }}>收起便签</button>
-          </span>
-        </div>
         <div className="set-row"><span>新建便签
-          <div className="tiny text-muted">待办=镜像今天分页；自由=随手写一张纸（≤500 字）· 上限 6 张</div>
+          <div className="tiny text-muted">随手写一张纸（≤500 字）· 上限 6 张 · 也可按热键 {stickyCombo.trim() || '（未绑定）'} 新建</div>
         </span>
           <span className="row-flex items-center gap-1.5">
-            <button className="btn xs outline" onClick={() => { void doCreateSticky('todo') }}>待办便签</button>
-            <button className="btn xs outline" onClick={() => { void doCreateSticky('free') }}>自由便签</button>
+            <button className="btn xs outline" onClick={() => { void doCreateSticky() }}>新建便签</button>
           </span>
         </div>
         {stickyList.length > 0 && (
           <div className="set-row" style={{ alignItems: 'flex-start' }}><span>便签清单
-            <div className="tiny text-muted">收起的可再展开；删除自由便签不可恢复</div>
+            <div className="tiny text-muted">缩小的可再展开；便签是一次性工具，关闭即销毁，此处删除同样不可恢复</div>
           </span>
             <span className="row-flex" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
               {stickyList.map((st) => (
                 <span key={st.id} className="row-flex items-center gap-1.5">
-                  <span className={`badge ${st.kind === 'free' ? 'badge-solid' : ''}`}>{st.kind === 'free' ? '自由' : '待办'}</span>
                   <span className="tiny grow truncate" style={{ maxWidth: 200 }}>
                     {/* ?? '' 是黑屏教训（2026-09-09）：content 一旦缺字段，.split 抛 TypeError = 整树卸载 */}
-                    {st.kind === 'free' ? ((st.content ?? '').split('\n')[0] || '（空）') : '镜像今天'}
+                    {(st.content ?? '').split('\n')[0] || '（空）'}
                   </span>
-                  {st.hidden && <span className="tiny text-muted">已收起</span>}
-                  <button className="btn ghost xs" onClick={() => { void doToggleSticky(st) }}>{st.hidden ? '显示' : '收起'}</button>
+                  {st.mini && <span className="tiny text-muted">已缩小</span>}
+                  <button className="btn ghost xs" onClick={() => { void doToggleSticky(st) }}>{st.mini ? '展开' : '缩小'}</button>
                   {confirmDel === st.id ? (
                     <span className="row-flex items-center gap-1">
                       <button className="btn xs danger" onClick={() => { void doDeleteSticky(st) }}>确认删除</button>
@@ -275,8 +264,18 @@ export function SettingsView({ boot, refresh }: Props) {
             <button className="btn xs outline" onClick={() => { void rebind('main') }}>换绑</button>
           </span>
         </div>
+        <div className="set-row"><span>新建便签
+          <div className="tiny text-muted">
+            随手新建一张便签（不管主窗开没开）。当前绑定：{hotkeys?.sticky ?? '未绑定'}（留空 = 解绑）
+          </div>
+        </span>
+          <span className="row-flex">
+            <input className="input xs" value={stickyCombo} onChange={(e) => setStickyCombo(e.target.value)} aria-label="新建便签热键" />
+            <button className="btn xs outline" onClick={() => { void rebind('sticky') }}>换绑</button>
+          </span>
+        </div>
         <div className="set-row"><span>恢复默认
-          <div className="tiny text-muted">快速记录 {DEFAULT_CAPTURE} · 打开主界面 {DEFAULT_MAIN}</div>
+          <div className="tiny text-muted">快速记录 {DEFAULT_CAPTURE} · 打开主界面 {DEFAULT_MAIN} · 新建便签 {DEFAULT_STICKY}</div>
         </span>
           <button className="btn xs outline" onClick={() => { void restoreDefaults() }}>恢复默认快捷键</button>
         </div>

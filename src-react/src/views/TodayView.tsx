@@ -83,13 +83,6 @@ export function TodayView({ boot, refresh, undo }: Props) {
     await refresh()
   }
 
-  const pinSticky = async (id: string, pinned: boolean) => {
-    const r = await updateTask(id, { stickyPinned: pinned })
-    if (r.err) { setSaveErr(r.err); return }
-    setSaveErr(null)
-    await refresh()
-  }
-
   const rescheduleOverdue = async (id: string) => {
     // 逾期处置：改截止 = 顺延到今天 18:00（明示字面值，本地语义）
     await schedule(id, today)
@@ -166,7 +159,6 @@ export function TodayView({ boot, refresh, undo }: Props) {
                 onToggle={(id) => { void toggle(id) }}
                 onSchedule={(id, due) => { void schedule(id, due) }}
                 onDelete={(id) => { void drop(id) }}
-                onPinSticky={(id, pinned) => { void pinSticky(id, pinned) }}
                 onOpen={setDetailId}
               />
             ))}

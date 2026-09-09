@@ -10,7 +10,6 @@ use tauri::{
 };
 
 pub const MAIN_LABEL: &str = "main";
-pub const FLOAT_LABEL: &str = "float";
 pub const CAPTURE_LABEL: &str = "capture";
 pub const TRAY_ID: &str = "main";
 
@@ -19,6 +18,7 @@ pub const TRAY_ID: &str = "main";
 pub struct HotkeyRegistry {
   pub capture: Option<String>,
   pub main: Option<String>,
+  pub sticky: Option<String>,
 }
 
 pub struct HotkeyLock(pub Mutex<HotkeyRegistry>);
@@ -28,15 +28,7 @@ pub struct HotkeyLock(pub Mutex<HotkeyRegistry>);
 pub enum HotkeyAction {
   Capture,
   OpenMain,
-}
-
-impl HotkeyAction {
-  fn other(self) -> Self {
-    match self {
-      HotkeyAction::Capture => HotkeyAction::OpenMain,
-      HotkeyAction::OpenMain => HotkeyAction::Capture,
-    }
-  }
+  NewSticky,
 }
 
 // ---------------------------------------------------------------- 窗口
@@ -73,21 +65,10 @@ pub fn hide_window(app: &AppHandle, label: &str) -> Result<(), String> {
   window.hide().map_err(|_| "窗口隐藏失败".to_string())
 }
 
-/// 便签固定 = 置顶开关（便签规格 §1：三形态收敛为单一便签，固定只切置顶、位置始终可拖）
-pub fn set_sticky_pinned(app: &AppHandle, pinned: bool) -> Result<(), String> {
-  let window = window_of(app, FLOAT_LABEL)?;
-  let _ = window.set_always_on_top(pinned);
-  Ok(())
-}
-
-/// 便签位置 key：float 主便签沿用历史键 "sticky"，动态窗用自身 id（ADR-0007）
+/// 便签位置 key：动态窗用自身 id（ADR-0007；float 主便签已退役）
 fn sticky_pos_key(window: &Window) -> String {
   let label = window.label();
-  if label == FLOAT_LABEL {
-    "sticky".to_string()
-  } else {
-    label.strip_prefix("note:").unwrap_or(label).to_string()
-  }
+  label.strip_prefix("note:").unwrap_or(label).to_string()
 }
 
 /// 便签位置记忆（ADR-0007 约束：位置归 runtime.json 的 note_pos map，不进用户数据）
@@ -130,29 +111,35 @@ fn is_main_thread() -> bool {
   MAIN_THREAD.get() == Some(&std::thread::current().id())
 }
 
-/// 便签窗 builder 统一配置（在线程内构造：WindowBuilder 非 Send，不能跨线程携带）
-fn note_builder<'a>(app: &'a AppHandle, label: &'a str, pinned: bool) -> WindowBuilder<'a> {
+/// 便签窗尺寸：展开态纸片 380×456；缩小态置顶悬浮文本条 380×40
+pub const NOTE_EXPAND_SIZE: (f64, f64) = (380.0, 456.0);
+pub const NOTE_MINI_SIZE: (f64, f64) = (380.0, 40.0);
+
+/// 便签窗 builder 统一配置（在线程内构造：WindowBuilder 非 Send，不能跨线程携带）。
+/// 常驻置顶无开关（sticky-separation）；尺寸按缩小态标记二选一。
+fn note_builder<'a>(app: &'a AppHandle, label: &'a str, mini: bool) -> WindowBuilder<'a> {
+  let (w, h) = if mini { NOTE_MINI_SIZE } else { NOTE_EXPAND_SIZE };
   WindowBuilder::new(app, label, WindowUrl::App("float.html".into()))
     .title("便签")
-    .inner_size(380.0, 456.0)
+    .inner_size(w, h)
     .resizable(false)
     .decorations(false)
     .transparent(true)
-    .always_on_top(pinned)
+    .always_on_top(true)
     .skip_taskbar(true)
     .visible(false)
 }
 
 /// 建窗：主线程内联；其余线程经帮手线程带 6s 超时。
-/// 超时后顺手探测事件循环是否存活（float 窗 is_visible 同样要过循环队列，
+/// 超时后顺手探测事件循环是否存活（主窗 is_visible 同样要过循环队列，
 /// 3s 内回不来即循环已卡死），结果记 events.jsonl —— 区分「派发丢失」与「循环内卡死」。
 fn build_note_window(
   app: &AppHandle,
   label: String,
-  pinned: bool,
+  mini: bool,
 ) -> Result<tauri::Window, String> {
   let build = move |app: &AppHandle, label: &str| {
-    note_builder(app, label, pinned)
+    note_builder(app, label, mini)
       .build()
       .map_err(|e| {
         let text = format!("{e}");
@@ -182,7 +169,7 @@ fn build_note_window(
       let (tx2, rx2) = std::sync::mpsc::channel::<bool>();
       std::thread::spawn(move || {
         let alive = app2
-          .get_window(FLOAT_LABEL)
+          .get_window(MAIN_LABEL)
           .map(|w| w.is_visible().unwrap_or(false))
           .unwrap_or(false);
         let _ = tx2.send(alive);
@@ -203,63 +190,91 @@ fn build_note_window(
   }
 }
 
-/// 打开（或创建）动态便签窗；show=false 时隐藏创建（收起态重启恢复）。
-/// 已存在则仅按需显示。位置：stored_pos 有存档且在屏内则恢复。
-/// stored_pos 由调用方在自己的锁作用域内取好传入——本函数不碰全局 Store 锁，
-/// 杜绝"命令持锁 → 这里重入同锁"的死锁（v2.2 修复）。
+/// 打开（或创建）便签窗；窗口形态（展开/缩小）由 mini 决定，创建即显示
+/// （缩小态本身就是可见的悬浮条——旧的「收起=隐藏」语义已退役）。
+/// 位置：stored_pos 有存档且在屏内则恢复。stored_pos 由调用方在自己的锁作用域内
+/// 取好传入——本函数不碰全局 Store 锁，杜绝"命令持锁 → 这里重入同锁"的死锁（v2.2 修复）。
 pub fn open_note_window(
   app: &AppHandle,
   id: &str,
-  pinned: bool,
-  show: bool,
+  mini: bool,
   stored_pos: Option<[i32; 2]>,
 ) -> Result<(), String> {
   let label = note_label(id);
   if let Some(existing) = app.get_window(&label) {
-    if show {
-      let _ = existing.show();
-    }
+    let _ = existing.show();
     return Ok(());
   }
-  let window = build_note_window(app, label.clone(), pinned)?;
+  let window = build_note_window(app, label.clone(), mini)?;
   if let Some([x, y]) = stored_pos {
     if capture_pos_on_screen(&window, x, y) {
       let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
     }
   }
-  if show {
-    let _ = window.show();
-  }
+  let _ = window.show();
   Ok(())
 }
 
-/// 启动恢复便签记位；不在任何屏内则保持默认位置
-pub fn restore_sticky_pos(app: &AppHandle) {
-  let stored = app
-    .try_state::<Mutex<Store>>()
-    .and_then(|s| s.lock().ok().and_then(|g| g.runtime.note_pos.get("sticky").copied()));
-  let Some([x, y]) = stored else {
-    return;
+/// 新建一张自由便签（sticky-separation）：设置页命令与全局热键共用的唯一入口。
+/// 建窗可能被 WebView2 层挂起 → 调用方绝不能在事件循环线程上
+/// （命令是 async 跑在线程池；热键回调 spawn 后台线程）。
+/// 失败回滚已入库便签，不留「数据有窗没有」的幽灵行。
+pub fn create_note(app: &AppHandle) -> Result<crate::models::StickyNote, String> {
+  use crate::models::{StickyNote, StoreEvent, STICKY_CAP};
+  let Some(state) = app.try_state::<Mutex<Store>>() else {
+    return Err("应用还没准备好".to_string());
   };
-  if let Ok(window) = window_of(app, FLOAT_LABEL) {
-    if capture_pos_on_screen(&window, x, y) {
-      let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+  let mut guard = state.lock().map_err(|_| "应用状态忙，请重试".to_string())?;
+  guard.ensure_writable()?;
+  if guard.data.stickies.len() >= STICKY_CAP {
+    return Err("便签最多 6 张，先关闭一张".to_string());
+  }
+  let note = guard.add_sticky(StickyNote {
+    id: crate::models::new_id("n"),
+    ..Default::default()
+  });
+  if let Err(error) = guard.save() {
+    return Err(error);
+  }
+  drop(guard);
+
+  // 级联错位基准：任意一张已存在便签窗的实时位置（float 退役后无固定锚点）
+  let anchor = app
+    .windows()
+    .values()
+    .find(|w| w.label().starts_with("note:"))
+    .and_then(|w| w.outer_position().ok())
+    .map(|p| [p.x, p.y]);
+  if let Err(e) = open_note_window(app, &note.id, note.mini, None) {
+    if let Some(state) = app.try_state::<Mutex<Store>>() {
+      if let Ok(mut guard) = state.lock() {
+        let _ = guard.delete_sticky(&note.id);
+        let _ = guard.save();
+      }
     }
+    return Err(e);
   }
+  if let (Some([x, y]), Some(w)) = (anchor, app.get_window(&note_label(&note.id))) {
+    let _ = w.set_position(Position::Physical(PhysicalPosition::new(x + 32, y + 32)));
+    save_sticky_pos_window(&w);
+  }
+  crate::telemetry::record_str("sticky_create", &[("type", "free")]);
+  let _ = app.emit_all("store-changed", StoreEvent::changed("stickies"));
+  Ok(note)
 }
 
-pub fn float_is_focused(app: &AppHandle) -> bool {
-  match window_of(app, FLOAT_LABEL) {
-    Ok(window) => window.is_focused().unwrap_or(true),
-    Err(_) => true,
+/// 便签窗形态切换：缩小 = 380×40 悬浮条；展开 = 380×456 纸片并聚焦。
+/// resizable(false) 只挡用户手拖，编程 set_size 不受限（capture_resize 同款）。
+pub fn apply_note_shape(app: &AppHandle, id: &str, mini: bool) -> Result<(), String> {
+  let window = window_of(app, &note_label(id))?;
+  let (w, h) = if mini { NOTE_MINI_SIZE } else { NOTE_EXPAND_SIZE };
+  window
+    .set_size(LogicalSize::new(w, h))
+    .map_err(|_| "便签窗口改尺寸失败".to_string())?;
+  if !mini {
+    let _ = window.set_focus();
   }
-}
-
-pub fn float_is_visible(app: &AppHandle) -> bool {
-  match window_of(app, FLOAT_LABEL) {
-    Ok(window) => window.is_visible().unwrap_or(false),
-    Err(_) => false,
-  }
+  Ok(())
 }
 
 // ---------------------------------------------------------------- 快速记录浮条
@@ -543,6 +558,13 @@ pub fn register_main_hotkey(app: &AppHandle, combo: &Option<String>) -> Result<(
   result
 }
 
+/// 注册 / 换绑 / 解绑「新建便签」热键；None 或空串 = 解绑（sticky-separation）
+pub fn register_sticky_hotkey(app: &AppHandle, combo: &Option<String>) -> Result<(), String> {
+  let result = sticky_hotkey_inner(app, combo);
+  publish_hotkey_state(app);
+  result
+}
+
 fn main_hotkey_inner(app: &AppHandle, combo: &Option<String>) -> Result<(), String> {
   match combo.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
     Some(target) => register_global_hotkey(app, target, HotkeyAction::OpenMain),
@@ -556,14 +578,32 @@ fn main_hotkey_inner(app: &AppHandle, combo: &Option<String>) -> Result<(), Stri
   }
 }
 
+fn sticky_hotkey_inner(app: &AppHandle, combo: &Option<String>) -> Result<(), String> {
+  match combo.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+    Some(target) => register_global_hotkey(app, target, HotkeyAction::NewSticky),
+    None => {
+      if let Some(old) = read_hotkey(app, HotkeyAction::NewSticky) {
+        let _ = app.global_shortcut_manager().unregister(&old);
+      }
+      store_hotkey(app, HotkeyAction::NewSticky, None);
+      Ok(())
+    }
+  }
+}
+
 fn register_global_hotkey(app: &AppHandle, combo: &str, action: HotkeyAction) -> Result<(), String> {
   let target = combo.trim().to_string();
   if target.is_empty() {
     return Err("快捷键不能为空".to_string());
   }
-  let taken = read_hotkey(app, action.other());
-  if taken.as_deref() == Some(target.as_str()) {
-    return Err("这个快捷键已被快速记录或打开主界面占用，换一个组合".to_string());
+  // 三槽位互斥：任一其他功能绑了这个组合键都拒绝
+  for rival in [HotkeyAction::Capture, HotkeyAction::OpenMain, HotkeyAction::NewSticky] {
+    if rival == action {
+      continue;
+    }
+    if read_hotkey(app, rival).as_deref() == Some(target.as_str()) {
+      return Err("这个快捷键已被其他功能占用，换一个组合".to_string());
+    }
   }
   let previous = read_hotkey(app, action);
   let mut manager = app.global_shortcut_manager();
@@ -607,6 +647,20 @@ fn bind_global_hotkey<M: GlobalShortcutManager>(
         })
         .is_ok()
     }
+    HotkeyAction::NewSticky => {
+      let handle = app.clone();
+      manager
+        .register(combo, move || {
+          // 建窗可能被 WebView2 层挂起（真机复盘）：绝不能在事件循环线程上执行，
+          // 甩到后台线程，6s 超时机制在 build_note_window 里兜底。
+          // register 的闭包是 Fn（可多次触发），handle 只能克隆不能移动。
+          let handle = handle.clone();
+          std::thread::spawn(move || {
+            let _ = create_note(&handle);
+          });
+        })
+        .is_ok()
+    }
   }
 }
 
@@ -625,6 +679,7 @@ pub fn bound_combo(app: &AppHandle, slot: crate::ports::hotkeys::HotkeySlot) -> 
   let action = match slot {
     crate::ports::hotkeys::HotkeySlot::Capture => HotkeyAction::Capture,
     crate::ports::hotkeys::HotkeySlot::Main => HotkeyAction::OpenMain,
+    crate::ports::hotkeys::HotkeySlot::Sticky => HotkeyAction::NewSticky,
   };
   read_hotkey(app, action)
 }
@@ -638,11 +693,12 @@ fn store_hotkey(app: &AppHandle, action: HotkeyAction, value: Option<String>) {
   }
 }
 
-/// 两个热键的**实际注册**快照（read_hotkey 是唯一事实来源，不另存一份判断）
+/// 三个热键的**实际注册**快照（read_hotkey 是唯一事实来源，不另存一份判断）
 pub fn hotkey_status(app: &AppHandle) -> crate::models::HotkeyStatus {
   crate::models::HotkeyStatus {
     capture: read_hotkey(app, HotkeyAction::Capture),
     main: read_hotkey(app, HotkeyAction::OpenMain),
+    sticky: read_hotkey(app, HotkeyAction::NewSticky),
   }
 }
 
@@ -657,6 +713,7 @@ fn slot(registry: &HotkeyRegistry, action: HotkeyAction) -> &Option<String> {
   match action {
     HotkeyAction::Capture => &registry.capture,
     HotkeyAction::OpenMain => &registry.main,
+    HotkeyAction::NewSticky => &registry.sticky,
   }
 }
 
@@ -664,23 +721,20 @@ fn slot_mut(registry: &mut HotkeyRegistry, action: HotkeyAction) -> &mut Option<
   match action {
     HotkeyAction::Capture => &mut registry.capture,
     HotkeyAction::OpenMain => &mut registry.main,
+    HotkeyAction::NewSticky => &mut registry.sticky,
   }
 }
 
 // ---------------------------------------------------------------- 托盘
 
-pub fn tray_menu(pinned: bool) -> SystemTrayMenu {
-  let mut pinned_item = CustomMenuItem::new("sticky_pinned", "便签置顶");
-  if pinned {
-    pinned_item = pinned_item.selected();
-  }
+pub fn tray_menu() -> SystemTrayMenu {
   SystemTrayMenu::new()
     .add_item(CustomMenuItem::new("open_main", "打开主界面"))
     .add_item(CustomMenuItem::new("capture", "快速记录"))
     .add_native_item(SystemTrayMenuItem::Separator)
-    .add_item(CustomMenuItem::new("float_show", "显示便签"))
-    .add_item(CustomMenuItem::new("float_hide", "隐藏便签"))
-    .add_item(pinned_item)
+    .add_item(CustomMenuItem::new("sticky_new", "新建便签"))
+    .add_item(CustomMenuItem::new("sticky_show_all", "显示全部便签"))
+    .add_item(CustomMenuItem::new("sticky_hide_all", "隐藏全部便签"))
     .add_native_item(SystemTrayMenuItem::Separator)
     .add_item(CustomMenuItem::new("reminders", "管理提醒"))
     .add_item(CustomMenuItem::new("weekly", "本周汇总导出"))
@@ -689,17 +743,17 @@ pub fn tray_menu(pinned: bool) -> SystemTrayMenu {
     .add_item(CustomMenuItem::new("quit", "退出"))
 }
 
-pub fn build_tray(pinned: bool) -> SystemTray {
-  SystemTray::new().with_id(TRAY_ID).with_menu(tray_menu(pinned))
+pub fn build_tray() -> SystemTray {
+  SystemTray::new().with_id(TRAY_ID).with_menu(tray_menu())
 }
 
-/// 置顶开关变化后刷新托盘勾选
-pub fn sync_tray_pinned(app: &AppHandle, pinned: bool) {
-  if let Some(handle) = app.tray_handle_by_id(TRAY_ID) {
-    if let Some(item) = handle.try_get_item("sticky_pinned") {
-      let _ = item.set_selected(pinned);
-    }
-  }
+/// 便签 id 的锁内快照（托盘/热键等后台动作先拿 id 列表，再逐个操作窗口，
+/// 不把 Store 锁带进窗口操作——v2.2 死锁教训）
+fn note_ids(app: &AppHandle) -> Vec<String> {
+  app
+    .try_state::<Mutex<Store>>()
+    .and_then(|s| s.lock().ok().map(|g| g.data.stickies.iter().map(|n| n.id.clone()).collect()))
+    .unwrap_or_default()
 }
 
 /// 托盘菜单点击分发；返回 true 表示要退出应用
@@ -711,34 +765,21 @@ pub fn handle_tray_click(app: &AppHandle, id: &str) -> bool {
     "capture" => {
       let _ = open_capture_overlay(app);
     }
-    "float_show" => {
-      let _ = show_window(app, FLOAT_LABEL);
+    "sticky_new" => {
+      let handle = app.clone();
+      std::thread::spawn(move || {
+        let _ = create_note(&handle);
+      });
     }
-    "float_hide" => {
-      let _ = hide_window(app, FLOAT_LABEL);
-    }
-    "sticky_pinned" => {
-      let current = app
-        .try_state::<Mutex<Store>>()
-        .and_then(|s| s.lock().ok().map(|g| g.data.settings.sticky_pinned))
-        .unwrap_or(true);
-      let next = !current;
-      let _ = set_sticky_pinned(app, next);
-      if let Some(state) = app.try_state::<Mutex<Store>>() {
-        let mut guard = match state.lock() {
-          Ok(value) => value,
-          Err(poisoned) => poisoned.into_inner(),
-        };
-        guard.data.settings.sticky_pinned = next;
-        if guard.save().is_ok() {
-          drop(guard);
-          let _ = app.emit_all(
-            "store-changed",
-            crate::models::StoreEvent::changed("settings"),
-          );
-        }
+    "sticky_show_all" => {
+      for id in note_ids(app) {
+        let _ = show_window(app, &note_label(&id));
       }
-      sync_tray_pinned(app, next);
+    }
+    "sticky_hide_all" => {
+      for id in note_ids(app) {
+        let _ = hide_window(app, &note_label(&id));
+      }
     }
     "reminders" => {
       let _ = show_main(app, Some("/planned/reminders"));

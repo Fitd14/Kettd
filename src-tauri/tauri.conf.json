@@ -81,20 +81,6 @@
         "url": "index.html"
       },
       {
-        "label": "float",
-        "title": "待办列表",
-        "width": 380,
-        "height": 456,
-        "resizable": false,
-        "fullscreen": false,
-        "decorations": false,
-        "transparent": true,
-        "visible": true,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "url": "float.html"
-      },
-      {
         "label": "capture",
         "title": "快速记录",
         "width": 560,

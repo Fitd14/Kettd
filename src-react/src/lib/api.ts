@@ -44,8 +44,6 @@ export interface Task {
   legacy?: boolean
   /** 单向 task→KB 引用（frame H1b 预埋） */
   kbRefs?: string[]
-  /** 用户主动钉上便签的单条（便签规格 D2） */
-  stickyPinned?: boolean
   /** 同列表手动排序位（便签规格 §12.2）；缺省 = 未手动排过 */
   sortOrder?: number | null
   subtasks: Subtask[]
@@ -68,7 +66,6 @@ export interface TaskPayload {
   doneAt?: unknown
   deletedAt?: unknown
   legacy?: boolean
-  stickyPinned?: boolean | null
   kbRefs?: string[] | null
   subtasks?: Subtask[]
   notes?: Note[]
@@ -123,7 +120,6 @@ export interface Dnd {
 
 export interface Settings {
   theme: string
-  stickyPinned: boolean
   stickyPaper: string
   /** 移出淡化开关（planned-settings B.1★，默认开） */
   stickyFade: boolean
@@ -133,6 +129,8 @@ export interface Settings {
   stickyPattern: string
   captureHotkey: string
   mainHotkey: string | null
+  /** 新建便签全局热键（sticky-separation）；null = 已解绑 */
+  stickyHotkey: string | null
   dnd: Dnd
   remindCapPerHour: number
   onboarded: boolean
@@ -142,13 +140,13 @@ export interface Settings {
 
 export interface SettingsPayload {
   theme?: string
-  stickyPinned?: boolean
   stickyPaper?: string
   stickyFade?: boolean
   stickyFadeOpacity?: number
   stickyPattern?: string
   captureHotkey?: string
   mainHotkey?: string | null
+  stickyHotkey?: string | null
   dnd?: Partial<Dnd>
   remindCapPerHour?: number
   onboarded?: boolean
@@ -202,6 +200,7 @@ export interface Bootstrap {
 export interface HotkeyStatus {
   capture: string | null
   main: string | null
+  sticky: string | null
 }
 
 export interface RestoreResult {
@@ -305,50 +304,44 @@ export const clearEvents = () => call<void>('clear_events')
 export const trackEvent = (name: string, props?: Record<string, unknown>) =>
   call<void>('track_event', { name, props: props ? JSON.stringify(props) : null })
 
-/* ---------------------------------------------------------------- 多便签（H1 · multi-sticky-spec） */
+/* ---------------------------------------------------------------- 便签（sticky-separation：纯自由便签，多开） */
 
 export interface StickyNoteItem {
   id: string
-  kind: 'todo' | 'free'
   content: string
-  pinned: boolean
-  hidden: boolean
+  /** 缩小态：置顶悬浮文本条（显示正文第一行，点击展开） */
+  mini: boolean
   createdAt: string
   updatedAt: string
 }
 
 export interface StickySelf {
   id: string
-  kind: 'todo' | 'free'
-  /** 待办便签的分页页码（0 起）：显示 todayList 的第 page*7 起 7 条 */
-  page: number
   content: string
-  pinned: boolean
-  hidden: boolean
+  mini: boolean
 }
 
-export const createSticky = (kind: 'todo' | 'free') => call<StickyNoteItem>('create_sticky', { kind })
+export const createSticky = () => call<StickyNoteItem>('create_sticky')
 export const listStickies = () => call<StickyNoteItem[]>('list_stickies')
 export const updateSticky = (
   id: string,
-  patch: { content?: string; hidden?: boolean; pinned?: boolean },
+  patch: { content?: string; mini?: boolean },
 ) =>
   call<StickyNoteItem>('update_sticky', {
     id,
     content: patch.content ?? null,
-    hidden: patch.hidden ?? null,
-    pinned: patch.pinned ?? null,
+    mini: patch.mini ?? null,
   })
+/** 关闭即销毁（一次性工具语义）：窗口与数据一并回收 */
 export const deleteSticky = (id: string) => call<void>('delete_sticky', { id })
-/** 便签窗启动时调一次：拿到自己是谁（label → id/kind/分页/内容） */
+/** 便签窗启动时调一次：拿到自己是谁（label → id/内容/形态） */
 export const stickySelf = () => call<StickySelf>('sticky_self')
 export const openMainWindow = (route?: string) => call<void>('open_main_window', route ? { route } : undefined)
-export const showFloat = () => call<void>('show_float')
-export const hideFloat = () => call<void>('hide_float')
 export const openDataFolder = () => call<void>('open_data_folder')
-export const setStickyPinned = (pinned: boolean) => call<void>('set_sticky_pinned', { pinned })
 export const registerCaptureHotkey = (combo: string) => call<void>('register_capture_hotkey', { combo })
 export const registerMainHotkey = (combo: string | null) => call<void>('register_main_hotkey', { combo })
+/** 新建便签热键（默认 Alt+Shift+S，可解绑）；空串 = 解绑 */
+export const registerStickyHotkey = (combo: string | null) => call<void>('register_sticky_hotkey', { combo })
 /** 热键实际注册快照（null = 未绑上/已解绑），设置页据此标「未生效」 */
 export const getHotkeyStatus = () => call<HotkeyStatus>('get_hotkey_status')
 export const openCaptureOverlay = () => call<void>('open_capture_overlay')

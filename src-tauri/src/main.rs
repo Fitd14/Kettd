@@ -72,10 +72,9 @@ fn main() {
   if purged > 0 {
     let _ = boot.save();
   }
-  let sticky_pinned = boot.data.settings.sticky_pinned;
 
   let app = tauri::Builder::default()
-    // 状态必须在窗口创建前注册：float 窗口随 build() 立即加载页面并 invoke，
+    // 状态必须在窗口创建前注册：便签窗（note:*）与 capture 窗随 build() 立即加载页面并 invoke，
     // 而 setup 在窗口创建后才执行，在 setup 里 manage 会撞上启动竞态直接 panic
     .manage(Mutex::new(boot))
     .manage(runtime::HotkeyLock(Mutex::new(
@@ -110,15 +109,13 @@ fn main() {
       commands::snooze_reminder,
       commands::set_settings,
       commands::open_main_window,
-      commands::show_float,
-      commands::hide_float,
-      commands::set_sticky_pinned,
       commands::open_capture_overlay,
       commands::close_capture_overlay,
       commands::capture_start_drag,
       commands::capture_resize,
       commands::register_capture_hotkey,
       commands::register_main_hotkey,
+      commands::register_sticky_hotkey,
       commands::open_data_folder,
       commands::restore_backup,
       commands::rollback_schema_split,
@@ -138,7 +135,7 @@ fn main() {
       commands::delete_sticky,
       commands::sticky_self
     ])
-    .system_tray(runtime::build_tray(sticky_pinned))
+    .system_tray(runtime::build_tray())
     .setup(|app| {
       let handle = app.handle().clone();
       let state = app.state::<Mutex<store::Store>>();
@@ -150,12 +147,14 @@ fn main() {
         Ok(guard) => (
           guard.data.settings.capture_hotkey.clone(),
           guard.data.settings.main_hotkey.clone(),
+          guard.data.settings.sticky_hotkey.clone(),
         ),
         Err(poisoned) => {
           let guard = poisoned.into_inner();
           (
             guard.data.settings.capture_hotkey.clone(),
             guard.data.settings.main_hotkey.clone(),
+            guard.data.settings.sticky_hotkey.clone(),
           )
         }
       };
@@ -169,8 +168,8 @@ fn main() {
       );
       let sticky_count = state
         .lock()
-        .map(|g| 1 + g.data.stickies.len())
-        .unwrap_or(1);
+        .map(|g| g.data.stickies.len())
+        .unwrap_or(0);
       telemetry::record(
         "app_launch",
         serde_json::json!({
@@ -178,7 +177,7 @@ fn main() {
           "sticky_count": sticky_count
         }),
       );
-      // 捕获热键：窗口全部就绪后注册一次；失败重试 3 次（失败时前端可仍用悬浮面板输入框）
+      // 三个全局热键：窗口全部就绪后注册一次；失败重试 3 次（失败时前端可仍用主窗输入框）
       let hotkey_app = handle.clone();
       std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(400));
@@ -197,8 +196,10 @@ fn main() {
         }
         // 打开主界面热键：默认 Alt+Shift+O，用户解绑（None）则不注册
         let main_failed = runtime::register_main_hotkey(&hotkey_app, &combo.1).is_err();
+        // 新建便签热键：默认 Alt+Shift+S，解绑（None）则不注册（sticky-separation）
+        let sticky_failed = runtime::register_sticky_hotkey(&hotkey_app, &combo.2).is_err();
         // qa-1：注册失败不再静默 —— 提示一次「哪个键没绑上」，再把实际注册快照广播给前端标「未生效」
-        if cap_failed || main_failed {
+        if cap_failed || main_failed || sticky_failed {
           let mut dead: Vec<String> = Vec::new();
           if cap_failed {
             dead.push(format!("快速记录 {}", combo.0));
@@ -206,6 +207,11 @@ fn main() {
           if main_failed {
             if let Some(main) = &combo.1 {
               dead.push(format!("打开主界面 {}", main));
+            }
+          }
+          if sticky_failed {
+            if let Some(sticky) = &combo.2 {
+              dead.push(format!("新建便签 {}", sticky));
             }
           }
           runtime::notify_title(
@@ -218,23 +224,16 @@ fn main() {
       });
       // 提醒调度线程（托盘常驻，A3 批复）
       scheduler::start(handle.clone());
-      // 便签置顶跟随设置 + 恢复记位（位置在 runtime.json 的 note_pos，ADR-0007）
-      let state = handle.state::<Mutex<store::Store>>();
-      let pinned = match state.lock() {
-        Ok(guard) => guard.data.settings.sticky_pinned,
-        Err(poisoned) => poisoned.into_inner().data.settings.sticky_pinned,
-      };
-      let _ = runtime::set_sticky_pinned(&handle, pinned);
-      runtime::restore_sticky_pos(&handle);
-      // 多便签：恢复额外便签窗（收起态隐藏创建，清单可再展开）
+      // 多便签恢复（sticky-separation：全部为动态 note:* 窗，缩小态以悬浮条形态恢复）
       {
+        let state = handle.state::<Mutex<store::Store>>();
         let (stickies, note_pos) = state
           .lock()
           .map(|g| (g.data.stickies.clone(), g.runtime.note_pos.clone()))
           .unwrap_or_default();
         for note in &stickies {
           let pos = note_pos.get(&note.id).copied();
-          let _ = runtime::open_note_window(&handle, &note.id, note.pinned, !note.hidden, pos);
+          let _ = runtime::open_note_window(&handle, &note.id, note.mini, pos);
         }
       }
       if let Some(tray) = handle.tray_handle_by_id(runtime::TRAY_ID) {
@@ -258,15 +257,31 @@ fn main() {
           api.prevent_close();
           let _ = event.window().hide();
         }
+        // 便签窗关闭 = 销毁（sticky-separation：关闭即消失，含 Alt+F4）；
+        // 数据与窗口一起回收，堵住「Alt+F4 只关窗、数据残留」的旧漏洞
+        tauri::WindowEvent::CloseRequested { api: _, .. } if label.starts_with("note:") => {
+          if let Some(state) = event.window().try_state::<Mutex<store::Store>>() {
+            if let Ok(mut guard) = state.lock() {
+              let id = label.strip_prefix("note:").unwrap_or(&label).to_string();
+              if guard.delete_sticky(&id).is_ok() {
+                let _ = guard.save();
+                let _ = guard.save_runtime_only();
+                drop(guard);
+                let _ = event
+                  .window()
+                  .emit_all("store-changed", crate::models::StoreEvent::changed("stickies"));
+              }
+            }
+          }
+          crate::telemetry::record_str("sticky_delete", &[("via", "alt_f4")]);
+        }
         // 快速记录条失焦即收起（PRD 6.1 的边缘态）；收起前记忆位置
         tauri::WindowEvent::Focused(false) if label == runtime::CAPTURE_LABEL => {
           runtime::save_capture_pos_window(event.window());
           let _ = event.window().hide();
         }
-        // 便签拖动即记位（位置归 runtime.json，不轮转；float 主便签 + note:* 动态便签）
-        tauri::WindowEvent::Moved(_)
-          if label == runtime::FLOAT_LABEL || label.starts_with("note:") =>
-        {
+        // 便签拖动即记位（位置归 runtime.json，不轮转；note:* 动态便签）
+        tauri::WindowEvent::Moved(_) if label.starts_with("note:") => {
           runtime::save_sticky_pos_window(event.window());
         }
         _ => {}

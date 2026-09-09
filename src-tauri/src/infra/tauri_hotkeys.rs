@@ -1,5 +1,5 @@
 //! Tauri 全局热键实现。注册/回滚的实际行为在 runtime（窗口/托盘耦合），
-//! 这里把「两个槽位」翻译成对应的 runtime 调用，使 app::settings 的事务可测试。
+//! 这里把「三个槽位」翻译成对应的 runtime 调用，使 app::settings 的事务可测试。
 
 use crate::ports::hotkeys::{HotkeyPort, HotkeySlot};
 use tauri::AppHandle;
@@ -22,6 +22,7 @@ impl HotkeyPort for TauriHotkeys {
         combo.ok_or_else(|| "快捷键不能为空".to_string())?,
       ),
       HotkeySlot::Main => crate::runtime::register_main_hotkey(&self.app, &combo.map(str::to_string)),
+      HotkeySlot::Sticky => crate::runtime::register_sticky_hotkey(&self.app, &combo.map(str::to_string)),
     }
   }
 

@@ -13,6 +13,7 @@ pub const CATEGORIES: [&str; 3] = ["工作", "学习", "生活"];
 pub const PRIORITIES: [&str; 3] = ["high", "med", "low"];
 pub const DEFAULT_HOTKEY: &str = "Alt+Shift+A";
 pub const DEFAULT_MAIN_HOTKEY: &str = "Alt+Shift+O";
+pub const DEFAULT_STICKY_HOTKEY: &str = "Alt+Shift+S";
 pub const DEFAULT_DND_FROM: &str = "23:00";
 pub const DEFAULT_DND_TO: &str = "07:30";
 pub const REMINDER_CAP_DEFAULT: u32 = 3;
@@ -153,9 +154,6 @@ pub struct Task {
   /// 挂载的知识条目 id（**单向** task→KB，H2 验证后才有反向/活引用）
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub kb_refs: Vec<String>,
-  /// 用户主动钉上便签的单条（便签规格 D2：默认镜像今天 + 可钉单条）
-  #[serde(default, skip_serializing_if = "is_false")]
-  pub sticky_pinned: bool,
   /// 同列表内手动排序位（便签规格 §12.2）；None = 未手动排过，按 created_at 兜底
   #[serde(skip_serializing_if = "is_absent")]
   pub sort_order: Option<i64>,
@@ -183,7 +181,6 @@ impl Default for Task {
       deleted_at: None,
       legacy: false,
       kb_refs: Vec::new(),
-      sticky_pinned: false,
       sort_order: None,
       subtasks: Vec::new(),
       notes: Vec::new(),
@@ -285,9 +282,6 @@ impl Default for Dnd {
 pub struct Settings {
   /// 主题（float / dark / light …由前端决定，后端只存不解释）
   pub theme: String,
-  /// 便签固定 = 置顶（便签规格 §1：三形态收敛为单一便签，仅剩置顶开关；旧 floatForm 忽略即归一）
-  #[serde(default = "bool_true")]
-  pub sticky_pinned: bool,
   /// 便签纸色（便签规格 §12.1：warm 暖白纸 | kraft 牛皮纸 | cyan 淡青 | ink 暗墨，预设四选一非取色器）
   #[serde(default = "default_sticky_paper")]
   pub sticky_paper: String,
@@ -303,6 +297,9 @@ pub struct Settings {
   pub capture_hotkey: String,
   /// None = 未绑定全局快捷键
   pub main_hotkey: Option<String>,
+  /// 便签全局热键（sticky-separation）：新建一张自由便签；None = 未绑定（可在设置解绑）
+  #[serde(default = "default_sticky_hotkey")]
+  pub sticky_hotkey: Option<String>,
   pub dnd: Dnd,
   pub remind_cap_per_hour: u32,
   pub onboarded: bool,
@@ -317,17 +314,21 @@ fn telemetry_default() -> bool {
   true
 }
 
+fn default_sticky_hotkey() -> Option<String> {
+  Some(DEFAULT_STICKY_HOTKEY.to_string())
+}
+
 impl Default for Settings {
   fn default() -> Self {
     Self {
       theme: "float".to_string(),
-      sticky_pinned: true,
       sticky_paper: "warm".to_string(),
       sticky_fade: true,
       sticky_fade_opacity: 38,
       sticky_pattern: "none".to_string(),
       capture_hotkey: DEFAULT_HOTKEY.to_string(),
       main_hotkey: Some(DEFAULT_MAIN_HOTKEY.to_string()),
+      sticky_hotkey: Some(DEFAULT_STICKY_HOTKEY.to_string()),
       dnd: Dnd::default(),
       remind_cap_per_hour: REMINDER_CAP_DEFAULT,
       onboarded: false,
@@ -360,6 +361,11 @@ impl Settings {
         self.main_hotkey = None;
       }
     }
+    if let Some(value) = self.sticky_hotkey.as_deref() {
+      if value.trim().is_empty() {
+        self.sticky_hotkey = None;
+      }
+    }
     if self.remind_cap_per_hour == 0 || self.remind_cap_per_hour > 60 {
       self.remind_cap_per_hour = REMINDER_CAP_DEFAULT;
     }
@@ -372,23 +378,20 @@ impl Settings {
   }
 }
 
-/// 便签（多便签 H1，multi-sticky-spec）：todo=镜像今天分页 / free=自由便签。
+/// 便签（sticky-separation 定稿）：纯自由便签，≤500 字纯文本，多开（≤ STICKY_CAP）。
+/// 三态生命周期：展开 ↔ 缩小（置顶悬浮文本条）↔ 关闭（销毁）；常驻置顶无开关。
 /// 内容归 data.json（用户数据，ADR-0005）；位置归 runtime.json note_pos（ADR-0007）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct StickyNote {
   pub id: String,
-  /// "todo" | "free"
-  pub kind: String,
-  /// 自由便签正文（纯文本 ≤500 字）；待办便签恒空。
+  /// 自由便签正文（纯文本 ≤500 字）。
   /// 空 content 也必须序列化：前端类型契约 content:string 必填，字段缺省会
   /// 让设置页清单 st.content.split 抛 TypeError、整树卸载黑屏（真机复盘 2026-09-09）
   pub content: String,
-  #[serde(default = "bool_true")]
-  pub pinned: bool,
-  /// 收起（窗口隐藏但数据保留，清单可再展开）
+  /// 缩小态：置顶悬浮文本条（显示正文第一行，点击展开）
   #[serde(default, skip_serializing_if = "is_false")]
-  pub hidden: bool,
+  pub mini: bool,
   pub created_at: String,
   pub updated_at: String,
 }
@@ -398,10 +401,8 @@ impl Default for StickyNote {
     let stamp = now_text();
     Self {
       id: String::new(),
-      kind: "free".to_string(),
       content: String::new(),
-      pinned: true,
-      hidden: false,
+      mini: false,
       created_at: stamp.clone(),
       updated_at: stamp,
     }
@@ -415,7 +416,7 @@ pub struct AppData {
   pub tasks: Vec<Task>,
   pub reminders: Vec<Reminder>,
   pub settings: Settings,
-  /// 额外便签（多便签 H1）：1 号待办便签 = conf 声明的 float 窗（id "sticky"），不入此数组
+  /// 额外便签（sticky-separation）：纯自由便签，全部为动态 note:* 窗（float 已退役）
   #[serde(default)]
   pub stickies: Vec<StickyNote>,
 }
@@ -523,7 +524,6 @@ pub struct TaskPayload {
   pub subtasks: Option<Vec<Subtask>>,
   pub notes: Option<Vec<Note>>,
   pub kb_refs: Option<Vec<String>>,
-  pub sticky_pinned: Option<bool>,
   pub sticky_paper: Option<String>,
   pub source: Option<Source>,
   pub created_at: Option<String>,
@@ -568,7 +568,6 @@ pub struct DndPayload {
 #[serde(rename_all = "camelCase", default)]
 pub struct SettingsPayload {
   pub theme: Option<String>,
-  pub sticky_pinned: Option<bool>,
   pub sticky_paper: Option<String>,
   pub sticky_fade: Option<bool>,
   pub sticky_fade_opacity: Option<u32>,
@@ -576,6 +575,7 @@ pub struct SettingsPayload {
   pub telemetry_enabled: Option<bool>,
   pub capture_hotkey: Option<String>,
   pub main_hotkey: Option<String>,
+  pub sticky_hotkey: Option<String>,
   pub dnd: Option<DndPayload>,
   pub remind_cap_per_hour: Option<u32>,
   pub onboarded: Option<bool>,
@@ -657,6 +657,7 @@ pub struct DataHealthV2 {
 pub struct HotkeyStatus {
   pub capture: Option<String>,
   pub main: Option<String>,
+  pub sticky: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

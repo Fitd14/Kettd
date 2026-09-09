@@ -75,10 +75,10 @@ interface Dnd { enabled: boolean; from: string; to: string }   // 默认 true, 2
 
 interface Settings {
   theme: string                    // 主题名（float / dark / light，前端解释）
-  stickyPinned: boolean            // 便签固定=置顶（三形态已收敛，便签规格 §1）
   stickyPaper: string              // 便签纸色：warm | kraft | cyan | ink（§12.1 四选一）
   captureHotkey: string            // 默认 "Alt+Shift+A"
   mainHotkey: string | null        // 打开主界面全局热键；null = 未绑定；默认 "Alt+Shift+O"
+  stickyHotkey: string | null      // 新建便签全局热键；null = 未绑定；默认 "Alt+Shift+S"
   dnd: Dnd
   remindCapPerHour: number         // 默认 3
   onboarded: boolean
@@ -153,14 +153,12 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `toggle_reminder` | `id` | `Reminder` | completed ⇄ enabled；重新启用会清 `snoozedUntil` |
 | `snooze_reminder` | `id`, `minutes` | `Reminder` | 写 `snoozedUntil = now + minutes`（1–720） |
 | `get_settings` | — | `Settings` | |
-| `set_settings` | `patch: Partial<Settings>` | `Settings` | 部分字段 MERGE；改 `captureHotkey` 会真实重绑热键，任一热键失败整次回滚（两槽位事务）并 Err「快捷键被占用，请用备用入口」；`stickyPinned` 改设置值（窗口同步走 `set_sticky_pinned`）；`stickyPaper` 校验四预设 |
+| `set_settings` | `patch: Partial<Settings>` | `Settings` | 部分字段 MERGE；改任一热键（`captureHotkey`/`mainHotkey`/`stickyHotkey`）会真实重绑热键，任一失败整次回滚（三槽位事务）并 Err「快捷键被占用，请用备用入口」；`stickyPaper` 校验四预设 |
 | `open_main_window` | — | `void` | 显示主窗并请求焦点 |
-| `show_float` | — | `void` | 显示悬浮面板并请求焦点 |
-| `hide_float` | — | `void` | 隐藏悬浮面板（不退出进程） |
 | `open_data_folder` | — | `void` | 在文件管理器里打开 `%APPDATA%/todo-list`；失败 Err「打不开这个位置，请手动前往」 |
-| `set_sticky_pinned` | `pinned: boolean` | `void` | 便签规格 §1（三形态收敛为单一便签）：固定=仅切换置顶，位置始终可拖；结果写回 `settings.stickyPinned`，托盘勾选同步 |
 | `register_capture_hotkey` | `combo` | `Settings` | 例 `Alt+Shift+A`；注册失败 → Err「快捷键被占用，请用备用入口」（保持旧值） |
-| `register_main_hotkey` | `combo` | `Settings` | 打开主界面全局热键；`combo` 空串 = 解绑（`mainHotkey` → `null`）；与 `register_capture_hotkey` 同一约束：组合键互斥、失败保持旧值 |
+| `register_main_hotkey` | `combo` | `Settings` | 打开主界面全局热键；`combo` 空串 = 解绑（`mainHotkey` → `null`）；与其他槽位互斥、失败保持旧值 |
+| `register_sticky_hotkey` | `combo` | `Settings` | 新建便签全局热键（sticky-separation，默认 Alt+Shift+S）；`combo` 空串 = 解绑；与其他槽位互斥、失败保持旧值 |
 | `open_capture_overlay` | — | `void` | label `capture`：560×**内容实高**（动态高度，见 `capture_resize`）、无边框、「硫酸纸」材质（OS `apply_blur` 暖纸 tint + DWM 圆角，CSS 层负责反光描边/厚度/可读性，圆角全权归 DWM、CSS `border-radius:0`）、屏幕上部 28% 居中、置顶，显示后 emit `capture-opened` 让前端聚焦输入框；失焦自动收起 |
 | `close_capture_overlay` | — | `void` | |
 | `capture_start_drag` | — | `void` | 让无边框捕获条可被鼠标拖动（转调 `window.start_dragging()`）。**当前前端未接线** —— 实际拖拽走 Tauri 的 `data-tauri-drag-region` 属性（见 `capture.html` 的 ✎ 把手）；此命令作为备用入口保留，位置记忆由 `settings.capturePos` 承担 |
@@ -175,16 +173,16 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `search_kb` | `query?` | `KbItem[]` | 内存扫：title×2/tag×1.5/body×1 相关度排序；空查询=全量按更新时间倒序 |
 | `rollback_schema_split` | — | `String` | **调试入口，不进 UI**（ADR-0005）：把 `data.pre-split.json` 复制回 `data.json` 并删 `runtime.json`，重启生效。回滚窗口期内新增提醒的 fired 键会丢 → 后果仅是可能重复响一次 |
 | `get_data_health` | — | `DataHealthV2` | 损坏恢复页数据源 |
-| `get_hotkey_status` | — | `HotkeyStatus` | 两个全局热键的**实际注册**快照 `{capture, main}`（未绑上/已解绑为 `null`）；设置页与 `settings.captureHotkey / mainHotkey` 比对，不一致即标「未生效」（qa-1）。运行期状态，不落盘 |
+| `get_hotkey_status` | — | `HotkeyStatus` | 三个全局热键的**实际注册**快照 `{capture, main, sticky}`（未绑上/已解绑为 `null`）；设置页与 `settings.*Hotkey` 比对，不一致即标「未生效」（qa-1）。运行期状态，不落盘 |
 | `clear_migration_report` | — | `MigrationReport \| null` | 前端展示完迁移报告后清账，避免每次启动重复提示 |
 | `reorder_tasks` | `idsInOrder: string[]` | `usize`（实际移动条数） | 同列表手动排序（便签规格 §12.2）：按传入顺序整表落 `sort_order`（v3/M3）；`sortOrder` 缺省 = 未手动排过，展示按 `createdAt` 兜底 |
 | `clear_events` | — | `void` | 清空本地统计（planned-settings B.5★）：重置 `events.jsonl` 为空并记一条 `events_cleared`；写线程在途一批（≤64 条）可随后落盘，属可接受残留 |
 | `track_event` | `name: string`, `props?: string`（JSON 文本） | `void` | 通用前端埋点通道（metric 蓝图：weekly_open 等 UI 侧事件）；仅落本机 `events.jsonl` 绝不出网；name ≤48 字符非空，props 需为合法 JSON |
-| `create_sticky` | `kind: "todo" \| "free"` | `StickyNote` | 新建便签（multi-sticky-spec）：总数含 float 主便签 ≤6，超限 Err「便签最多 6 张」；窗口按 ADR-0007 动态创建（label `note:<id>`）；记 `sticky_create` |
-| `list_stickies` | — | `StickyNote[]` | 额外便签清单（1 号 float 主便签不在其中）；设置页便签清单数据源。`content` **始终序列化**（含空串）——曾因 skip_serializing_if 吞空串导致前端 `content` undefined、设置页渲染 `.split` 抛 TypeError 整树卸载黑屏（真机复盘 2026-09-09），前端类型契约 `content: string` 必填 |
-| `update_sticky` | `id`, `content?`, `hidden?`, `pinned?` | `StickyNote` | 内容（free，≤500 字）/ 收起展开（联动窗口显隐，hidden=true 记 `sticky_close`）/ 置顶（联动 always_on_top） |
-| `delete_sticky` | `id` | `void` | 删除便签并回收窗口与 `note_pos` 记录；自由便签内容销毁（前端二次确认）；记 `sticky_delete` |
-| `sticky_self` | — | `{ id, kind, page, content, pinned, hidden }` | 便签窗启动自述：label（float / `note:<id>`）→ 身份；待办便签 page=镜像今天第 N 页（0 起） |
+| `create_sticky` | — | `StickyNote` | 新建一张自由便签（sticky-separation：便签只有这一种，≤500 字）：张数 ≥6 Err「便签最多 6 张」；窗口按 ADR-0007 动态创建（label `note:<id>`），常驻置顶；位置从最近一张便签窗级联 +32px；记 `sticky_create`。与全局热键「新建便签」共用同一入口 `runtime::create_note` |
+| `list_stickies` | — | `StickyNote[]` | 便签清单；设置页清单数据源。`content` **始终序列化**（含空串）——曾因 skip_serializing_if 吞空串导致前端 `content` undefined、设置页渲染 `.split` 抛 TypeError 整树卸载黑屏（真机复盘 2026-09-09），前端类型契约 `content: string` 必填 |
+| `update_sticky` | `id`, `content?`, `mini?` | `StickyNote` | 内容（≤500 字）/ 形态（`mini:true` → 窗口 380×40 置顶悬浮文本条；`mini:false` → 380×456 纸片并聚焦）；形态持久化，重启按原样恢复 |
+| `delete_sticky` | `id` | `void` | 关闭即销毁（一次性工具语义）：便签数据、窗口与 `note_pos` 记录一并回收，无确认无撤销，误关靠写前轮转备份兜底；记 `sticky_delete`。便签窗的 Alt+F4 走同一语义（`CloseRequested` 分支） |
+| `sticky_self` | — | `{ id, content, mini }` | 便签窗启动自述：label（`note:<id>`）→ 身份与形态 |
 | `get_form_hints` | — | `{ categories, priorities, sources, repeat, defaultHotkey, defaultCap, retentionDays, today }` | 表单常量，避免前端硬编码 |
 
 参数名映射：Rust 侧 `snake_case` 形参由 Tauri v1 宏自动转成 camelCase（`task_id` → `taskId`，`include_deleted` → `includeDeleted`）。结构体入参（`TaskPayload` 等）本身带 `rename_all = "camelCase"`。
@@ -219,18 +217,19 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 6. 错过超过 24h：不再发通知，只记 `missed` 并清账。
 7. 应用未运行期间错过的：启动后第一次 tick 合并成一条「错过 N 条提醒」，不逐条轰炸。
 8. 每次落库（`lastFired` / 单次提醒的 `completed=true` 或 `remindAt` 清空 / `fired` 键）都走同一套原子写，并 emit `store-changed`。
-9. 顺带：`stickyPinned === 'desktop'` 且悬浮面板可见又失焦（捕获条未显示）→ 自动隐藏。
+9. 便签与调度器无耦合（sticky-separation：便签是纯自由文本，不进今天不参与提醒）。
 10. corrupt 状态下调度线程不发通知也不写库（等用户恢复）。
 
 ## 5. 托盘与窗口（配置侧）
 
-- `tauri.conf.json`：`productName: "待办列表"`；三窗 `main`(1100×720, min 1024×640, visible:false, **decorations:false** —— 自定义标题栏，见下) / `float`(380×520, resizable:false, alwaysOnTop:true, skipTaskbar:false) / `capture`(560×46 首帧值——挂载后由 `capture_resize` 按内容校正, decorations:false, transparent:true, alwaysOnTop:true, skipTaskbar:true, visible:false)；`allowlist` 沿用 v1 的 `api-all`。
+- `tauri.conf.json`：`productName: "待办列表"`；两窗 `main`(1100×720, min 1024×640, visible:false, **decorations:false** —— 自定义标题栏，见下) / `capture`(560×46 首帧值——挂载后由 `capture_resize` 按内容校正, decorations:false, transparent:true, alwaysOnTop:true, skipTaskbar:true, visible:false)；`allowlist` 沿用 v1 的 `api-all`。
+  - **float 窗已退役**（sticky-separation，多便签规格 H1b 落地）：所有便签都是动态 `note:<id>` 窗（`runtime::note_builder` 建，380×456 展开 / 380×40 缩小悬浮条，常驻置顶），启动按 store 遍历恢复。
   - main 窗取向为「**标题栏归前端令牌管**」（方案B）：原生栏颜色只跟系统走、喂不进应用暖黑令牌（暗色下「系统黑 ≠ 应用暖黑」色差的根因），故 `decorations:false`，栏由 React `title-bar` 组件绘制（`.titlebar`，拖动/双击最大化走 `data-tauri-drag-region`，─ □ ⧉ × 走 `__TAURI__.window.appWindow`，均经 `api.ts` 惰性取桥）。窗口框架侧由 `runtime::watch_main_window_frame` 接管：还原态 DWM 圆角（`DWMWCP_ROUND`）、最大化态收直角（`DWMWCP_DONOTROUND`，最大化还圆角会在屏幕四角露缺口）。已知取舍：Win11 hover 最大化钮的贴齐布局菜单随原生栏一起消失（tauri v1 无 WCO）；无边框窗边缘缩放由 tao 命中测试承担，手感需真机验证。
   - capture 窗取向为「**窗口即硫酸纸条**」：透明窗 + OS 磨砂材质（`apply_blur` 暖纸 tint）+ DWM 圆角，CSS 只画反光描边与厚度（`--vellum-*` 令牌）。
   - 该窗实际由 `runtime::create_capture_window` 用 `WindowBuilder` 创建，`tauri.conf.json` 的声明必须与 `inner_size` 手工对齐（宽度另有 `runtime::CAPTURE_W` 常量供 `capture_resize` 共用）；`center_capture` 已改为读窗口实际 `outer_size` 居中，不再重复写死尺寸常量。
 - 托盘在代码里创建，`id = "main"`（v1 的 `tauri.systemTray` 配置项只吃 `iconPath`，没有 `id` 字段，v1 运行时的托盘菜单必须由代码构建）。
-- 托盘菜单（术语表：悬浮面板 / 提醒 / 周汇总）：
-  `打开主界面` · `快速记录`（等同 `open_capture_overlay`，前端也可监听 `capture-opened`）· 分隔 · `显示悬浮面板` / `隐藏悬浮面板` · 子菜单 `悬浮形态`(置于顶层 / 嵌入桌面 / 迷你条，当前形态带勾选) · 分隔 · `管理提醒` / `本周汇总导出` / `打开数据文件夹` · 分隔 · `退出`。
+- 托盘菜单（术语表：便签 / 提醒 / 周汇总；sticky-separation 后不再有「悬浮面板」与置顶勾选）：
+  `打开主界面` · `快速记录`（等同 `open_capture_overlay`，前端也可监听 `capture-opened`）· 分隔 · `新建便签`（热键同款入口） / `显示全部便签` / `隐藏全部便签` · 分隔 · `管理提醒` / `本周汇总导出` / `打开数据文件夹` · 分隔 · `退出`。
 
 ## 6. 错误文案表（前端可直接展示）
 
@@ -308,7 +307,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | 项 | 手段 | 结果 |
 | --- | --- | --- |
 | 类型检查与链接 | `cargo check` / `cargo build`（debug） | **0 error**；7 条 `dead_code` warning（`models.rs:21/187/243/385/573/748`、`store.rs:688`） |
-| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **55 ↔ 55 ↔ 55**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + H1 多便签 5 项 + 方案B `capture_resize`） |
+| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **53 ↔ 53 ↔ 53**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + 方案B `capture_resize` + sticky-separation：H1 多便签 5 项收并为 4 项、`register_sticky_hotkey` 新增，`show_float` / `hide_float` / `set_sticky_pinned` 随 float 退役删除） |
 | 存储安全自查 | 人工 | 无 `unwrap_or_default()` 式空库回退；无 `toISOString`/`Utc`/`naive_utc` 混入；`tauri.conf.json` JSON 合法 |
 | 提醒编辑器逻辑 | `node test/rem-editor.test.mjs`（从 `index.html` 抽真实函数源码断言，17 项） | 全绿：多时刻 round-trip 四形态、模式收敛、渲染契约、aria-label、文案不含手输格式 |
 | 时间契约 + v1 迁移十规则 | `cargo test`（**30 项** = `models` 14 时间契约 + `store` 16 迁移规则，纯内存 fixture，不碰数据目录） | 全绿。过程逼出 `parse_clock` 两处加固：带秒输入归零（否则永不命中整分 tick = 到点不响）、接受裸 `HH:MM:SS` 与单位数小时 |

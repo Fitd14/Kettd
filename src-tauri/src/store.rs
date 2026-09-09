@@ -312,7 +312,6 @@ fn migrate_task(object: &Value, report: &mut MigrationReport) -> Task {
     planned_date,
     carried_from,
     kb_refs: Vec::new(),
-    sticky_pinned: false,
     sort_order: None,
     done,
     done_at,
@@ -398,7 +397,7 @@ fn migrate_settings(raw: &Value, settings: &mut Settings, report: &mut Migration
     );
     settings.theme = "float".to_string();
   }
-  // v1/v2 旧 floatForm（topmost/desktop/mini）一律忽略：sticky_pinned 默认 true 即归一（便签规格 §2）
+  // v1/v2 旧 floatForm（topmost/desktop/mini）与 stickyPinned 一律忽略：置顶已常驻无开关（sticky-separation）
   if let Some(value) = raw.get("captureHotkey").and_then(|item| item.as_str()) {
     if !value.trim().is_empty() {
       settings.capture_hotkey = value.trim().to_string();
@@ -478,6 +477,38 @@ fn looks_like_v1(raw: &Value) -> bool {
     }
   }
   raw.get("tasks").is_some() || raw.get("reminders").is_some()
+}
+
+/// 便签分离迁移（sticky-separation，v2 便签 schema → v3）：在 JSON 层归一历史便签。
+/// - kind="todo" 的镜像便签丢弃（内容活在 tasks，零损失）
+/// - hidden=true（旧「收进托盘」）升格为 mini=true（缩小悬浮条）
+/// - kind/pinned/hidden 字段清除（自由便签无类别、置顶常驻无开关）
+/// 返回是否发生变化；幂等——已是新形态的数据原样返回 false。
+fn normalize_stickies_v3(data: &mut Value) -> bool {
+  let Some(list) = data.get_mut("stickies").and_then(|v| v.as_array_mut()) else {
+    return false;
+  };
+  let mut changed = false;
+  list.retain(|entry| {
+    let is_todo = entry.get("kind").and_then(|v| v.as_str()) == Some("todo");
+    if is_todo {
+      changed = true;
+    }
+    !is_todo
+  });
+  for entry in list.iter_mut() {
+    let Some(obj) = entry.as_object_mut() else { continue };
+    if let Some(hidden) = obj.get("hidden").and_then(|v| v.as_bool()) {
+      if hidden {
+        obj.insert("mini".to_string(), Value::Bool(true));
+      }
+      changed = true;
+    }
+    for dead in ["kind", "pinned", "hidden"] {
+      changed |= obj.remove(dead).is_some();
+    }
+  }
+  changed
 }
 
 /// 判别 v2 旧 schema（ADR-0005）：运行态（fired / migration / settings.capturePos）
@@ -676,7 +707,7 @@ impl Store {
       .and_then(|text| parse_value(&text).ok());
 
     // v2 旧 schema → 一次性拆分（ADR-0005）：留档 → runtime 先写 → data 走轮转原子写
-    let (data_value, runtime_value) = if is_legacy_schema(&raw) {
+    let (mut data_value, runtime_value) = if is_legacy_schema(&raw) {
       let pair = split_schema(&raw, existing_runtime.as_ref());
       if let Err(error) = store.persist_split(&pair.0, &pair.1) {
         // 原件未动（pre-split 留档失败除外——那也没改 data.json）；
@@ -691,6 +722,8 @@ impl Store {
       (raw, existing_runtime.unwrap_or_else(|| json!({})))
     };
 
+    // 便签分离迁移（sticky-separation）：JSON 层归一历史便签，再进强类型解析
+    let sticky_schema_changed = normalize_stickies_v3(&mut data_value);
     match serde_json::from_value::<AppData>(data_value) {
       Ok(mut data) => {
         data.settings.coerce();
@@ -703,6 +736,22 @@ impl Store {
         // 运行态解析失败 = 静默重建为空（重复响一次的代价，不冻结数据）
         store.runtime = serde_json::from_value::<RuntimeState>(runtime_value)
           .unwrap_or_default();
+        if sticky_schema_changed {
+          store.runtime.migration = Some(MigrationReport {
+            issues: vec![MigrationIssue {
+              collection: "stickies".to_string(),
+              id: "*".to_string(),
+              field: "kind/hidden/pinned".to_string(),
+              raw: "v2".to_string(),
+              action: "便签分离迁移：待办镜像便签已丢弃；收起态升格为缩小态；置顶改为常驻无开关".to_string(),
+            }],
+            ..Default::default()
+          });
+          if let Err(error) = store.save() {
+            store.last_error = Some(error);
+            store.health = HEALTH_WRITE_FAILED.to_string();
+          }
+        }
         // 知识库：缺失/损坏 → 静默空库（KB 可整体降级，绝不传染用户数据）
         store.kb = store
           .backend
@@ -1200,9 +1249,6 @@ impl Store {
       // 单向引用集合整体替换（前端以「当前挂载列表」提交，避免增量同步复杂度）
       task.kb_refs = value.clone();
     }
-    if let Some(value) = patch.sticky_pinned {
-      task.sticky_pinned = value;
-    }
     if let Some(value) = &patch.priority {
       if !PRIORITIES.contains(&value.as_str()) {
         return Err("优先级只能是 high / med / low".to_string());
@@ -1362,9 +1408,6 @@ impl Store {
         }
         settings.theme = value.trim().to_string();
       }
-      if let Some(value) = patch.sticky_pinned {
-        settings.sticky_pinned = value;
-      }
       if let Some(value) = &patch.sticky_paper {
         let trimmed = value.trim();
         if !STICKY_PAPERS.contains(&trimmed) {
@@ -1401,6 +1444,14 @@ impl Store {
       if let Some(value) = &patch.main_hotkey {
         let trimmed = value.trim();
         settings.main_hotkey = if trimmed.is_empty() {
+          None
+        } else {
+          Some(trimmed.to_string())
+        };
+      }
+      if let Some(value) = &patch.sticky_hotkey {
+        let trimmed = value.trim();
+        settings.sticky_hotkey = if trimmed.is_empty() {
           None
         } else {
           Some(trimmed.to_string())
@@ -1751,6 +1802,39 @@ mod tests {
     assert_eq!(data.settings.capture_hotkey, "Ctrl+Alt+K", "两端空格要清掉");
     assert_eq!(data.settings.remind_cap_per_hour, 60, "超上限要夹住而不是写花库");
     assert!(data.settings.onboarded);
+  }
+
+  /// 便签分离迁移（sticky-separation）：v2 旧形态便签在 JSON 层归一为新模型。
+  #[test]
+  fn sticky_separation_drops_todo_notes_and_lifts_hidden_to_mini() {
+    let mut raw = json!({
+      "stickies": [
+        { "id": "n1", "kind": "todo", "content": "", "pinned": true, "hidden": false,
+          "createdAt": "2026-09-01T10:00:00", "updatedAt": "2026-09-01T10:00:00" },
+        { "id": "n2", "kind": "free", "content": "草稿", "pinned": true, "hidden": true,
+          "createdAt": "2026-09-01T10:00:00", "updatedAt": "2026-09-01T10:00:00" },
+        { "id": "n3", "kind": "free", "content": "常驻", "pinned": false, "hidden": false,
+          "createdAt": "2026-09-01T10:00:00", "updatedAt": "2026-09-01T10:00:00" },
+        { "id": "n4", "content": "已是新形态", "mini": true,
+          "createdAt": "2026-09-01T10:00:00", "updatedAt": "2026-09-01T10:00:00" }
+      ]
+    });
+    assert!(normalize_stickies_v3(&mut raw), "旧形态必须判定为有变化");
+    let list = raw["stickies"].as_array().expect("stickies 必须还是数组");
+    assert_eq!(list.len(), 3, "todo 镜像便签必须丢弃（内容活在 tasks，零损失）");
+    assert_eq!(list[0]["id"], "n2");
+    assert_eq!(list[0]["mini"], true, "hidden=true（收起）升格为 mini=true（缩小悬浮条）");
+    assert!(
+      list[0].get("hidden").is_none()
+        && list[0].get("pinned").is_none()
+        && list[0].get("kind").is_none(),
+      "退役字段必须清干净，避免下次加载再次判定变化"
+    );
+    assert_eq!(list[0]["content"], "草稿", "正文零损失");
+    assert_eq!(list[1]["id"], "n3");
+    assert!(list[1].get("mini").is_none(), "展开态不引入 mini 字段（skip 序列化语义）");
+    assert_eq!(list[2]["id"], "n4", "新形态便签原样保留");
+    assert!(!normalize_stickies_v3(&mut raw), "迁移必须幂等（重复加载不再变化）");
   }
 
   #[test]

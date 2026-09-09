@@ -319,3 +319,52 @@ body {
   text-align: right;
   color: var(--sticky-muted);
 }
+
+/* ---- 缩小态：置顶悬浮文本条（sticky-separation）----
+   380×40 一条纸：⠿ 拖动 + 正文第一行（点击展开）+ ✕ 销毁。
+   圆角略收、阴影保持悬浮感；is-mini 不参与移出淡化（一条 40px 的条淡到 38% 就找不到了）。 */
+.sticky-note.is-mini {
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  height: 40px;
+  min-height: 0;
+  padding: 0 6px;
+  border-radius: 10px;
+}
+.sticky-mini-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 28px;
+  color: var(--sticky-muted);
+  cursor: grab;
+  user-select: none;
+}
+.sticky-mini-grip:active {
+  cursor: grabbing;
+}
+.sticky-mini-text {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  color: var(--sticky-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+.sticky-mini-text:hover {
+  background: color-mix(in srgb, var(--sticky-ink) 9%, transparent);
+}
+.sticky-mini-text:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--sticky-accent) 55%, transparent);
+}
