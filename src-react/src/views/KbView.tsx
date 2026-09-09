@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { getKbItems, searchKb } from '@/lib/api'
+import { getKbItems, searchKb, addKbItem, deleteKbItem } from '@/lib/api'
 import type { KbItem } from '@/lib/api'
+import { KbSearchBar } from '@/components/kb/kb-search-bar'
+import { KbTagFilter } from '@/components/kb/kb-tag-filter'
+import { KbItemRow } from '@/components/kb/kb-item-row'
+import { KbEmptyState } from '@/components/kb/kb-empty-state'
 import './kb.css'
 
 interface Props {
@@ -10,13 +14,15 @@ interface Props {
 /**
  * 知识库视图（#/kb，第六视图）。
  *
- * 布局：搜索框 → 左清单（标题/标签/时间） → 右详情（阅读态 ⇄ WYSIWYG 编辑态）。
- * 搜索策略：前端持全量 items（≤5k 内存安全），searchKb 返回排序 ID 列表后重排。
+ * 布局：搜索框 + 标签筛选 → 左清单 → 右详情（阅读态 ⇄ WYSIWYG 编辑态）。
+ * 搜索策略：前端持全量 items（≤5k 内存安全），searchKb 返回排序 items 后重排。
+ * 标签筛选：前端对全量 items 做 client-side 过滤（不发新命令）。
  */
 export function KbView(_props: Props) {
   const [items, setItems] = useState<KbItem[]>([])
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [activeTag, setActiveTag] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -29,12 +35,10 @@ export function KbView(_props: Props) {
       if (query.trim()) {
         const rankedResult = await searchKb(query.trim())
         const ranked = rankedResult.data ?? []
-        // 补充未命中的条目（防御性）
         const rankedIds = new Set(ranked.map((i) => i.id))
         const rest = all.filter((i) => !rankedIds.has(i.id))
         setItems([...ranked, ...rest])
       } else {
-        // 无查询：按更新时间倒序
         setItems([...all].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)))
       }
     } catch (e) {
@@ -46,93 +50,116 @@ export function KbView(_props: Props) {
 
   useEffect(() => { void refresh() }, [refresh])
 
+  // 标签筛选（client-side）
+  const filteredItems = useMemo(() => {
+    if (!activeTag) return items
+    return items.filter((i) => i.tags.includes(activeTag))
+  }, [items, activeTag])
+
+  // 全局唯一标签列表
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>()
+    for (const item of items) {
+      for (const t of item.tags) tagSet.add(t)
+    }
+    return [...tagSet].sort()
+  }, [items])
+
   const selected = useMemo(
     () => items.find((i) => i.id === selectedId) ?? null,
     [items, selectedId],
   )
 
+  // 新建条目
+  const handleCreate = useCallback(async () => {
+    const title = `新建知识 ${new Date().toLocaleDateString('zh-CN')}`
+    const result = await addKbItem({ title, bodyMd: '', tags: [] })
+    if (result.data) {
+      await refresh()
+      setSelectedId(result.data.id)
+    }
+  }, [refresh])
+
+  // 删除条目
+  const handleDelete = useCallback(async (id: string) => {
+    await deleteKbItem(id)
+    if (selectedId === id) setSelectedId(null)
+    await refresh()
+  }, [selectedId, refresh])
+
+  // 更新条目（来自右详情面板——Task 5 接入）
+  // const handleUpdate = useCallback(async (id: string, patch: { title?: string; bodyMd?: string; tags?: string[] }) => {
+  //   await updateKbItem(id, patch)
+  //   await refresh()
+  // }, [refresh])
+
   return (
     <div className="kb-view">
-      {/* 搜索栏 */}
-      <div className="kb-search-bar">
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="搜索知识库..."
-          aria-label="搜索知识库"
-        />
-        {query && (
-          <span className="kb-result-count">{items.length} 条结果</span>
-        )}
-      </div>
+      <KbSearchBar
+        query={query}
+        onChange={setQuery}
+        resultCount={filteredItems.length}
+      />
 
-      {/* 标签筛选（Task 4 填充） */}
-      {/* <KbTagFilter ... /> */}
+      <KbTagFilter
+        tags={allTags}
+        activeTag={activeTag}
+        onSelect={setActiveTag}
+      />
 
-      {/* 主布局 */}
       <div className="kb-layout">
         {/* 左清单 */}
         <div className="kb-list" role="listbox" aria-label="知识条目">
-          {loading && <div className="kb-empty">加载中...</div>}
-          {!loading && error && (
-            <div className="kb-empty">
-              <span className="empty-icon">⚠️</span>
-              <span>{error}</span>
-            </div>
+          {loading && <KbEmptyState variant="empty" />}
+          {!loading && error && <KbEmptyState variant="error" errorMessage={error} />}
+          {!loading && !error && filteredItems.length === 0 && (
+            <KbEmptyState
+              variant={query || activeTag ? 'no-results' : 'empty'}
+              onCreate={handleCreate}
+            />
           )}
-          {!loading && !error && items.length === 0 && (
-            <div className="kb-empty">
-              <span className="empty-icon">📚</span>
-              <span>{query ? '没找到' : '知识库空空如也'}</span>
-            </div>
-          )}
-          {items.map((item) => (
-            <div
+          {filteredItems.map((item) => (
+            <KbItemRow
               key={item.id}
-              className={`kb-item-row${selectedId === item.id ? ' active' : ''}`}
-              role="option"
-              aria-selected={selectedId === item.id}
-              onClick={() => setSelectedId(item.id)}
-            >
-              <span className="item-title">{item.title}</span>
-              <span className="item-meta">
-                {item.tags?.slice(0, 2).map((t) => (
-                  <span key={t} className="kb-tag-chip">{t}</span>
-                ))}
-                <span>{relativeTime(item.updatedAt)}</span>
-              </span>
-            </div>
+              item={item}
+              isActive={selectedId === item.id}
+              onSelect={setSelectedId}
+            />
           ))}
         </div>
 
-        {/* 右详情面板（Task 5 填充 WYSIWYG 编辑） */}
+        {/* 右详情面板 */}
         <div className="kb-detail">
-          {!selected && !loading && items.length > 0 && (
+          {!selected && !loading && filteredItems.length > 0 && (
             <div className="kb-empty">选择一条知识查看详情</div>
           )}
           {selected && (
             <div>
               <div className="kb-detail-toolbar">
                 <h3 className="kb-detail-title">{selected.title}</h3>
+                <span style={{ flex: 1 }} />
+                <button className="btn xs primary" onClick={handleCreate}>+ 新建</button>
+                <button
+                  className="btn xs danger"
+                  onClick={() => handleDelete(selected.id)}
+                >
+                  🗑 删除
+                </button>
               </div>
               <p style={{ color: 'var(--muted-foreground)', fontSize: '0.9em' }}>
-                {selected.bodyMd ? `${selected.bodyMd.length} 字` : '空白'}
+                {selected.bodyMd ? `${selected.bodyMd.length} 字 · ` : '空白 · '}
+                标签: {selected.tags?.join(', ') || '无'}
               </p>
+              {/* Task 5: TipTap WYSIWYG editor + MdStaticRenderer read/edit toggle */}
+              <div className="kb-detail-body">
+                <p style={{ fontSize: '0.85em', color: 'var(--muted-foreground)' }}>
+                  WYSIWYG 编辑器将在 Task 5 接入
+                </p>
+              </div>
             </div>
           )}
         </div>
       </div>
     </div>
   )
-}
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 60) return `${mins}分钟前`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}小时前`
-  const days = Math.floor(hrs / 24)
-  return `${days}天前`
 }
