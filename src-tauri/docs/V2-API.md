@@ -181,7 +181,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `clear_events` | — | `void` | 清空本地统计（planned-settings B.5★）：重置 `events.jsonl` 为空并记一条 `events_cleared`；写线程在途一批（≤64 条）可随后落盘，属可接受残留 |
 | `track_event` | `name: string`, `props?: string`（JSON 文本） | `void` | 通用前端埋点通道（metric 蓝图：weekly_open 等 UI 侧事件）；仅落本机 `events.jsonl` 绝不出网；name ≤48 字符非空，props 需为合法 JSON |
 | `create_sticky` | `kind: "todo" \| "free"` | `StickyNote` | 新建便签（multi-sticky-spec）：总数含 float 主便签 ≤6，超限 Err「便签最多 6 张」；窗口按 ADR-0007 动态创建（label `note:<id>`）；记 `sticky_create` |
-| `list_stickies` | — | `StickyNote[]` | 额外便签清单（1 号 float 主便签不在其中）；设置页便签清单数据源 |
+| `list_stickies` | — | `StickyNote[]` | 额外便签清单（1 号 float 主便签不在其中）；设置页便签清单数据源。`content` **始终序列化**（含空串）——曾因 skip_serializing_if 吞空串导致前端 `content` undefined、设置页渲染 `.split` 抛 TypeError 整树卸载黑屏（真机复盘 2026-09-09），前端类型契约 `content: string` 必填 |
 | `update_sticky` | `id`, `content?`, `hidden?`, `pinned?` | `StickyNote` | 内容（free，≤500 字）/ 收起展开（联动窗口显隐，hidden=true 记 `sticky_close`）/ 置顶（联动 always_on_top） |
 | `delete_sticky` | `id` | `void` | 删除便签并回收窗口与 `note_pos` 记录；自由便签内容销毁（前端二次确认）；记 `sticky_delete` |
 | `sticky_self` | — | `{ id, kind, page, content, pinned, hidden }` | 便签窗启动自述：label（float / `note:<id>`）→ 身份；待办便签 page=镜像今天第 N 页（0 起） |

@@ -234,7 +234,8 @@ export function SettingsView({ boot, refresh }: Props) {
                 <span key={st.id} className="row-flex items-center gap-1.5">
                   <span className={`badge ${st.kind === 'free' ? 'badge-solid' : ''}`}>{st.kind === 'free' ? '自由' : '待办'}</span>
                   <span className="tiny grow truncate" style={{ maxWidth: 200 }}>
-                    {st.kind === 'free' ? (st.content.split('\n')[0] || '（空）') : '镜像今天'}
+                    {/* ?? '' 是黑屏教训（2026-09-09）：content 一旦缺字段，.split 抛 TypeError = 整树卸载 */}
+                    {st.kind === 'free' ? ((st.content ?? '').split('\n')[0] || '（空）') : '镜像今天'}
                   </span>
                   {st.hidden && <span className="tiny text-muted">已收起</span>}
                   <button className="btn ghost xs" onClick={() => { void doToggleSticky(st) }}>{st.hidden ? '显示' : '收起'}</button>

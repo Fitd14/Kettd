@@ -380,8 +380,9 @@ pub struct StickyNote {
   pub id: String,
   /// "todo" | "free"
   pub kind: String,
-  /// 自由便签正文（纯文本 ≤500 字）；待办便签恒空
-  #[serde(skip_serializing_if = "String::is_empty")]
+  /// 自由便签正文（纯文本 ≤500 字）；待办便签恒空。
+  /// 空 content 也必须序列化：前端类型契约 content:string 必填，字段缺省会
+  /// 让设置页清单 st.content.split 抛 TypeError、整树卸载黑屏（真机复盘 2026-09-09）
   pub content: String,
   #[serde(default = "bool_true")]
   pub pinned: bool,
@@ -1121,5 +1122,24 @@ mod tests {
     assert!(week_start("2026-W54").is_none());
     assert!(week_start("2026-Wabc").is_none());
     assert!(week_start("not-a-week").is_none());
+  }
+}
+
+#[cfg(test)]
+mod sticky_serialization_tests {
+  use super::*;
+
+  /// 真机黑屏根因（2026-09-09）：skip_serializing_if 曾把空 content 整个吞掉，
+  /// 前端 StickyNoteItem.content 是必填 string，设置页清单 st.content.split 遇
+  /// undefined 抛 TypeError → React 整树卸载 → 整窗黑屏。空串是合法态
+  /// （清单本就有「（空）」占位），契约字段必须始终出现在 JSON 里。
+  #[test]
+  fn sticky_note_empty_content_still_serializes() {
+    let note = StickyNote::default();
+    let value = serde_json::to_value(&note).expect("StickyNote 必须可序列化");
+    assert_eq!(
+      value["content"], "",
+      "空 content 也必须序列化：字段缺省 = 破坏前端类型契约（黑屏根因）"
+    );
   }
 }
