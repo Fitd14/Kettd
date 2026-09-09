@@ -53,6 +53,24 @@ export function KbView(_props: Props) {
 
   useEffect(() => { void refresh() }, [refresh])
 
+  // Deep Link：#/kb?id={itemId} → 自动选中该条目
+  useEffect(() => {
+    const hash = window.location.hash
+    const idMatch = hash.match(/[?&]id=([^&]+)/)
+    if (idMatch) {
+      const targetId = decodeURIComponent(idMatch[1])
+      // 等 items 加载后选中
+      const trySelect = () => {
+        const found = items.find((i) => i.id === targetId)
+        if (found) setSelectedId(targetId)
+      }
+      trySelect()
+      // items 可能还没加载，延迟重试
+      const timer = setTimeout(trySelect, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [items])
+
   // 标签筛选（client-side）
   const filteredItems = useMemo(() => {
     if (!activeTag) return items
