@@ -79,6 +79,8 @@ interface Settings {
   captureHotkey: string            // 默认 "Alt+Shift+A"
   mainHotkey: string | null        // 打开主界面全局热键；null = 未绑定；默认 "Alt+Shift+O"
   stickyHotkey: string | null      // 新建便签全局热键；null = 未绑定；默认 "Alt+Shift+S"
+  todoFloatPinned: boolean         // 待办悬浮窗置顶（todo-float，默认开）
+  todoHotkey: string | null        // 待办悬浮窗呼出热键；null = 未绑定；默认 "Alt+Shift+T"
   dnd: Dnd
   remindCapPerHour: number         // 默认 3
   onboarded: boolean
@@ -153,12 +155,14 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `toggle_reminder` | `id` | `Reminder` | completed ⇄ enabled；重新启用会清 `snoozedUntil` |
 | `snooze_reminder` | `id`, `minutes` | `Reminder` | 写 `snoozedUntil = now + minutes`（1–720） |
 | `get_settings` | — | `Settings` | |
-| `set_settings` | `patch: Partial<Settings>` | `Settings` | 部分字段 MERGE；改任一热键（`captureHotkey`/`mainHotkey`/`stickyHotkey`）会真实重绑热键，任一失败整次回滚（三槽位事务）并 Err「快捷键被占用，请用备用入口」；`stickyPaper` 校验四预设 |
+| `set_settings` | `patch: Partial<Settings>` | `Settings` | 部分字段 MERGE；改任一热键（`captureHotkey`/`mainHotkey`/`stickyHotkey`/`todoHotkey`）会真实重绑热键，任一失败整次回滚（四槽位事务）并 Err「快捷键被占用，请用备用入口」；`todoFloatPinned` 即时同步悬浮窗 always_on_top；`stickyPaper` 校验四预设 |
 | `open_main_window` | — | `void` | 显示主窗并请求焦点 |
+| `hide_todo_float` | — | `void` | 隐藏待办悬浮窗（✕ 同款）：只藏窗，显隐状态落 runtime.json，重启恢复 |
 | `open_data_folder` | — | `void` | 在文件管理器里打开 `%APPDATA%/todo-list`；失败 Err「打不开这个位置，请手动前往」 |
 | `register_capture_hotkey` | `combo` | `Settings` | 例 `Alt+Shift+A`；注册失败 → Err「快捷键被占用，请用备用入口」（保持旧值） |
 | `register_main_hotkey` | `combo` | `Settings` | 打开主界面全局热键；`combo` 空串 = 解绑（`mainHotkey` → `null`）；与其他槽位互斥、失败保持旧值 |
 | `register_sticky_hotkey` | `combo` | `Settings` | 新建便签全局热键（sticky-separation，默认 Alt+Shift+S）；`combo` 空串 = 解绑；与其他槽位互斥、失败保持旧值 |
+| `register_todo_hotkey` | `combo` | `Settings` | 待办悬浮窗呼出/隐藏热键（todo-float，默认 Alt+Shift+T）；`combo` 空串 = 解绑；与其他槽位互斥、失败保持旧值 |
 | `open_capture_overlay` | — | `void` | label `capture`：560×**内容实高**（动态高度，见 `capture_resize`）、无边框、「硫酸纸」材质（OS `apply_blur` 暖纸 tint + DWM 圆角，CSS 层负责反光描边/厚度/可读性，圆角全权归 DWM、CSS `border-radius:0`）、屏幕上部 28% 居中、置顶，显示后 emit `capture-opened` 让前端聚焦输入框；失焦自动收起 |
 | `close_capture_overlay` | — | `void` | |
 | `capture_start_drag` | — | `void` | 让无边框捕获条可被鼠标拖动（转调 `window.start_dragging()`）。**当前前端未接线** —— 实际拖拽走 Tauri 的 `data-tauri-drag-region` 属性（见 `capture.html` 的 ✎ 把手）；此命令作为备用入口保留，位置记忆由 `settings.capturePos` 承担 |
@@ -173,7 +177,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `search_kb` | `query?` | `KbItem[]` | 内存扫：title×2/tag×1.5/body×1 相关度排序；空查询=全量按更新时间倒序 |
 | `rollback_schema_split` | — | `String` | **调试入口，不进 UI**（ADR-0005）：把 `data.pre-split.json` 复制回 `data.json` 并删 `runtime.json`，重启生效。回滚窗口期内新增提醒的 fired 键会丢 → 后果仅是可能重复响一次 |
 | `get_data_health` | — | `DataHealthV2` | 损坏恢复页数据源 |
-| `get_hotkey_status` | — | `HotkeyStatus` | 三个全局热键的**实际注册**快照 `{capture, main, sticky}`（未绑上/已解绑为 `null`）；设置页与 `settings.*Hotkey` 比对，不一致即标「未生效」（qa-1）。运行期状态，不落盘 |
+| `get_hotkey_status` | — | `HotkeyStatus` | 四个全局热键的**实际注册**快照 `{capture, main, sticky, todo}`（未绑上/已解绑为 `null`）；设置页与 `settings.*Hotkey` 比对，不一致即标「未生效」（qa-1）。运行期状态，不落盘 |
 | `clear_migration_report` | — | `MigrationReport \| null` | 前端展示完迁移报告后清账，避免每次启动重复提示 |
 | `reorder_tasks` | `idsInOrder: string[]` | `usize`（实际移动条数） | 同列表手动排序（便签规格 §12.2）：按传入顺序整表落 `sort_order`（v3/M3）；`sortOrder` 缺省 = 未手动排过，展示按 `createdAt` 兜底 |
 | `clear_events` | — | `void` | 清空本地统计（planned-settings B.5★）：重置 `events.jsonl` 为空并记一条 `events_cleared`；写线程在途一批（≤64 条）可随后落盘，属可接受残留 |
@@ -307,7 +311,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | 项 | 手段 | 结果 |
 | --- | --- | --- |
 | 类型检查与链接 | `cargo check` / `cargo build`（debug） | **0 error**；7 条 `dead_code` warning（`models.rs:21/187/243/385/573/748`、`store.rs:688`） |
-| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **53 ↔ 53 ↔ 53**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + 方案B `capture_resize` + sticky-separation：H1 多便签 5 项收并为 4 项、`register_sticky_hotkey` 新增，`show_float` / `hide_float` / `set_sticky_pinned` 随 float 退役删除） |
+| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **55 ↔ 55 ↔ 55**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + 方案B `capture_resize` + sticky-separation 4 项 + todo-float `register_todo_hotkey` / `hide_todo_float`） |
 | 存储安全自查 | 人工 | 无 `unwrap_or_default()` 式空库回退；无 `toISOString`/`Utc`/`naive_utc` 混入；`tauri.conf.json` JSON 合法 |
 | 提醒编辑器逻辑 | `node test/rem-editor.test.mjs`（从 `index.html` 抽真实函数源码断言，17 项） | 全绿：多时刻 round-trip 四形态、模式收敛、渲染契约、aria-label、文案不含手输格式 |
 | 时间契约 + v1 迁移十规则 | `cargo test`（**30 项** = `models` 14 时间契约 + `store` 16 迁移规则，纯内存 fixture，不碰数据目录） | 全绿。过程逼出 `parse_clock` 两处加固：带秒输入归零（否则永不命中整分 tick = 到点不响）、接受裸 `HH:MM:SS` 与单位数小时 |

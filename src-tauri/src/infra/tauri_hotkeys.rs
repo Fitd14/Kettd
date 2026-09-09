@@ -23,6 +23,7 @@ impl HotkeyPort for TauriHotkeys {
       ),
       HotkeySlot::Main => crate::runtime::register_main_hotkey(&self.app, &combo.map(str::to_string)),
       HotkeySlot::Sticky => crate::runtime::register_sticky_hotkey(&self.app, &combo.map(str::to_string)),
+      HotkeySlot::TodoFloat => crate::runtime::register_todo_hotkey(&self.app, &combo.map(str::to_string)),
     }
   }
 

@@ -72,6 +72,8 @@ fn main() {
   if purged > 0 {
     let _ = boot.save();
   }
+  // 待办悬浮窗托盘勾选初始态（manage 移交 boot 前读走，todo-float）
+  let todo_visible = boot.runtime.todo_float_visible;
 
   let app = tauri::Builder::default()
     // 状态必须在窗口创建前注册：便签窗（note:*）与 capture 窗随 build() 立即加载页面并 invoke，
@@ -116,6 +118,8 @@ fn main() {
       commands::register_capture_hotkey,
       commands::register_main_hotkey,
       commands::register_sticky_hotkey,
+      commands::register_todo_hotkey,
+      commands::hide_todo_float,
       commands::open_data_folder,
       commands::restore_backup,
       commands::rollback_schema_split,
@@ -135,7 +139,7 @@ fn main() {
       commands::delete_sticky,
       commands::sticky_self
     ])
-    .system_tray(runtime::build_tray())
+    .system_tray(runtime::build_tray(todo_visible))
     .setup(|app| {
       let handle = app.handle().clone();
       let state = app.state::<Mutex<store::Store>>();
@@ -148,6 +152,7 @@ fn main() {
           guard.data.settings.capture_hotkey.clone(),
           guard.data.settings.main_hotkey.clone(),
           guard.data.settings.sticky_hotkey.clone(),
+          guard.data.settings.todo_hotkey.clone(),
         ),
         Err(poisoned) => {
           let guard = poisoned.into_inner();
@@ -155,6 +160,7 @@ fn main() {
             guard.data.settings.capture_hotkey.clone(),
             guard.data.settings.main_hotkey.clone(),
             guard.data.settings.sticky_hotkey.clone(),
+            guard.data.settings.todo_hotkey.clone(),
           )
         }
       };
@@ -198,8 +204,10 @@ fn main() {
         let main_failed = runtime::register_main_hotkey(&hotkey_app, &combo.1).is_err();
         // 新建便签热键：默认 Alt+Shift+S，解绑（None）则不注册（sticky-separation）
         let sticky_failed = runtime::register_sticky_hotkey(&hotkey_app, &combo.2).is_err();
+        // 待办悬浮窗热键：默认 Alt+Shift+T，解绑（None）则不注册（todo-float）
+        let todo_failed = runtime::register_todo_hotkey(&hotkey_app, &combo.3).is_err();
         // qa-1：注册失败不再静默 —— 提示一次「哪个键没绑上」，再把实际注册快照广播给前端标「未生效」
-        if cap_failed || main_failed || sticky_failed {
+        if cap_failed || main_failed || sticky_failed || todo_failed {
           let mut dead: Vec<String> = Vec::new();
           if cap_failed {
             dead.push(format!("快速记录 {}", combo.0));
@@ -212,6 +220,11 @@ fn main() {
           if sticky_failed {
             if let Some(sticky) = &combo.2 {
               dead.push(format!("新建便签 {}", sticky));
+            }
+          }
+          if todo_failed {
+            if let Some(todo) = &combo.3 {
+              dead.push(format!("待办悬浮窗 {}", todo));
             }
           }
           runtime::notify_title(
@@ -227,13 +240,25 @@ fn main() {
       // 多便签恢复（sticky-separation：全部为动态 note:* 窗，缩小态以悬浮条形态恢复）
       {
         let state = handle.state::<Mutex<store::Store>>();
-        let (stickies, note_pos) = state
+        let (stickies, note_pos, todo_visible, todo_pinned) = state
           .lock()
-          .map(|g| (g.data.stickies.clone(), g.runtime.note_pos.clone()))
+          .map(|g| {
+            (
+              g.data.stickies.clone(),
+              g.runtime.note_pos.clone(),
+              g.runtime.todo_float_visible,
+              g.data.settings.todo_float_pinned,
+            )
+          })
           .unwrap_or_default();
         for note in &stickies {
           let pos = note_pos.get(&note.id).copied();
           let _ = runtime::open_note_window(&handle, &note.id, note.mini, pos);
+        }
+        // 待办悬浮窗：按上次显隐恢复（todo-float）
+        let _ = runtime::apply_todo_float_pinned(&handle, todo_pinned);
+        if todo_visible {
+          let _ = runtime::open_todo_float(&handle);
         }
       }
       if let Some(tray) = handle.tray_handle_by_id(runtime::TRAY_ID) {
@@ -256,6 +281,12 @@ fn main() {
         tauri::WindowEvent::CloseRequested { api, .. } if label == runtime::MAIN_LABEL => {
           api.prevent_close();
           let _ = event.window().hide();
+        }
+        // 待办悬浮窗关闭（✕/Alt+F4）= 隐藏收进托盘，显隐状态落盘（todo-float）
+        tauri::WindowEvent::CloseRequested { api, .. } if label == runtime::TODO_LABEL => {
+          api.prevent_close();
+          let app_handle = event.window().app_handle().clone();
+          let _ = runtime::hide_todo_float(&app_handle);
         }
         // 便签窗关闭 = 销毁（sticky-separation：关闭即消失，含 Alt+F4）；
         // 数据与窗口一起回收，堵住「Alt+F4 只关窗、数据残留」的旧漏洞

@@ -1,0 +1,7 @@
+/* 待办悬浮窗（todo-float）：纸感复用 sticky.css 全套令牌与类，这里只补镜像行专属样式。
+   纯轻量镜像档：今天列表 + 勾选完成；完成态置灰不抢眼（「安静文具」调性）。 */
+.sticky-title.is-done {
+  color: var(--sticky-muted);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--sticky-ink) 35%, transparent);
+}

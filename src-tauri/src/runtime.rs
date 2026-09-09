@@ -10,6 +10,7 @@ use tauri::{
 };
 
 pub const MAIN_LABEL: &str = "main";
+pub const TODO_LABEL: &str = "todo";
 pub const CAPTURE_LABEL: &str = "capture";
 pub const TRAY_ID: &str = "main";
 
@@ -19,6 +20,7 @@ pub struct HotkeyRegistry {
   pub capture: Option<String>,
   pub main: Option<String>,
   pub sticky: Option<String>,
+  pub todo: Option<String>,
 }
 
 pub struct HotkeyLock(pub Mutex<HotkeyRegistry>);
@@ -29,6 +31,7 @@ pub enum HotkeyAction {
   Capture,
   OpenMain,
   NewSticky,
+  ToggleTodoFloat,
 }
 
 // ---------------------------------------------------------------- 窗口
@@ -130,38 +133,32 @@ fn note_builder<'a>(app: &'a AppHandle, label: &'a str, mini: bool) -> WindowBui
     .visible(false)
 }
 
-/// 建窗：主线程内联；其余线程经帮手线程带 6s 超时。
+/// 建窗统一超时包装：主线程内联；其余线程经帮手线程带 6s 超时。
 /// 超时后顺手探测事件循环是否存活（主窗 is_visible 同样要过循环队列，
 /// 3s 内回不来即循环已卡死），结果记 events.jsonl —— 区分「派发丢失」与「循环内卡死」。
-fn build_note_window(
+/// `err_event` 是埋点事件名（便签 sticky_window_error / 待办悬浮窗 todo_window_error）。
+fn build_with_timeout<F>(
   app: &AppHandle,
   label: String,
-  mini: bool,
-) -> Result<tauri::Window, String> {
-  let build = move |app: &AppHandle, label: &str| {
-    note_builder(app, label, mini)
-      .build()
-      .map_err(|e| {
-        let text = format!("{e}");
-        crate::telemetry::record_str(
-          "sticky_window_error",
-          &[("label", label.to_string().as_str()), ("err", text.as_str())],
-        );
-        format!("便签窗口创建失败：{text}")
-      })
-  };
+  err_event: &str,
+  build: F,
+) -> Result<tauri::Window, String>
+where
+  F: Fn(&AppHandle, &str) -> Result<tauri::Window, String> + Send + 'static,
+{
   if is_main_thread() {
     return build(app, &label);
   }
   let app2 = app.clone();
   let label2 = label.clone();
+  let event = err_event.to_string();
   let (tx, rx) = std::sync::mpsc::channel();
   std::thread::Builder::new()
-    .name(format!("note-build:{label}"))
+    .name(format!("win-build:{label}"))
     .spawn(move || {
       let _ = tx.send(build(&app2, &label2));
     })
-    .map_err(|_| "便签建窗线程启动失败".to_string())?;
+    .map_err(|_| "建窗线程启动失败".to_string())?;
   match rx.recv_timeout(std::time::Duration::from_secs(6)) {
     Ok(result) => result,
     Err(_) => {
@@ -178,16 +175,31 @@ fn build_note_window(
         .recv_timeout(std::time::Duration::from_secs(3))
         .unwrap_or(false);
       crate::telemetry::record_str(
-        "sticky_window_error",
+        &event,
         &[
           ("label", label.as_str()),
           ("err", "timeout_6s"),
           ("loop_alive", if loop_alive { "yes" } else { "no" }),
         ],
       );
-      Err("便签窗口创建超时，请重试；若连续出现请重启应用".to_string())
+      Err("窗口创建超时，请重试；若连续出现请重启应用".to_string())
     }
   }
+}
+
+/// 记建窗失败的统一埋点格式
+fn log_build_error(event: &str, label: &str, error: &str) -> String {
+  crate::telemetry::record_str(event, &[("label", label), ("err", error)]);
+  format!("窗口创建失败：{error}")
+}
+
+/// 便签建窗入口（走统一超时包装，埋点沿用 sticky_window_error）
+fn build_note_window(app: &AppHandle, label: String, mini: bool) -> Result<tauri::Window, String> {
+  build_with_timeout(app, label, "sticky_window_error", move |app, label| {
+    note_builder(app, label, mini)
+      .build()
+      .map_err(|e| log_build_error("sticky_window_error", label, &format!("{e}")))
+  })
 }
 
 /// 打开（或创建）便签窗；窗口形态（展开/缩小）由 mini 决定，创建即显示
@@ -275,6 +287,100 @@ pub fn apply_note_shape(app: &AppHandle, id: &str, mini: bool) -> Result<(), Str
     let _ = window.set_focus();
   }
   Ok(())
+}
+
+// ---------------------------------------------------------------- 待办悬浮窗（todo-float）
+
+/// 待办悬浮窗 builder：380×456 纸片（便签纸感家族），置顶按设置（窗内 Pin 可切）。
+/// 在线程内构造：WindowBuilder 非 Send，不能跨线程携带。
+fn todo_builder<'a>(app: &'a AppHandle, pinned: bool) -> WindowBuilder<'a> {
+  WindowBuilder::new(app, TODO_LABEL, WindowUrl::App("todo.html".into()))
+    .title("待办悬浮窗")
+    .inner_size(NOTE_EXPAND_SIZE.0, NOTE_EXPAND_SIZE.1)
+    .resizable(false)
+    .decorations(false)
+    .transparent(true)
+    .always_on_top(pinned)
+    .skip_taskbar(true)
+    .visible(false)
+}
+
+fn todo_pinned_of(app: &AppHandle) -> bool {
+  app
+    .try_state::<Mutex<Store>>()
+    .and_then(|s| s.lock().ok().map(|g| g.data.settings.todo_float_pinned))
+    .unwrap_or(true)
+}
+
+/// 显隐状态落 runtime.json（行为状态归运行态，ADR-0005 分层）
+fn set_todo_float_visible(app: &AppHandle, visible: bool) {
+  if let Some(state) = app.try_state::<Mutex<Store>>() {
+    if let Ok(mut guard) = state.lock() {
+      if guard.runtime.todo_float_visible != visible {
+        guard.runtime.todo_float_visible = visible;
+        let _ = guard.save_runtime_only();
+      }
+    }
+  }
+}
+
+fn todo_float_visible_of(app: &AppHandle) -> bool {
+  app
+    .try_state::<Mutex<Store>>()
+    .and_then(|s| s.lock().ok().map(|g| g.runtime.todo_float_visible))
+    .unwrap_or(true)
+}
+
+/// 打开（或唤起）待办悬浮窗；置顶跟随设置；位置记忆 note_pos["todo"]
+pub fn open_todo_float(app: &AppHandle) -> Result<(), String> {
+  let pinned = todo_pinned_of(app);
+  if app.get_window(TODO_LABEL).is_none() {
+    let stored = app
+      .try_state::<Mutex<Store>>()
+      .and_then(|s| s.lock().ok().and_then(|g| g.runtime.note_pos.get("todo").copied()));
+    let window = build_with_timeout(app, TODO_LABEL.to_string(), "todo_window_error", move |app, label| {
+      todo_builder(app, pinned)
+        .build()
+        .map_err(|e| log_build_error("todo_window_error", label, &format!("{e}")))
+    })?;
+    if let Some([x, y]) = stored {
+      if capture_pos_on_screen(&window, x, y) {
+        let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+      }
+    }
+  }
+  show_window(app, TODO_LABEL)?;
+  set_todo_float_visible(app, true);
+  sync_tray_todo(app, true);
+  Ok(())
+}
+
+/// 隐藏待办悬浮窗（✕ / 热键 / 托盘同款）：只藏窗，数据常驻；显隐状态落盘
+pub fn hide_todo_float(app: &AppHandle) -> Result<(), String> {
+  hide_window(app, TODO_LABEL)?;
+  set_todo_float_visible(app, false);
+  sync_tray_todo(app, false);
+  Ok(())
+}
+
+/// 呼出 ⇄ 隐藏（热键/托盘共用）
+pub fn toggle_todo_float(app: &AppHandle) -> Result<(), String> {
+  let visible = app
+    .get_window(TODO_LABEL)
+    .map(|w| w.is_visible().unwrap_or(false))
+    .unwrap_or(false);
+  if visible {
+    hide_todo_float(app)
+  } else {
+    open_todo_float(app)
+  }
+}
+
+/// 置顶切换的窗口同步（设置来源：set_settings / todoFloatPinned）
+pub fn apply_todo_float_pinned(app: &AppHandle, pinned: bool) {
+  if let Ok(window) = window_of(app, TODO_LABEL) {
+    let _ = window.set_always_on_top(pinned);
+  }
 }
 
 // ---------------------------------------------------------------- 快速记录浮条
@@ -565,6 +671,13 @@ pub fn register_sticky_hotkey(app: &AppHandle, combo: &Option<String>) -> Result
   result
 }
 
+/// 注册 / 换绑 / 解绑「待办悬浮窗」呼出热键；None 或空串 = 解绑（todo-float）
+pub fn register_todo_hotkey(app: &AppHandle, combo: &Option<String>) -> Result<(), String> {
+  let result = todo_hotkey_inner(app, combo);
+  publish_hotkey_state(app);
+  result
+}
+
 fn main_hotkey_inner(app: &AppHandle, combo: &Option<String>) -> Result<(), String> {
   match combo.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
     Some(target) => register_global_hotkey(app, target, HotkeyAction::OpenMain),
@@ -591,13 +704,26 @@ fn sticky_hotkey_inner(app: &AppHandle, combo: &Option<String>) -> Result<(), St
   }
 }
 
+fn todo_hotkey_inner(app: &AppHandle, combo: &Option<String>) -> Result<(), String> {
+  match combo.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+    Some(target) => register_global_hotkey(app, target, HotkeyAction::ToggleTodoFloat),
+    None => {
+      if let Some(old) = read_hotkey(app, HotkeyAction::ToggleTodoFloat) {
+        let _ = app.global_shortcut_manager().unregister(&old);
+      }
+      store_hotkey(app, HotkeyAction::ToggleTodoFloat, None);
+      Ok(())
+    }
+  }
+}
+
 fn register_global_hotkey(app: &AppHandle, combo: &str, action: HotkeyAction) -> Result<(), String> {
   let target = combo.trim().to_string();
   if target.is_empty() {
     return Err("快捷键不能为空".to_string());
   }
-  // 三槽位互斥：任一其他功能绑了这个组合键都拒绝
-  for rival in [HotkeyAction::Capture, HotkeyAction::OpenMain, HotkeyAction::NewSticky] {
+  // 四槽位互斥：任一其他功能绑了这个组合键都拒绝
+  for rival in [HotkeyAction::Capture, HotkeyAction::OpenMain, HotkeyAction::NewSticky, HotkeyAction::ToggleTodoFloat] {
     if rival == action {
       continue;
     }
@@ -652,11 +778,23 @@ fn bind_global_hotkey<M: GlobalShortcutManager>(
       manager
         .register(combo, move || {
           // 建窗可能被 WebView2 层挂起（真机复盘）：绝不能在事件循环线程上执行，
-          // 甩到后台线程，6s 超时机制在 build_note_window 里兜底。
+          // 甩到后台线程，6s 超时机制在 build_with_timeout 里兜底。
           // register 的闭包是 Fn（可多次触发），handle 只能克隆不能移动。
           let handle = handle.clone();
           std::thread::spawn(move || {
             let _ = create_note(&handle);
+          });
+        })
+        .is_ok()
+    }
+    HotkeyAction::ToggleTodoFloat => {
+      let handle = app.clone();
+      manager
+        .register(combo, move || {
+          // 首次呼出会建窗（可能挂起），同 NewSticky 甩后台线程
+          let handle = handle.clone();
+          std::thread::spawn(move || {
+            let _ = toggle_todo_float(&handle);
           });
         })
         .is_ok()
@@ -680,6 +818,7 @@ pub fn bound_combo(app: &AppHandle, slot: crate::ports::hotkeys::HotkeySlot) -> 
     crate::ports::hotkeys::HotkeySlot::Capture => HotkeyAction::Capture,
     crate::ports::hotkeys::HotkeySlot::Main => HotkeyAction::OpenMain,
     crate::ports::hotkeys::HotkeySlot::Sticky => HotkeyAction::NewSticky,
+    crate::ports::hotkeys::HotkeySlot::TodoFloat => HotkeyAction::ToggleTodoFloat,
   };
   read_hotkey(app, action)
 }
@@ -693,12 +832,13 @@ fn store_hotkey(app: &AppHandle, action: HotkeyAction, value: Option<String>) {
   }
 }
 
-/// 三个热键的**实际注册**快照（read_hotkey 是唯一事实来源，不另存一份判断）
+/// 四个热键的**实际注册**快照（read_hotkey 是唯一事实来源，不另存一份判断）
 pub fn hotkey_status(app: &AppHandle) -> crate::models::HotkeyStatus {
   crate::models::HotkeyStatus {
     capture: read_hotkey(app, HotkeyAction::Capture),
     main: read_hotkey(app, HotkeyAction::OpenMain),
     sticky: read_hotkey(app, HotkeyAction::NewSticky),
+    todo: read_hotkey(app, HotkeyAction::ToggleTodoFloat),
   }
 }
 
@@ -714,6 +854,7 @@ fn slot(registry: &HotkeyRegistry, action: HotkeyAction) -> &Option<String> {
     HotkeyAction::Capture => &registry.capture,
     HotkeyAction::OpenMain => &registry.main,
     HotkeyAction::NewSticky => &registry.sticky,
+    HotkeyAction::ToggleTodoFloat => &registry.todo,
   }
 }
 
@@ -722,15 +863,22 @@ fn slot_mut(registry: &mut HotkeyRegistry, action: HotkeyAction) -> &mut Option<
     HotkeyAction::Capture => &mut registry.capture,
     HotkeyAction::OpenMain => &mut registry.main,
     HotkeyAction::NewSticky => &mut registry.sticky,
+    HotkeyAction::ToggleTodoFloat => &mut registry.todo,
   }
 }
 
 // ---------------------------------------------------------------- 托盘
 
-pub fn tray_menu() -> SystemTrayMenu {
+pub fn tray_menu(todo_visible: bool) -> SystemTrayMenu {
+  let mut todo_item = CustomMenuItem::new("todo_float", "待办悬浮窗");
+  if todo_visible {
+    todo_item = todo_item.selected();
+  }
   SystemTrayMenu::new()
     .add_item(CustomMenuItem::new("open_main", "打开主界面"))
     .add_item(CustomMenuItem::new("capture", "快速记录"))
+    .add_native_item(SystemTrayMenuItem::Separator)
+    .add_item(todo_item)
     .add_native_item(SystemTrayMenuItem::Separator)
     .add_item(CustomMenuItem::new("sticky_new", "新建便签"))
     .add_item(CustomMenuItem::new("sticky_show_all", "显示全部便签"))
@@ -743,8 +891,17 @@ pub fn tray_menu() -> SystemTrayMenu {
     .add_item(CustomMenuItem::new("quit", "退出"))
 }
 
-pub fn build_tray() -> SystemTray {
-  SystemTray::new().with_id(TRAY_ID).with_menu(tray_menu())
+pub fn build_tray(todo_visible: bool) -> SystemTray {
+  SystemTray::new().with_id(TRAY_ID).with_menu(tray_menu(todo_visible))
+}
+
+/// 待办悬浮窗显隐变化后刷新托盘勾选
+pub fn sync_tray_todo(app: &AppHandle, visible: bool) {
+  if let Some(handle) = app.tray_handle_by_id(TRAY_ID) {
+    if let Some(item) = handle.try_get_item("todo_float") {
+      let _ = item.set_selected(visible);
+    }
+  }
 }
 
 /// 便签 id 的锁内快照（托盘/热键等后台动作先拿 id 列表，再逐个操作窗口，
@@ -770,6 +927,13 @@ pub fn handle_tray_click(app: &AppHandle, id: &str) -> bool {
       std::thread::spawn(move || {
         let _ = create_note(&handle);
       });
+    }
+    "todo_float" => {
+      let next = !todo_float_visible_of(app);
+      let result = if next { open_todo_float(app) } else { hide_todo_float(app) };
+      if result.is_ok() {
+        sync_tray_todo(app, next);
+      }
     }
     "sticky_show_all" => {
       for id in note_ids(app) {

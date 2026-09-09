@@ -14,6 +14,7 @@ pub const PRIORITIES: [&str; 3] = ["high", "med", "low"];
 pub const DEFAULT_HOTKEY: &str = "Alt+Shift+A";
 pub const DEFAULT_MAIN_HOTKEY: &str = "Alt+Shift+O";
 pub const DEFAULT_STICKY_HOTKEY: &str = "Alt+Shift+S";
+pub const DEFAULT_TODO_HOTKEY: &str = "Alt+Shift+T";
 pub const DEFAULT_DND_FROM: &str = "23:00";
 pub const DEFAULT_DND_TO: &str = "07:30";
 pub const REMINDER_CAP_DEFAULT: u32 = 3;
@@ -300,6 +301,12 @@ pub struct Settings {
   /// 便签全局热键（sticky-separation）：新建一张自由便签；None = 未绑定（可在设置解绑）
   #[serde(default = "default_sticky_hotkey")]
   pub sticky_hotkey: Option<String>,
+  /// 待办悬浮窗置顶开关（todo-float）：窗内 Pin 钮与设置同源
+  #[serde(default = "bool_true")]
+  pub todo_float_pinned: bool,
+  /// 待办悬浮窗呼出/隐藏全局热键；None = 未绑定
+  #[serde(default = "default_todo_hotkey")]
+  pub todo_hotkey: Option<String>,
   pub dnd: Dnd,
   pub remind_cap_per_hour: u32,
   pub onboarded: bool,
@@ -318,6 +325,14 @@ fn default_sticky_hotkey() -> Option<String> {
   Some(DEFAULT_STICKY_HOTKEY.to_string())
 }
 
+fn default_todo_hotkey() -> Option<String> {
+  Some(DEFAULT_TODO_HOTKEY.to_string())
+}
+
+fn todo_float_visible_default() -> bool {
+  true
+}
+
 impl Default for Settings {
   fn default() -> Self {
     Self {
@@ -329,6 +344,8 @@ impl Default for Settings {
       capture_hotkey: DEFAULT_HOTKEY.to_string(),
       main_hotkey: Some(DEFAULT_MAIN_HOTKEY.to_string()),
       sticky_hotkey: Some(DEFAULT_STICKY_HOTKEY.to_string()),
+      todo_float_pinned: true,
+      todo_hotkey: Some(DEFAULT_TODO_HOTKEY.to_string()),
       dnd: Dnd::default(),
       remind_cap_per_hour: REMINDER_CAP_DEFAULT,
       onboarded: false,
@@ -364,6 +381,11 @@ impl Settings {
     if let Some(value) = self.sticky_hotkey.as_deref() {
       if value.trim().is_empty() {
         self.sticky_hotkey = None;
+      }
+    }
+    if let Some(value) = self.todo_hotkey.as_deref() {
+      if value.trim().is_empty() {
+        self.todo_hotkey = None;
       }
     }
     if self.remind_cap_per_hour == 0 || self.remind_cap_per_hour > 60 {
@@ -501,6 +523,9 @@ pub struct RuntimeState {
   /// v1→v2 迁移报告（前端读过即清）
   #[serde(skip_serializing_if = "is_absent")]
   pub migration: Option<MigrationReport>,
+  /// 待办悬浮窗上次显隐（todo-float）：重启恢复；损坏重建时默认显示
+  #[serde(default = "todo_float_visible_default")]
+  pub todo_float_visible: bool,
 }
 
 // ---------------------------------------------------------------- 命令入参（patch）
@@ -576,6 +601,8 @@ pub struct SettingsPayload {
   pub capture_hotkey: Option<String>,
   pub main_hotkey: Option<String>,
   pub sticky_hotkey: Option<String>,
+  pub todo_float_pinned: Option<bool>,
+  pub todo_hotkey: Option<String>,
   pub dnd: Option<DndPayload>,
   pub remind_cap_per_hour: Option<u32>,
   pub onboarded: Option<bool>,
@@ -658,6 +685,7 @@ pub struct HotkeyStatus {
   pub capture: Option<String>,
   pub main: Option<String>,
   pub sticky: Option<String>,
+  pub todo: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

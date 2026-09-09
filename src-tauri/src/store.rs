@@ -1457,6 +1457,17 @@ impl Store {
           Some(trimmed.to_string())
         };
       }
+      if let Some(value) = patch.todo_float_pinned {
+        settings.todo_float_pinned = value;
+      }
+      if let Some(value) = &patch.todo_hotkey {
+        let trimmed = value.trim();
+        settings.todo_hotkey = if trimmed.is_empty() {
+          None
+        } else {
+          Some(trimmed.to_string())
+        };
+      }
       if let Some(value) = patch.remind_cap_per_hour {
         if value == 0 || value > 60 {
           return Err("每小时提醒上限要在 1 到 60 之间".to_string());

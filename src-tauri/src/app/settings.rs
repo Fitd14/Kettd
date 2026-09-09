@@ -9,6 +9,8 @@ use crate::ports::hotkeys::{HotkeyPort, HotkeySlot};
 use crate::store::Store;
 
 /// 应用设置补丁（含热键换绑事务）。成功后由调用方负责 save + 托盘/事件同步。
+/// 四槽位顺序换绑；任一失败 → 设置字段整批回滚 + 已换新值的槽位在 OS 侧还原旧键
+/// （没动过的槽位本就绑在旧键上，不碰）。
 pub fn apply_with_hotkeys(
   store: &mut Store,
   patch: &SettingsPayload,
@@ -17,39 +19,41 @@ pub fn apply_with_hotkeys(
   let snapshot = store.data.settings.clone();
   store.apply_settings_patch(patch)?;
 
-  let next_capture = store.data.settings.capture_hotkey.clone();
-  if next_capture != snapshot.capture_hotkey {
-    if let Err(error) = hotkeys.bind(HotkeySlot::Capture, Some(&next_capture)) {
-      restore(store, &snapshot);
-      return Err(error);
+  let slots: [(HotkeySlot, Option<String>, Option<String>); 4] = [
+    (
+      HotkeySlot::Capture,
+      Some(store.data.settings.capture_hotkey.clone()),
+      Some(snapshot.capture_hotkey.clone()),
+    ),
+    (
+      HotkeySlot::Main,
+      store.data.settings.main_hotkey.clone(),
+      snapshot.main_hotkey.clone(),
+    ),
+    (
+      HotkeySlot::Sticky,
+      store.data.settings.sticky_hotkey.clone(),
+      snapshot.sticky_hotkey.clone(),
+    ),
+    (
+      HotkeySlot::TodoFloat,
+      store.data.settings.todo_hotkey.clone(),
+      snapshot.todo_hotkey.clone(),
+    ),
+  ];
+  let mut applied: Vec<(HotkeySlot, Option<String>)> = Vec::new();
+  for (slot, next, previous) in slots {
+    if next == previous {
+      continue;
     }
-  }
-
-  let next_main = store.data.settings.main_hotkey.clone();
-  if next_main != snapshot.main_hotkey {
-    if let Err(error) = hotkeys.bind(HotkeySlot::Main, next_main.as_deref()) {
+    if let Err(error) = hotkeys.bind(slot, next.as_deref()) {
       restore(store, &snapshot);
-      // 捕获键已经换上新值了：三槽位是一个事务，把变更过的槽位一起还原
-      if next_capture != snapshot.capture_hotkey {
-        let _ = hotkeys.bind(HotkeySlot::Capture, Some(&snapshot.capture_hotkey));
+      for (s, old) in applied {
+        let _ = hotkeys.bind(s, old.as_deref());
       }
       return Err(error);
     }
-  }
-
-  let next_sticky = store.data.settings.sticky_hotkey.clone();
-  if next_sticky != snapshot.sticky_hotkey {
-    if let Err(error) = hotkeys.bind(HotkeySlot::Sticky, next_sticky.as_deref()) {
-      restore(store, &snapshot);
-      // 只还原**实际换过新值**的槽位：没动过的槽位本就绑在旧键上
-      if next_capture != snapshot.capture_hotkey {
-        let _ = hotkeys.bind(HotkeySlot::Capture, Some(&snapshot.capture_hotkey));
-      }
-      if next_main != snapshot.main_hotkey {
-        let _ = hotkeys.bind(HotkeySlot::Main, snapshot.main_hotkey.as_deref());
-      }
-      return Err(error);
-    }
+    applied.push((slot, previous));
   }
   Ok(())
 }
@@ -60,6 +64,7 @@ fn restore(store: &mut Store, snapshot: &Settings) {
   store.data.settings.capture_hotkey = snapshot.capture_hotkey.clone();
   store.data.settings.main_hotkey = snapshot.main_hotkey.clone();
   store.data.settings.sticky_hotkey = snapshot.sticky_hotkey.clone();
+  store.data.settings.todo_hotkey = snapshot.todo_hotkey.clone();
 }
 
 #[cfg(test)]
@@ -234,4 +239,62 @@ mod tests {
     assert_eq!(store.data.settings.sticky_hotkey, None);
     assert_eq!(hotkeys.bound(HotkeySlot::Sticky), None, "空串=解绑");
   }
+
+  /// 待办悬浮窗热键（todo-float 第四槽）与其他槽位同一事务语义。
+  #[test]
+  fn todo_conflict_rolls_back_all_preceding_slots() {
+    let mut store = mem_store();
+    store.data.settings.todo_hotkey = Some("Alt+Shift+T".to_string());
+    let mut hotkeys = StubHotkeys::new();
+    hotkeys.fail_when = Some("Ctrl+Shift+T".to_string());
+    let patch = SettingsPayload {
+      capture_hotkey: Some("Alt+Shift+Q".to_string()),
+      sticky_hotkey: Some("Ctrl+Shift+Z".to_string()),
+      todo_hotkey: Some("Ctrl+Shift+T".to_string()),
+      ..Default::default()
+    };
+    assert!(apply_with_hotkeys(&mut store, &patch, &mut hotkeys).is_err());
+
+    let calls = hotkeys.calls.lock().unwrap();
+    let seq: Vec<_> = calls
+      .iter()
+      .map(|(slot, combo)| (*slot, combo.clone()))
+      .collect();
+    assert_eq!(
+      seq,
+      vec![
+        (HotkeySlot::Capture, Some("Alt+Shift+Q".to_string())),
+        (HotkeySlot::Sticky, Some("Ctrl+Shift+Z".to_string())),
+        (HotkeySlot::TodoFloat, Some("Ctrl+Shift+T".to_string())),
+        (HotkeySlot::Capture, Some("Alt+Shift+A".to_string())),
+        (HotkeySlot::Sticky, Some("Alt+Shift+S".to_string())),
+      ],
+      "捕获/便签先换新 → 待办键失败 → 把变更过的槽位按序还原"
+    );
+    assert_eq!(store.data.settings.capture_hotkey, "Alt+Shift+A");
+    assert_eq!(
+      store.data.settings.sticky_hotkey,
+      Some("Alt+Shift+S".to_string())
+    );
+    assert_eq!(
+      store.data.settings.todo_hotkey,
+      Some("Alt+Shift+T".to_string()),
+      "待办键回滚到换绑前的值"
+    );
+  }
+
+  #[test]
+  fn unbinding_todo_hotkey_is_a_valid_operation() {
+    let mut store = mem_store();
+    store.data.settings.todo_hotkey = Some("Alt+Shift+T".to_string());
+    let mut hotkeys = StubHotkeys::new();
+    let patch = SettingsPayload {
+      todo_hotkey: Some("".to_string()),
+      ..Default::default()
+    };
+    apply_with_hotkeys(&mut store, &patch, &mut hotkeys).unwrap();
+    assert_eq!(store.data.settings.todo_hotkey, None);
+    assert_eq!(hotkeys.bound(HotkeySlot::TodoFloat), None, "空串=解绑");
+  }
 }
+

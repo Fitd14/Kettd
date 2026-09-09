@@ -48,6 +48,6 @@ test('V2-API 文档表 ↔ 注册表一一对应', () => {
   assert.deepEqual(diff(documented, handler), [], '文档有行但没注册');
 });
 
-test('命令总数与文档声明一致（当前 53）', () => {
-  assert.equal(handler.size, 53, '总数变更时同步更新 V2-API §10 与本断言');
+test('命令总数与文档声明一致（当前 55）', () => {
+  assert.equal(handler.size, 55, '总数变更时同步更新 V2-API §10 与本断言');
 });

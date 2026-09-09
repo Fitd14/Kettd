@@ -28,8 +28,10 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         capture: fileURLToPath(new URL('./capture.html', import.meta.url)),
-        // 产出 float.html：便签窗（FLOAT_LABEL）的 WindowUrl 两条轨同名，切栈零 Rust 改动
+        // 产出 float.html：便签窗（note:*）的 WindowUrl 两条轨同名，切栈零 Rust 改动
         float: fileURLToPath(new URL('./float.html', import.meta.url)),
+        // 产出 todo.html：待办悬浮窗（TODO_LABEL，todo-float）
+        todo: fileURLToPath(new URL('./todo.html', import.meta.url)),
       },
     },
   },

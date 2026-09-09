@@ -10,6 +10,8 @@ pub enum HotkeySlot {
   Main,
   /// 新建一张便签（默认 Alt+Shift+S，sticky-separation）
   Sticky,
+  /// 呼出/隐藏待办悬浮窗（默认 Alt+Shift+T，todo-float）
+  TodoFloat,
 }
 
 pub trait HotkeyPort: Send {
@@ -28,7 +30,7 @@ pub mod test_double {
 
   /// 桩热键：bind 恒成功（或按 fail_when 指定组合失败），记录调用。
   pub struct StubHotkeys {
-    pub slots: Mutex<[Option<String>; 3]>,
+    pub slots: Mutex<[Option<String>; 4]>,
     /// 换绑到该组合时失败（模拟被占用）
     pub fail_when: Option<String>,
     pub calls: Mutex<Vec<(HotkeySlot, Option<String>)>>,
@@ -37,7 +39,7 @@ pub mod test_double {
   impl StubHotkeys {
     pub fn new() -> Self {
       Self {
-        slots: Mutex::new([None, None, None]),
+        slots: Mutex::new([None, None, None, None]),
         fail_when: None,
         calls: Mutex::new(Vec::new()),
       }
@@ -48,6 +50,7 @@ pub mod test_double {
         HotkeySlot::Capture => 0,
         HotkeySlot::Main => 1,
         HotkeySlot::Sticky => 2,
+        HotkeySlot::TodoFloat => 3,
       }
     }
   }

@@ -131,6 +131,10 @@ export interface Settings {
   mainHotkey: string | null
   /** 新建便签全局热键（sticky-separation）；null = 已解绑 */
   stickyHotkey: string | null
+  /** 待办悬浮窗置顶（todo-float，默认开；窗内 Pin 钮同源） */
+  todoFloatPinned: boolean
+  /** 待办悬浮窗呼出/隐藏热键；null = 已解绑 */
+  todoHotkey: string | null
   dnd: Dnd
   remindCapPerHour: number
   onboarded: boolean
@@ -147,6 +151,8 @@ export interface SettingsPayload {
   captureHotkey?: string
   mainHotkey?: string | null
   stickyHotkey?: string | null
+  todoFloatPinned?: boolean
+  todoHotkey?: string | null
   dnd?: Partial<Dnd>
   remindCapPerHour?: number
   onboarded?: boolean
@@ -201,6 +207,7 @@ export interface HotkeyStatus {
   capture: string | null
   main: string | null
   sticky: string | null
+  todo: string | null
 }
 
 export interface RestoreResult {
@@ -342,6 +349,10 @@ export const registerCaptureHotkey = (combo: string) => call<void>('register_cap
 export const registerMainHotkey = (combo: string | null) => call<void>('register_main_hotkey', { combo })
 /** 新建便签热键（默认 Alt+Shift+S，可解绑）；空串 = 解绑 */
 export const registerStickyHotkey = (combo: string | null) => call<void>('register_sticky_hotkey', { combo })
+/** 待办悬浮窗呼出/隐藏热键（默认 Alt+Shift+T，可解绑）；空串 = 解绑 */
+export const registerTodoHotkey = (combo: string | null) => call<void>('register_todo_hotkey', { combo })
+/** 隐藏待办悬浮窗（✕ 同款）：只藏窗，显隐状态落盘 */
+export const hideTodoFloat = () => call<void>('hide_todo_float')
 /** 热键实际注册快照（null = 未绑上/已解绑），设置页据此标「未生效」 */
 export const getHotkeyStatus = () => call<HotkeyStatus>('get_hotkey_status')
 export const openCaptureOverlay = () => call<void>('open_capture_overlay')

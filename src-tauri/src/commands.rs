@@ -457,7 +457,7 @@ pub fn set_settings(
   let mut store = lock(&state);
   store.ensure_writable()?;
   let old_theme = store.data.settings.theme.clone();
-  // 两槽位热键事务：任一换绑失败，主题/键位整批回滚（规则在 app/settings）
+  // 四槽位热键事务：任一换绑失败，主题/键位整批回滚（规则在 app/settings）
   let mut hotkeys = crate::infra::tauri_hotkeys::TauriHotkeys::new(&app);
   crate::app::settings::apply_with_hotkeys(&mut store, &patch, &mut hotkeys)?;
   if let Some(on) = patch.telemetry_enabled {
@@ -465,9 +465,14 @@ pub fn set_settings(
     crate::telemetry::set_enabled(on);
   }
   let next_theme = store.data.settings.theme.clone();
+  let next_pinned = store.data.settings.todo_float_pinned;
   store.save()?;
   if next_theme != old_theme {
     let _ = app.emit_all("theme-changed", next_theme.clone());
+  }
+  if patch.todo_float_pinned.is_some() {
+    // 待办悬浮窗置顶即时同步到窗口（todo-float）
+    runtime::apply_todo_float_pinned(&app, next_pinned);
   }
   emit(&app, StoreEvent::changed("settings"));
   Ok(store.data.settings.clone())
@@ -710,15 +715,44 @@ pub fn register_sticky_hotkey(
   if previous == next {
     return Ok(store.data.settings.clone());
   }
+  emit(&app, StoreEvent::changed("settings"));
+  Ok(store.data.settings.clone())
+}
+
+/// 换绑/解绑「待办悬浮窗」呼出热键；空串 = 解绑；失败保持旧值（todo-float）
+#[tauri::command]
+pub fn register_todo_hotkey(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  combo: String,
+) -> Result<Settings, String> {
+  let trimmed = combo.trim().to_string();
+  let next = if trimmed.is_empty() {
+    None
+  } else {
+    Some(trimmed)
+  };
+  let mut store = lock(&state);
+  let previous = store.data.settings.todo_hotkey.clone();
+  runtime::register_todo_hotkey(&app, &next)?;
+  if previous == next {
+    return Ok(store.data.settings.clone());
+  }
   store.ensure_writable()?;
-  store.data.settings.sticky_hotkey = next.clone();
+  store.data.settings.todo_hotkey = next.clone();
   if let Err(error) = store.save() {
-    store.data.settings.sticky_hotkey = previous.clone();
-    let _ = runtime::register_sticky_hotkey(&app, &previous);
+    store.data.settings.todo_hotkey = previous.clone();
+    let _ = runtime::register_todo_hotkey(&app, &previous);
     return Err(error);
   }
   emit(&app, StoreEvent::changed("settings"));
   Ok(store.data.settings.clone())
+}
+
+/// 隐藏待办悬浮窗（✕ 同款）：只藏窗，显隐状态落盘，重启按此恢复
+#[tauri::command]
+pub fn hide_todo_float(app: AppHandle) -> Result<(), String> {
+  runtime::hide_todo_float(&app)
 }
 
 #[tauri::command]

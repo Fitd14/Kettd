@@ -23,6 +23,7 @@ interface Props {
 const DEFAULT_CAPTURE = 'Alt+Shift+A'
 const DEFAULT_MAIN = 'Alt+Shift+O'
 const DEFAULT_STICKY = 'Alt+Shift+S'
+const DEFAULT_TODO = 'Alt+Shift+T'
 
 /** 设置视图（planned-settings-ui-spec）：分区块控件，改动即存（set_settings 增量补丁）。 */
 export function SettingsView({ boot, refresh }: Props) {
@@ -33,6 +34,7 @@ export function SettingsView({ boot, refresh }: Props) {
   const [capCombo, setCapCombo] = useState(s.captureHotkey)
   const [mainCombo, setMainCombo] = useState(s.mainHotkey ?? '')
   const [stickyCombo, setStickyCombo] = useState(s.stickyHotkey ?? '')
+  const [todoCombo, setTodoCombo] = useState(s.todoHotkey ?? '')
   const [fadeOpacity, setFadeOpacity] = useState(s.stickyFadeOpacity)
   const [confirmClear, setConfirmClear] = useState(false)
   const [confirmDel, setConfirmDel] = useState<string | null>(null)
@@ -62,12 +64,14 @@ export function SettingsView({ boot, refresh }: Props) {
     await refresh()
   }
 
-  const rebind = async (slot: 'capture' | 'main' | 'sticky') => {
+  const rebind = async (slot: 'capture' | 'main' | 'sticky' | 'todo') => {
     const r = slot === 'capture'
       ? await setSettings({ captureHotkey: capCombo.trim() })
       : slot === 'main'
         ? await setSettings({ mainHotkey: mainCombo.trim() || null })
-        : await setSettings({ stickyHotkey: stickyCombo.trim() || null })
+        : slot === 'sticky'
+          ? await setSettings({ stickyHotkey: stickyCombo.trim() || null })
+          : await setSettings({ todoHotkey: todoCombo.trim() || null })
     if (r.err) { setErr(r.err); return }
     const st = await getHotkeyStatus()
     if (!st.err && st.data) setHotkeys(st.data)
@@ -103,11 +107,13 @@ export function SettingsView({ boot, refresh }: Props) {
       captureHotkey: DEFAULT_CAPTURE,
       mainHotkey: DEFAULT_MAIN,
       stickyHotkey: DEFAULT_STICKY,
+      todoHotkey: DEFAULT_TODO,
     })
     if (r.err) { setErr(r.err); return }
     setCapCombo(DEFAULT_CAPTURE)
     setMainCombo(DEFAULT_MAIN)
     setStickyCombo(DEFAULT_STICKY)
+    setTodoCombo(DEFAULT_TODO)
     const st = await getHotkeyStatus()
     if (!st.err && st.data) setHotkeys(st.data)
     setNote('已恢复默认快捷键')
@@ -274,8 +280,18 @@ export function SettingsView({ boot, refresh }: Props) {
             <button className="btn xs outline" onClick={() => { void rebind('sticky') }}>换绑</button>
           </span>
         </div>
+        <div className="set-row"><span>待办悬浮窗
+          <div className="tiny text-muted">
+            呼出/隐藏今天待办的悬浮窗。当前绑定：{hotkeys?.todo ?? '未绑定'}（留空 = 解绑）
+          </div>
+        </span>
+          <span className="row-flex">
+            <input className="input xs" value={todoCombo} onChange={(e) => setTodoCombo(e.target.value)} aria-label="待办悬浮窗热键" />
+            <button className="btn xs outline" onClick={() => { void rebind('todo') }}>换绑</button>
+          </span>
+        </div>
         <div className="set-row"><span>恢复默认
-          <div className="tiny text-muted">快速记录 {DEFAULT_CAPTURE} · 打开主界面 {DEFAULT_MAIN} · 新建便签 {DEFAULT_STICKY}</div>
+          <div className="tiny text-muted">快速记录 {DEFAULT_CAPTURE} · 打开主界面 {DEFAULT_MAIN} · 新建便签 {DEFAULT_STICKY} · 待办悬浮窗 {DEFAULT_TODO}</div>
         </span>
           <button className="btn xs outline" onClick={() => { void restoreDefaults() }}>恢复默认快捷键</button>
         </div>
