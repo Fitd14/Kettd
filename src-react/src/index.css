@@ -156,4 +156,30 @@
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
+  /* 全局滚动条统一（owner 拍板 2026-09-09）：透明轨道 + 圆角细条，令牌取色、
+     hover 提亮——替换 WebView2 原生灰条+箭头钮（侧栏竖向 / 回顾页竖向 / 时间轴横向）。
+     scrollbar-width/color 是 Firefox 兜底；WebView2(Chromium) 走 ::-webkit-scrollbar。 */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground));
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
