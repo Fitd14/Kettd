@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type { Task } from '@/lib/api'
-import { formatDue, getCategoryColor, PRIORITY_LABEL } from '@/lib/api'
+import { formatDue, getCategoryColor, PRIORITY_LABEL, getKbItems, updateTask } from '@/lib/api'
+import type { KbItem } from '@/lib/api'
+import { KbAttachPicker } from '@/components/kb/kb-attach-picker'
 
 interface Props {
   task: Task | null
@@ -16,6 +18,19 @@ interface Props {
  */
 export function TaskDetail({ task, today, onClose, onDelete }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null)
+  const [kbItems, setKbItems] = useState<Map<string, KbItem>>(new Map())
+  const [showAttachPicker, setShowAttachPicker] = useState(false)
+
+  const kbRefs: string[] = task?.kbRefs ?? []
+
+  // 加载 KB 条目标题（用于展示）
+  useEffect(() => {
+    if (kbRefs.length === 0) return
+    getKbItems().then((r) => {
+      const items = r.data ?? []
+      setKbItems(new Map(items.map((i) => [i.id, i])))
+    })
+  }, [kbRefs.join(',')])
 
   useEffect(() => {
     if (!task) return
@@ -87,6 +102,50 @@ export function TaskDetail({ task, today, onClose, onDelete }: Props) {
         <div className="detail-meta text-muted">
           创建 {String(task.createdAt).slice(0, 16).replace('T', ' ')} · 更新 {String(task.updatedAt).slice(0, 16).replace('T', ' ')}
         </div>
+
+        {/* KB 挂载资料区 */}
+        <div className="detail-section">
+          <span className="detail-label">挂载资料 {kbRefs.length > 0 && `(${kbRefs.length})`}</span>
+          <div className="detail-kb-refs">
+            {kbRefs.map((ref) => {
+              const item = kbItems.get(ref)
+              return (
+                <span key={ref} className={`kb-ref-chip ${item ? '' : 'invalid'}`}>
+                  📎 {item?.title ?? '已失效'}
+                  {item && (
+                    <button
+                      className="btn xs ghost"
+                      onClick={() => { window.location.hash = `#/kb?id=${ref}` }}
+                      title="跳转到知识库"
+                    >↗</button>
+                  )}
+                  <button
+                    className="btn xs ghost"
+                    onClick={async () => {
+                      const next = kbRefs.filter((r) => r !== ref)
+                      await updateTask(task.id, { kbRefs: next })
+                    }}
+                    title="卸载"
+                  >×</button>
+                </span>
+              )
+            })}
+            <button
+              className="btn xs ghost"
+              onClick={() => setShowAttachPicker(true)}
+            >
+              + 挂载
+            </button>
+          </div>
+        </div>
+
+        {showAttachPicker && (
+          <KbAttachPicker
+            currentRefs={kbRefs}
+            onAttach={async (ids) => { await updateTask(task.id, { kbRefs: ids }) }}
+            onClose={() => setShowAttachPicker(false)}
+          />
+        )}
 
         {onDelete && !task.deletedAt && (
           <div className="detail-actions">

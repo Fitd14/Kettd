@@ -6,6 +6,7 @@ import { KbTagFilter } from '@/components/kb/kb-tag-filter'
 import { KbItemRow } from '@/components/kb/kb-item-row'
 import { KbEmptyState } from '@/components/kb/kb-empty-state'
 import { KbItemDetail } from '@/components/kb/kb-item-detail'
+import { KbNewTaskDialog } from '@/components/kb/kb-new-task-dialog'
 import './kb.css'
 
 interface Props {
@@ -26,6 +27,7 @@ export function KbView(_props: Props) {
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [createTaskItem, setCreateTaskItem] = useState<KbItem | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -126,10 +128,19 @@ export function KbView(_props: Props) {
               item={selected}
               onDeleted={(id) => { if (selectedId === id) setSelectedId(null); void refresh() }}
               onRefresh={refresh}
+              onCreateTask={(item) => setCreateTaskItem(item)}
             />
           )}
         </div>
       </div>
+
+      {createTaskItem && (
+        <KbNewTaskDialog
+          item={createTaskItem}
+          onClose={() => setCreateTaskItem(null)}
+          onCreated={refresh}
+        />
+      )}
     </div>
   )
 }
