@@ -87,14 +87,15 @@ export function AiSection() {
     setSaving(true)
     setSaveMsg(null)
     try {
+      // 空 = 不改动已存值（Rust patch 语义 Some("") 会覆盖，空串一律不下发，qa-13）
+      const nonEmpty = (v: string) => (v.trim() ? v.trim() : undefined)
       const patch = {
-        baseUrl: chat.baseUrl.trim(),
-        model: chat.model.trim(),
-        // KEY 空 = 不改动已存 KEY（Rust patch 语义 Some("") 会覆盖，这里显式跳过）
-        apiKey: chat.apiKey.trim() || undefined,
-        embeddingBaseUrl: embedding.baseUrl.trim(),
-        embeddingModel: embedding.model.trim(),
-        embeddingApiKey: embedding.apiKey.trim() || undefined,
+        baseUrl: nonEmpty(chat.baseUrl),
+        model: nonEmpty(chat.model),
+        apiKey: nonEmpty(chat.apiKey),
+        embeddingBaseUrl: nonEmpty(embedding.baseUrl),
+        embeddingModel: nonEmpty(embedding.model),
+        embeddingApiKey: nonEmpty(embedding.apiKey),
       }
       const r = await setAiConfig(patch)
       if (!r.err && r.data) {
@@ -189,7 +190,7 @@ export function AiSection() {
           {segBtn(status?.enabled === true, '开', () => {
             void setAiConfig({ enabled: true }).then((r) => { if (!r.err && r.data) setStatus(r.data) })
           })}
-          {segBtn(status?.enabled !== true, '关', () => {
+          {segBtn(status !== null && status?.enabled !== true, '关', () => {
             void setAiConfig({ enabled: false }).then((r) => { if (!r.err && r.data) setStatus(r.data) })
           })}
         </div>

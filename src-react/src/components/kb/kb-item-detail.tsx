@@ -6,6 +6,8 @@ import { TipTapEditor } from '@/rendering/tiptap-editor'
 
 interface Props {
   item: KbItem
+  /** 被任务/知识便签引用数（删除确认提示用，qa-8） */
+  refCount?: number
   onDeleted: (id: string) => void
   /** 可选：贴到桌面（Phase 2 接线） */
   onPin?: (item: KbItem) => void
@@ -22,7 +24,7 @@ interface Props {
  * 工具栏：阅读/编辑切换 + 贴到桌面(Phase 2) + 转为待办 + 删除（二次确认）。
  * bodyMd 是唯一真相——编辑态防抖 800ms 写回 updateKbItem。
  */
-export function KbItemDetail({ item, onDeleted, onPin, onCreateTask, onRefresh }: Props) {
+export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onCreateTask, onRefresh }: Props) {
   const [mode, setMode] = useState<'read' | 'edit'>('read')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -84,7 +86,9 @@ export function KbItemDetail({ item, onDeleted, onPin, onCreateTask, onRefresh }
           </button>
         ) : (
           <>
-            <span style={{ fontSize: '0.8em', color: 'var(--muted-foreground)' }}>确认？</span>
+            <span style={{ fontSize: '0.8em', color: 'var(--muted-foreground)' }}>
+              {refCount > 0 ? `有 ${refCount} 处引用将悬空，确认？` : '确认？'}
+            </span>
             <button className="btn xs danger" onClick={handleDelete}>确认</button>
             <button className="btn xs ghost" onClick={() => setShowDeleteConfirm(false)}>取消</button>
           </>

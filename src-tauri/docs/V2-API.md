@@ -182,7 +182,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `reorder_tasks` | `idsInOrder: string[]` | `usize`（实际移动条数） | 同列表手动排序（便签规格 §12.2）：按传入顺序整表落 `sort_order`（v3/M3）；`sortOrder` 缺省 = 未手动排过，展示按 `createdAt` 兜底 |
 | `clear_events` | — | `void` | 清空本地统计（planned-settings B.5★）：重置 `events.jsonl` 为空并记一条 `events_cleared`；写线程在途一批（≤64 条）可随后落盘，属可接受残留 |
 | `track_event` | `name: string`, `props?: string`（JSON 文本） | `void` | 通用前端埋点通道（metric 蓝图：weekly_open 等 UI 侧事件）；仅落本机 `events.jsonl` 绝不出网；name ≤48 字符非空，props 需为合法 JSON |
-| `create_sticky` | — | `StickyNote` | 新建一张自由便签（sticky-separation：便签只有这一种，≤500 字）：张数 ≥6 Err「便签最多 6 张」；窗口按 ADR-0007 动态创建（label `note:<id>`），常驻置顶；位置从最近一张便签窗级联 +32px；记 `sticky_create`。与全局热键「新建便签」共用同一入口 `runtime::create_note` |
+| `create_sticky` | `kbRef?` | `StickyNote` | 新建便签（Phase 2 分池）：`kbRef` 缺省=自由便签（≤500 字，上限 6 张）；`kbRef`=知识便签——KB 条目的桌面视口（正文存 KB 不落便签，上限 4 张），Err「知识便签已达上限（4张）」。窗口按 ADR-0007 动态创建（label `note:<id>`），常驻置顶；位置从最近一张便签窗级联 +32px；记 `sticky_create`。与全局热键「新建便签」共用 `runtime::create_note`（热键恒建自由便签） |
 | `list_stickies` | — | `StickyNote[]` | 便签清单；设置页清单数据源。`content` **始终序列化**（含空串）——曾因 skip_serializing_if 吞空串导致前端 `content` undefined、设置页渲染 `.split` 抛 TypeError 整树卸载黑屏（真机复盘 2026-09-09），前端类型契约 `content: string` 必填 |
 | `update_sticky` | `id`, `content?`, `mini?` | `StickyNote` | 内容（≤500 字）/ 形态（`mini:true` → 窗口 380×40 置顶悬浮文本条；`mini:false` → 380×456 纸片并聚焦）；形态持久化，重启按原样恢复 |
 | `delete_sticky` | `id` | `void` | 关闭即销毁（一次性工具语义）：便签数据、窗口与 `note_pos` 记录一并回收，无确认无撤销，误关靠写前轮转备份兜底；记 `sticky_delete`。便签窗的 Alt+F4 走同一语义（`CloseRequested` 分支） |

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { addTask, updateTask, trackEvent } from '@/lib/api'
+import { addTask, trackEvent } from '@/lib/api'
 import type { KbItem } from '@/lib/api'
 
 interface Props {
@@ -23,9 +23,9 @@ export function KbNewTaskDialog({ item, onClose, onCreated }: Props) {
     setSubmitting(true)
     setError(null)
     try {
-      const result = await addTask({ title: title.trim(), category, note: '' })
+      // add_task 经 apply_task_patch 天然接受 kbRefs（qa-6 复核：无需两步）
+      const result = await addTask({ title: title.trim(), category, note: '', kbRefs: [item.id] })
       if (result.data?.id) {
-        await updateTask(result.data.id, { kbRefs: [item.id] })
         void trackEvent('kb_item_to_task', { itemId: item.id })
       }
       onCreated()

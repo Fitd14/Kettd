@@ -166,7 +166,7 @@ export default function StickyWindow() {
           </button>
         </div>
         <div className="sticky-body">
-          <div className="kb-empty">
+          <div className="sticky-invalid-body">
             <span>此知识条目已被删除</span>
             <button
               className="sticky-md-btn on"

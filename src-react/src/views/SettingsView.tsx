@@ -5,6 +5,7 @@ import {
   createSticky,
   deleteSticky,
   getHotkeyStatus,
+  getKbItems,
   listStickies,
   openDataFolder,
   setSettings,
@@ -40,6 +41,7 @@ export function SettingsView({ boot, refresh }: Props) {
   const [confirmClear, setConfirmClear] = useState(false)
   const [confirmDel, setConfirmDel] = useState<string | null>(null)
   const [stickyList, setStickyList] = useState<StickyNoteItem[]>([])
+  const [kbTitleMap, setKbTitleMap] = useState<Map<string, string>>(new Map())
   const clearTimer = useRef<number | null>(null)
 
   // 分池计数（Phase 2）
@@ -49,6 +51,9 @@ export function SettingsView({ boot, refresh }: Props) {
   useEffect(() => {
     void getHotkeyStatus().then((r) => { if (!r.err && r.data) setHotkeys(r.data) })
     void loadStickies()
+    void getKbItems().then((r) => {
+      if (!r.err && r.data) setKbTitleMap(new Map(r.data.map((i) => [i.id, i.title])))
+    })
   }, [])
 
   const loadStickies = () => {
@@ -235,7 +240,7 @@ export function SettingsView({ boot, refresh }: Props) {
                 <span key={st.id} className="row-flex items-center gap-1.5">
                   <span className="tiny grow truncate" style={{ maxWidth: 200 }}>
                     {st.kbRef ? (
-                      <span className="text-muted">📎 {st.content || '（知识便签）'}</span>
+                      <span className="text-muted">📎 {kbTitleMap.get(st.kbRef) ?? '（知识条目已删除）'}</span>
                     ) : (
                       /* ?? '' 是黑屏教训（2026-09-09）：content 一旦缺字段，.split 抛 TypeError = 整树卸载 */
                       (st.content ?? '').split('\n')[0] || '（空）'

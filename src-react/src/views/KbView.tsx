@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { getKbItems, searchKb, addKbItem, createSticky, trackEvent, searchKbHybrid } from '@/lib/api'
-import type { KbItem, HybridResult } from '@/lib/api'
+import type { Bootstrap, KbItem, HybridResult } from '@/lib/api'
 import { KbSearchBar } from '@/components/kb/kb-search-bar'
 import { KbTagFilter } from '@/components/kb/kb-tag-filter'
 import { KbItemRow } from '@/components/kb/kb-item-row'
@@ -10,7 +10,7 @@ import { KbNewTaskDialog } from '@/components/kb/kb-new-task-dialog'
 import './kb.css'
 
 interface Props {
-  boot?: unknown
+  boot?: Bootstrap
 }
 
 /**
@@ -20,7 +20,7 @@ interface Props {
  * 搜索策略：前端持全量 items（≤5k 内存安全），searchKb 返回排序 items 后重排。
  * 标签筛选：前端对全量 items 做 client-side 过滤（不发新命令）。
  */
-export function KbView(_props: Props) {
+export function KbView({ boot }: Props) {
   const [items, setItems] = useState<KbItem[]>([])
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -29,6 +29,7 @@ export function KbView(_props: Props) {
   const [error, setError] = useState<string | null>(null)
   const [createTaskItem, setCreateTaskItem] = useState<KbItem | null>(null)
   const [aiHits, setAiHits] = useState<Set<string>>(new Set())
+  const [actionErr, setActionErr] = useState<string | null>(null)
   // 左侧清单折叠（真机反馈：太宽影响编辑）；localStorage 持久化
   const [listCollapsed, setListCollapsed] = useState(
     () => localStorage.getItem('kb.listCollapsed') === '1',
@@ -169,12 +170,23 @@ export function KbView(_props: Props) {
     [items, selectedId],
   )
 
+  // 条目被任务引用数（boot 无 stickies，知识便签引用不计；删除确认提示用 qa-8）
+  const refCountOf = useCallback((id: string): number => {
+    if (!boot) return 0
+    return boot.tasks.filter((t) => !t.deletedAt && t.kbRefs?.includes(id)).length
+  }, [boot])
+
   // 新建条目
   const handleCreate = useCallback(async () => {
     const title = `新建知识 ${new Date().toLocaleDateString('zh-CN')}`
     const result = await addKbItem({ title, bodyMd: '', tags: [] })
+    if (result.err) {
+      setActionErr(result.err)
+      return
+    }
     if (result.data) {
       void trackEvent('kb_create', {})
+      setActionErr(null)
       await refresh()
       setSelectedId(result.data.id)
     }
@@ -192,6 +204,10 @@ export function KbView(_props: Props) {
           + 新建
         </button>
       </div>
+
+      {actionErr && (
+        <div className="inline-err" role="alert">{actionErr}</div>
+      )}
 
       {!listCollapsed && (
         <KbTagFilter
@@ -245,14 +261,18 @@ export function KbView(_props: Props) {
           {selected && (
             <KbItemDetail
               item={selected}
+              refCount={refCountOf(selected.id)}
               onDeleted={(id) => { if (selectedId === id) setSelectedId(null); void refresh() }}
               onRefresh={refresh}
               onCreateTask={(item) => setCreateTaskItem(item)}
               onPin={async (item) => {
                 const result = await createSticky({ kbRef: item.id })
-                if (!result.err) {
-                  void trackEvent('kb_pin_desktop', { itemId: item.id })
+                if (result.err) {
+                  setActionErr(result.err)
+                  return
                 }
+                setActionErr(null)
+                void trackEvent('kb_pin_desktop', { itemId: item.id })
               }}
             />
           )}
