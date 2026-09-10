@@ -764,6 +764,15 @@ impl Store {
           .and_then(|text| parse_value(&text).ok())
           .and_then(|value| serde_json::from_value::<Vec<KbItem>>(value).ok())
           .unwrap_or_default();
+        // AI 向量索引（kb_index.json，衍生数据）：缺失/损坏 → 静默空（下次搜索触发重建）
+        store.kb_index = store
+          .backend
+          .read_kb_index()
+          .ok()
+          .flatten()
+          .and_then(|text| parse_value(&text).ok())
+          .and_then(|value| serde_json::from_value::<Vec<crate::ai::embedding::ChunkIndex>>(value).ok())
+          .unwrap_or_default();
         store
       }
       Err(error) => {
@@ -970,6 +979,14 @@ impl Store {
     let json = serde_json::to_string_pretty(&self.kb)
       .map_err(|error| format!("知识条目序列化失败：{}", brief(&error.to_string())))?;
     self.backend.write_notes(&json)
+  }
+
+  /// 只写 AI 向量索引（kb_index.json，衍生数据；损坏可重建，无需轮转）
+  pub fn save_kb_index(&mut self) -> Result<(), String> {
+    self.ensure_writable()?;
+    let json = serde_json::to_string_pretty(&self.kb_index)
+      .map_err(|error| format!("向量索引序列化失败：{}", brief(&error.to_string())))?;
+    self.backend.write_kb_index(&json)
   }
 
   pub fn save_runtime_only(&mut self) -> Result<(), String> {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type { Task } from '@/lib/api'
-import { formatDue, getCategoryColor, PRIORITY_LABEL, getKbItems, updateTask } from '@/lib/api'
+import { formatDue, getCategoryColor, PRIORITY_LABEL, getKbItems, updateTask, trackEvent } from '@/lib/api'
 import type { KbItem } from '@/lib/api'
 import { KbAttachPicker } from '@/components/kb/kb-attach-picker'
 
@@ -115,7 +115,10 @@ export function TaskDetail({ task, today, onClose, onDelete }: Props) {
                   {item && (
                     <button
                       className="btn xs ghost"
-                      onClick={() => { window.location.hash = `#/kb?id=${ref}` }}
+                      onClick={() => {
+                        void trackEvent('kb_open_from_task', { itemId: ref })
+                        window.location.hash = `#/kb?id=${ref}`
+                      }}
                       title="跳转到知识库"
                     >↗</button>
                   )}
@@ -124,6 +127,7 @@ export function TaskDetail({ task, today, onClose, onDelete }: Props) {
                     onClick={async () => {
                       const next = kbRefs.filter((r) => r !== ref)
                       await updateTask(task.id, { kbRefs: next })
+                      void trackEvent('task_kb_detach', { taskId: task.id })
                     }}
                     title="卸载"
                   >×</button>
@@ -142,7 +146,10 @@ export function TaskDetail({ task, today, onClose, onDelete }: Props) {
         {showAttachPicker && (
           <KbAttachPicker
             currentRefs={kbRefs}
-            onAttach={async (ids) => { await updateTask(task.id, { kbRefs: ids }) }}
+            onAttach={async (ids) => {
+              await updateTask(task.id, { kbRefs: ids })
+              void trackEvent('task_kb_attach', { taskId: task.id, count: ids.length })
+            }}
             onClose={() => setShowAttachPicker(false)}
           />
         )}

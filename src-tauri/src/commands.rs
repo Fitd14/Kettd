@@ -804,6 +804,71 @@ pub fn clear_migration_report(
 
 // ---------------------------------------------------------------- 知识库（frame H1b：库 + 搜索 + 任务单向引用）
 
+/// 后台重建单条目的向量 chunk（embedding 轨未配/失败 → 静默跳过，纯本地检索不受影响）。
+/// 锁纪律：网络调用在锁外；写回短锁（qa-1）。
+pub(crate) fn spawn_rebuild_item_index(app: &AppHandle, keeper: &crate::ai::AiKeeper, item: KbItem) {
+  let app = app.clone();
+  let keeper = keeper.0.clone();
+  tauri::async_runtime::spawn(async move {
+    let config = crate::ai::config::load_config(keeper.as_ref());
+    let ready = config.enabled
+      && !config.embedding_base_url.is_empty()
+      && !config.embedding_model.is_empty()
+      && !config.embedding_api_key.is_empty();
+    if !ready {
+      return;
+    }
+    let chunks = crate::ai::embedding::chunk_item(&item);
+    let texts: Vec<String> = chunks.iter().map(|(_, t)| t.clone()).collect();
+    let started = std::time::Instant::now();
+    match crate::ai::embedding::embed_texts(&texts, &config).await {
+      Ok(vectors) => {
+        let new_chunks: Vec<crate::ai::embedding::ChunkIndex> = chunks
+          .into_iter()
+          .zip(vectors)
+          .map(|((chunk_id, text), vector)| crate::ai::embedding::ChunkIndex {
+            item_id: item.id.clone(),
+            chunk_id,
+            text,
+            vector,
+          })
+          .collect();
+        if let Some(state) = app.try_state::<Shared>() {
+          if let Ok(mut store) = state.lock() {
+            store.kb_index.retain(|c| c.item_id != item.id);
+            store.kb_index.extend(new_chunks);
+            if let Err(e) = store.save_kb_index() {
+              crate::telemetry::record_str("ai_call_fail", &[("kind", "index_save"), ("err", e.as_str())]);
+              return;
+            }
+          }
+        }
+        crate::telemetry::record_str("ai_call_ok", &[("kind", "index_item"), ("ms", &started.elapsed().as_millis().to_string())]);
+      }
+      Err(e) => {
+        crate::telemetry::record_str("ai_call_fail", &[("kind", "index_item"), ("err", e.as_str())]);
+      }
+    }
+  });
+}
+
+/// 后台全量重建（索引空且 embedding 已配时由搜索触发）；期间查询只回本地
+pub(crate) fn spawn_rebuild_full_index(app: &AppHandle, keeper: &crate::ai::AiKeeper) {
+  let items = {
+    // 短锁快照
+    match app.try_state::<Shared>() {
+      Some(state) => match state.lock() {
+        Ok(store) => store.kb.clone(),
+        Err(_) => return,
+      },
+      None => return,
+    }
+  };
+  for item in items {
+    spawn_rebuild_item_index(app, keeper, item);
+  }
+}
+
 /// 知识条目全量（内存扫检索在 search_kb；全量供前端本地过滤/详情跳转）
 #[tauri::command]
 pub fn get_kb_items(state: State<'_, Shared>) -> Result<Vec<KbItem>, String> {
@@ -815,6 +880,7 @@ pub fn get_kb_items(state: State<'_, Shared>) -> Result<Vec<KbItem>, String> {
 pub fn add_kb_item(
   app: AppHandle,
   state: State<'_, Shared>,
+  keeper: State<'_, crate::ai::AiKeeper>,
   args: KbPayload,
 ) -> Result<KbItem, String> {
   let mut store = lock(&state);
@@ -828,6 +894,8 @@ pub fn add_kb_item(
     &now_text(),
   )?;
   store.save_notes()?;
+  drop(store);
+  spawn_rebuild_item_index(&app, &keeper, item.clone());
   emit(&app, StoreEvent::changed("kb"));
   Ok(item)
 }
@@ -836,6 +904,7 @@ pub fn add_kb_item(
 pub fn update_kb_item(
   app: AppHandle,
   state: State<'_, Shared>,
+  keeper: State<'_, crate::ai::AiKeeper>,
   id: String,
   patch: KbPayload,
 ) -> Result<KbItem, String> {
@@ -850,6 +919,8 @@ pub fn update_kb_item(
     &now_text(),
   )?;
   store.save_notes()?;
+  drop(store);
+  spawn_rebuild_item_index(&app, &keeper, item.clone());
   emit(&app, StoreEvent::changed("kb"));
   Ok(item)
 }
@@ -864,6 +935,11 @@ pub fn delete_kb_item(
   let mut store = lock(&state);
   store.ensure_writable()?;
   crate::kb::delete(&mut store.kb, &id)?;
+  // 同步清掉该条目的向量 chunk（廉价本地操作，无需后台）
+  store.kb_index.retain(|c| c.item_id != id);
+  if let Err(e) = store.save_kb_index() {
+    crate::telemetry::record_str("ai_call_fail", &[("kind", "index_save"), ("err", e.as_str())]);
+  }
   store.save_notes()?;
   emit(&app, StoreEvent::changed("kb"));
   Ok(())

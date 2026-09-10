@@ -30,21 +30,45 @@ pub async fn test_ai_connection(
   Ok(config::test_ai_connection_cmd(keeper.0.clone(), track).await)
 }
 
-/// search_kb_hybrid：混合检索（本地 + 向量）。
-/// 返回带 source 标记的结果列表。
+/// search_kb_hybrid：混合检索（本地 + 向量，渐进增强）。
+/// 锁纪律：先短锁 clone 数据，drop 后再 await 网络（绝不持锁跨 await，假死教训同源）。
 #[tauri::command]
-pub fn search_kb_hybrid(
+pub async fn search_kb_hybrid(
+  app: tauri::AppHandle,
   query: String,
-  state: State<'_, std::sync::Mutex<crate::store::Store>>,
+  state: tauri::State<'_, Mutex<crate::store::Store>>,
   keeper: State<'_, AiKeeper>,
 ) -> Result<Vec<hybrid::HybridResult>, String> {
-  let store = state.lock().map_err(|_| "store lock".to_string())?;
-  let items = store.kb.clone();
-  let index = store.kb_index.clone();
+  // 短锁取数
+  let (items, index, index_empty) = {
+    let store = state.lock().map_err(|_| "store lock".to_string())?;
+    (store.kb.clone(), store.kb_index.clone(), store.kb_index.is_empty())
+  };
   let ai_config = config::load_config(keeper.0.as_ref());
-  let embedding_configured = ai_config.enabled
+  let embedding_ready = ai_config.enabled
     && !ai_config.embedding_base_url.is_empty()
     && !ai_config.embedding_model.is_empty()
     && !ai_config.embedding_api_key.is_empty();
-  Ok(hybrid::hybrid_search(&query, &items, &index, embedding_configured))
+
+  // 索引空且已配 → 后台全量重建；本次查询照常先回本地
+  if embedding_ready && index_empty && !items.is_empty() && !query.trim().is_empty() {
+    crate::commands::spawn_rebuild_full_index(&app, &keeper);
+  }
+
+  let (results, used_ai) = hybrid::hybrid_search_async(
+    &query,
+    &items,
+    &index,
+    if embedding_ready { Some(&ai_config) } else { None },
+  )
+  .await;
+
+  // 埋点（无内容：只记命中数与成败）
+  if embedding_ready && used_ai {
+    let ai_hits = results.iter().filter(|r| r.source == hybrid::SearchSource::Ai).count();
+    crate::telemetry::record_str("ai_call_ok", &[("kind", "query_embed"), ("ai_hits", &ai_hits.to_string())]);
+  } else if embedding_ready {
+    crate::telemetry::record_str("ai_call_fail", &[("kind", "query_embed")]);
+  }
+  Ok(results)
 }

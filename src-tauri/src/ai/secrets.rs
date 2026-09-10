@@ -64,7 +64,11 @@ impl SecretsKeeper for InMemoryKeeper {
     }
 }
 
-// ─── Windows DPAPI 实现（feature-gated）────────────────────────────────────
+// ─── Windows DPAPI 实现（kb-qa-fixes qa-2：真加密，整张密文）────────────────
+//
+// 文件格式：secrets.json = base64(DPAPI(json(map)))——整体一次加密，
+// 连键名都不以明文出现。per-user 熵（pbDataDescr=NULL）：同 Windows 用户可解，
+// 换用户/换机不可解 → 静默视为未配置（kb-spec §8 降级语义）。
 
 #[cfg(target_os = "windows")]
 pub struct DpapiKeeper {
@@ -78,62 +82,112 @@ impl DpapiKeeper {
             secrets_path: app_data_dir.join("secrets.json"),
         }
     }
+
+    /// 读取整张明文 map：文件缺失/损坏/解密失败 → 空 map（写入时覆盖，无损降级）
+    fn read_map(&self) -> HashMap<String, String> {
+        let Ok(data) = std::fs::read_to_string(&self.secrets_path) else {
+            return HashMap::new();
+        };
+        let Ok(cipher) = base64_decode(data.trim()) else {
+            return HashMap::new();
+        };
+        let Ok(plain) = dpapi_decrypt(&cipher) else {
+            return HashMap::new();
+        };
+        serde_json::from_str(&String::from_utf8_lossy(&plain)).unwrap_or_default()
+    }
+
+    /// 整张加密原子写
+    fn write_map(&self, map: &HashMap<String, String>) -> Result<(), String> {
+        let json = serde_json::to_string(map).map_err(|e| format!("序列化失败: {e}"))?;
+        let cipher = dpapi_encrypt(json.as_bytes())?;
+        let encoded = base64_encode(&cipher);
+        let tmp = self.secrets_path.with_extension("json.tmp");
+        std::fs::write(&tmp, encoded).map_err(|e| format!("写入 secrets.json.tmp 失败: {e}"))?;
+        std::fs::rename(&tmp, &self.secrets_path)
+            .map_err(|e| format!("重命名 secrets.json 失败: {e}"))?;
+        Ok(())
+    }
 }
 
 #[cfg(target_os = "windows")]
 impl SecretsKeeper for DpapiKeeper {
     fn save(&self, key: &str, value: &str) -> Result<(), String> {
-        // 1. 读取现有 JSON（或创建新 Map）
-        let mut map: HashMap<String, String> = if self.secrets_path.exists() {
-            let data = std::fs::read_to_string(&self.secrets_path)
-                .map_err(|e| format!("读取 secrets.json 失败: {e}"))?;
-            serde_json::from_str(&data).unwrap_or_default()
-        } else {
-            HashMap::new()
-        };
-
-        // 2. DPAPI 加密（TODO: 接入 winapi CryptProtectData）
-        // 暂时用 base64 编码作为占位（真机复验时替换为真实 DPAPI）
-        let encoded = base64_encode(value.as_bytes());
-        map.insert(key.to_string(), encoded);
-
-        // 3. 原子写入
-        let json = serde_json::to_string_pretty(&map)
-            .map_err(|e| format!("序列化失败: {e}"))?;
-        let tmp = self.secrets_path.with_extension("json.tmp");
-        std::fs::write(&tmp, &json)
-            .map_err(|e| format!("写入 secrets.json.tmp 失败: {e}"))?;
-        std::fs::rename(&tmp, &self.secrets_path)
-            .map_err(|e| format!("重命名 secrets.json 失败: {e}"))?;
-        Ok(())
+        let mut map = self.read_map();
+        map.insert(key.to_string(), value.to_string());
+        self.write_map(&map)
     }
 
     fn load(&self, key: &str) -> Option<String> {
-        if !self.secrets_path.exists() {
-            return None;
-        }
-        let data = std::fs::read_to_string(&self.secrets_path).ok()?;
-        let map: HashMap<String, String> = serde_json::from_str(&data).ok()?;
-        let encoded = map.get(key)?;
-        // DPAPI 解密（TODO: 接入 winapi CryptUnprotectData）
-        let bytes = base64_decode(encoded).ok()?;
-        String::from_utf8(bytes).ok()
+        self.read_map().get(key).cloned()
     }
 
     fn delete(&self, key: &str) -> Result<(), String> {
-        if !self.secrets_path.exists() {
-            return Ok(());
-        }
-        let data = std::fs::read_to_string(&self.secrets_path)
-            .map_err(|e| format!("读取失败: {e}"))?;
-        let mut map: HashMap<String, String> = serde_json::from_str(&data)
-            .map_err(|e| format!("解析失败: {e}"))?;
+        let mut map = self.read_map();
         map.remove(key);
-        let json = serde_json::to_string_pretty(&map)
-            .map_err(|e| format!("序列化失败: {e}"))?;
-        std::fs::write(&self.secrets_path, &json)
-            .map_err(|e| format!("写入失败: {e}"))?;
-        Ok(())
+        self.write_map(&map)
+    }
+}
+
+/// DPAPI 加密（per-user）
+#[cfg(target_os = "windows")]
+fn dpapi_encrypt(plain: &[u8]) -> Result<Vec<u8>, String> {
+    use winapi::um::dpapi::CryptProtectData;
+    use winapi::um::wincrypt::DATA_BLOB;
+    use winapi::um::winbase::LocalFree;
+
+    unsafe {
+        let mut in_blob = DATA_BLOB {
+            cbData: plain.len() as u32,
+            pbData: plain.as_ptr() as *mut u8,
+        };
+        let mut out_blob = DATA_BLOB { cbData: 0, pbData: std::ptr::null_mut() };
+        let ok = CryptProtectData(
+            &mut in_blob,
+            std::ptr::null(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            0,
+            &mut out_blob,
+        );
+        if ok == 0 {
+            return Err("CryptProtectData 失败".to_string());
+        }
+        let out = std::slice::from_raw_parts(out_blob.pbData, out_blob.cbData as usize).to_vec();
+        LocalFree(out_blob.pbData as _);
+        Ok(out)
+    }
+}
+
+/// DPAPI 解密（per-user）
+#[cfg(target_os = "windows")]
+fn dpapi_decrypt(cipher: &[u8]) -> Result<Vec<u8>, String> {
+    use winapi::um::dpapi::CryptUnprotectData;
+    use winapi::um::wincrypt::DATA_BLOB;
+    use winapi::um::winbase::LocalFree;
+
+    unsafe {
+        let mut in_blob = DATA_BLOB {
+            cbData: cipher.len() as u32,
+            pbData: cipher.as_ptr() as *mut u8,
+        };
+        let mut out_blob = DATA_BLOB { cbData: 0, pbData: std::ptr::null_mut() };
+        let ok = CryptUnprotectData(
+            &mut in_blob,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            0,
+            &mut out_blob,
+        );
+        if ok == 0 {
+            return Err("CryptUnprotectData 失败（换用户/系统？）".to_string());
+        }
+        let out = std::slice::from_raw_parts(out_blob.pbData, out_blob.cbData as usize).to_vec();
+        LocalFree(out_blob.pbData as _);
+        Ok(out)
     }
 }
 

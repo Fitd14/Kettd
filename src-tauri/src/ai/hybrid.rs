@@ -1,14 +1,20 @@
 //! 混合检索：本地全文扫 ⊕ 向量召回 → 合并重排。
 //!
-//! 搜索管线（kb-spec.md §9）：
-//! 1. 本地全文扫（kb.rs::search，带字面高亮位）
-//! 2. 向量召回（kb_index.json chunk 余弦 top-k）
-//! 3. 合并重排：local_norm ⊕ 0.4 × ai_norm
+//! 搜索管线（kb-spec.md §9 + kb-qa-fixes qa-1 渐进增强）：
+//! 1. 本地全文扫（kb.rs::search，带字面高亮位）——同步、零成本
+//! 2. 向量召回（query embedding × kb_index.json chunk 余弦 top-k）
+//! 3. 合并重排：local_norm + 0.4 × ai_norm
 //! 4. 单列表输出：纯 AI 命中标「AI」徽标
 
 use crate::kb;
 use crate::models::KbItem;
-use super::embedding::{ChunkIndex, cosine};
+use super::config::AiConfig;
+use super::embedding::{self, ChunkIndex};
+
+/// AI 命中阈值：向量分低于此视为噪声
+const AI_THRESHOLD: f64 = 0.25;
+/// 向量召回权重
+const AI_WEIGHT: f64 = 0.4;
 
 /// 搜索结果来源。
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -26,17 +32,17 @@ pub struct HybridResult {
     pub source: SearchSource,
 }
 
-/// 混合搜索：本地 + 向量 → 合并排序。
+/// 混合检索（async）：本地扫 + 真实 query embedding 向量召回。
 ///
-/// - embedding 未配置 / index 为空 / 调用失败 → 纯本地回落
-/// - 向量命中 score < 0.25 → 视为噪声，不标记为 AI
-pub fn hybrid_search(
+/// - ai_config None / index 空 / embed 失败 → 纯本地回落（调用方记 ai_call_fail）
+/// - 网络调用只针对 query 一个文本；chunk 向量已在索引中（保存时预计算）
+pub async fn hybrid_search_async(
     query: &str,
     items: &[KbItem],
     index: &[ChunkIndex],
-    embedding_configured: bool,
-) -> Vec<HybridResult> {
-    // 1. 本地全文扫
+    ai_config: Option<&AiConfig>,
+) -> (Vec<HybridResult>, bool) {
+    // 1. 本地全文扫（同步）
     let local_ids = kb::search(items, query);
     let local_map: std::collections::HashMap<String, f64> = local_ids
         .iter()
@@ -44,17 +50,38 @@ pub fn hybrid_search(
         .map(|(i, id)| (id.clone(), 1.0 - (i as f64 / local_ids.len().max(1) as f64)))
         .collect();
 
-    // 2. 向量召回（仅 embedding 已配置且 index 非空时）
-    let ai_map: std::collections::HashMap<String, f64> = if embedding_configured && !index.is_empty() && !query.trim().is_empty() {
-        // 简单策略：用 query 的字符 n-gram 作为伪向量（真实 embedding 需要异步 API 调用，
-        // 这里提供纯本地的余弦近似；完整实现在 Phase 3 的 async 搜索命令中）
-        // 暂时返回空，让纯本地搜索工作
-        std::collections::HashMap::new()
-    } else {
-        std::collections::HashMap::new()
-    };
+    // 2. 向量召回
+    let mut ai_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+    let mut used_ai = false;
+    if let Some(config) = ai_config {
+        if !query.trim().is_empty() && !index.is_empty() {
+            match embedding::embed_texts(&[query.trim().to_string()], config).await {
+                Ok(vectors) => {
+                    if let Some(q_vec) = vectors.first() {
+                        for chunk in index {
+                            let score = embedding::cosine(q_vec, &chunk.vector);
+                            let entry = ai_map.entry(chunk.item_id.clone()).or_insert(0.0);
+                            if score > *entry {
+                                *entry = score;
+                            }
+                        }
+                        used_ai = true;
+                    }
+                }
+                Err(_) => { /* 调用方记 ai_call_fail；ai_map 保持空 → 纯本地 */ }
+            }
+        }
+    }
 
-    // 3. 合并重排
+    let results = merge(local_map, ai_map);
+    (results, used_ai)
+}
+
+/// 本地/AI 评分合并重排（纯函数，可测）
+fn merge(
+    local_map: std::collections::HashMap<String, f64>,
+    ai_map: std::collections::HashMap<String, f64>,
+) -> Vec<HybridResult> {
     let mut all_ids: std::collections::HashSet<String> = local_map.keys().cloned().collect();
     all_ids.extend(ai_map.keys().cloned());
 
@@ -66,8 +93,8 @@ pub fn hybrid_search(
         .map(|id| {
             let local_norm = local_map.get(id).unwrap_or(&0.0) / max_local;
             let ai_norm = ai_map.get(id).unwrap_or(&0.0) / max_ai;
-            let combined = local_norm + 0.4 * ai_norm;
-            let source = if ai_map.contains_key(id) && ai_norm > 0.25 {
+            let combined = local_norm + AI_WEIGHT * ai_norm;
+            let source = if ai_map.get(id).copied().unwrap_or(0.0) > AI_THRESHOLD {
                 SearchSource::Ai
             } else {
                 SearchSource::Local
@@ -90,39 +117,59 @@ pub fn hybrid_search(
 mod tests {
     use super::*;
 
-    fn make_item(id: &str, title: &str, body: &str) -> KbItem {
-        KbItem {
-            id: id.to_string(),
-            title: title.to_string(),
-            body_md: body.to_string(),
-            tags: vec![],
-            created_at: "2026-01-01T00:00".to_string(),
-            updated_at: "2026-01-01T00:00".to_string(),
-        }
+    #[test]
+    fn merge_local_only_when_ai_empty() {
+        let mut local = std::collections::HashMap::new();
+        local.insert("k1".to_string(), 1.0);
+        local.insert("k2".to_string(), 0.5);
+        let results = merge(local, std::collections::HashMap::new());
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().all(|r| r.source == SearchSource::Local));
+        assert_eq!(results[0].id, "k1", "高分在前");
     }
 
     #[test]
-    fn hybrid_search_returns_local_when_no_embedding() {
-        let items = vec![make_item("k1", "Rust", "lang")];
-        let results = hybrid_search("rust", &items, &[], false);
+    fn merge_marks_ai_source_above_threshold() {
+        let mut local = std::collections::HashMap::new();
+        local.insert("k1".to_string(), 1.0);
+        let mut ai = std::collections::HashMap::new();
+        ai.insert("k2".to_string(), 0.8); // 纯语义命中（本地无）
+        let results = merge(local, ai);
+        let k2 = results.iter().find(|r| r.id == "k2").unwrap();
+        assert_eq!(k2.source, SearchSource::Ai);
+    }
+
+    #[test]
+    fn merge_ai_below_threshold_stays_local() {
+        let mut local = std::collections::HashMap::new();
+        local.insert("k1".to_string(), 1.0);
+        let mut ai = std::collections::HashMap::new();
+        ai.insert("k1".to_string(), 0.1); // 弱向量分
+        let results = merge(local, ai);
+        assert!(results.iter().all(|r| r.source == SearchSource::Local));
+    }
+
+    #[test]
+    fn merge_boosts_dual_hits_ranking() {
+        // 本地+AI 双命中的排位应高于纯本地高分（0.8+0.4×0.9=1.16 > 1.0）
+        let mut local = std::collections::HashMap::new();
+        local.insert("k1".to_string(), 1.0);
+        local.insert("k2".to_string(), 0.8);
+        let mut ai = std::collections::HashMap::new();
+        ai.insert("k2".to_string(), 0.9);
+        let results = merge(local, ai);
+        assert_eq!(results[0].id, "k2", "双命中加权后应反超");
+    }
+
+    #[tokio::test]
+    async fn async_search_falls_back_to_local_without_config() {
+        let items = vec![KbItem {
+            id: "k1".into(), title: "Rust".into(), body_md: "lang".into(),
+            tags: vec![], created_at: "t".into(), updated_at: "t".into(),
+        }];
+        let (results, used_ai) = hybrid_search_async("rust", &items, &[], None).await;
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].source, SearchSource::Local);
-    }
-
-    #[test]
-    fn hybrid_search_empty_query_returns_all() {
-        let items = vec![
-            make_item("k1", "A", ""),
-            make_item("k2", "B", ""),
-        ];
-        let results = hybrid_search("", &items, &[], false);
-        assert_eq!(results.len(), 2);
-    }
-
-    #[test]
-    fn hybrid_search_no_match_returns_empty() {
-        let items = vec![make_item("k1", "Rust", "lang")];
-        let results = hybrid_search("python", &items, &[], false);
-        assert!(results.is_empty());
+        assert!(!used_ai);
     }
 }

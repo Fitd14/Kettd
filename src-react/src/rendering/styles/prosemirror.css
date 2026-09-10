@@ -39,8 +39,8 @@
 }
 
 .kb-editor-tool.on {
-  background: hsl(var(--accent, 210 100% 50%) / 0.12);
-  color: var(--accent, hsl(210 100% 50%));
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--foreground));
 }
 
 .kb-editor-tool:focus-visible {
@@ -76,7 +76,7 @@
 }
 
 .kb-editor-content .ProseMirror-selectednode {
-  outline: 2px solid var(--accent, #4f8cff);
+  outline: 2px solid hsl(var(--primary) / 0.6);
   border-radius: 2px;
 }
 
@@ -211,8 +211,8 @@
 }
 
 .kb-md-render a {
-  color: var(--accent, #4f8cff);
-  text-decoration: none;
+  color: hsl(var(--primary));
+  text-decoration: underline;
 }
 
 .kb-md-render a:hover {

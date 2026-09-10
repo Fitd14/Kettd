@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import type { KbItem } from '@/lib/api'
-import { updateKbItem } from '@/lib/api'
+import { updateKbItem, trackEvent } from '@/lib/api'
 import { MdStaticRenderer } from '@/rendering/md-static-render'
 import { TipTapEditor } from '@/rendering/tiptap-editor'
 
@@ -28,7 +28,8 @@ export function KbItemDetail({ item, onDeleted, onPin, onCreateTask, onRefresh }
 
   const handleSave = useCallback(
     async (bodyMd: string) => {
-      await updateKbItem(item.id, { bodyMd })
+      const r = await updateKbItem(item.id, { bodyMd })
+      if (!r.err) void trackEvent('kb_update', { itemId: item.id })
       onRefresh()
     },
     [item.id, onRefresh],
@@ -37,6 +38,7 @@ export function KbItemDetail({ item, onDeleted, onPin, onCreateTask, onRefresh }
   const handleDelete = useCallback(async () => {
     const { deleteKbItem } = await import('@/lib/api')
     await deleteKbItem(item.id)
+    void trackEvent('kb_delete', { itemId: item.id })
     onDeleted(item.id)
     setShowDeleteConfirm(false)
   }, [item.id, onDeleted])

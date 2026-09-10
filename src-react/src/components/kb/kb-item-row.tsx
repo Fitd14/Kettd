@@ -20,7 +20,8 @@ function relativeTime(iso: string): string {
 
 export function KbItemRow({ item, isActive, onSelect, isAiHit }: Props) {
   return (
-    <div
+    <button
+      type="button"
       className={`kb-item-row${isActive ? ' active' : ''}`}
       onClick={() => onSelect(item.id)}
       role="option"
@@ -34,6 +35,6 @@ export function KbItemRow({ item, isActive, onSelect, isAiHit }: Props) {
         <span>{relativeTime(item.updatedAt)}</span>
         {isAiHit && <span className="ai-badge">AI</span>}
       </span>
-    </div>
+    </button>
   )
 }

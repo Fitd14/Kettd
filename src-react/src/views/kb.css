@@ -43,7 +43,7 @@
 }
 
 .kb-search-bar input:focus {
-  border-color: var(--accent, hsl(210 100% 50%));
+  border-color: hsl(var(--primary) / 0.6);
 }
 
 /* ─── 主布局（左清单 + 右详情）─────────────────────────────────────────── */
@@ -121,6 +121,12 @@
 }
 
 .kb-item-row {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
   padding: 0.6rem 0.75rem;
   border-radius: 6px;
   cursor: pointer;
@@ -135,8 +141,9 @@
 }
 
 .kb-item-row.active {
-  background: hsl(var(--accent, 210 100% 50%) / 0.1);
-  border-left: 3px solid var(--accent, hsl(210 100% 50%));
+  background: hsl(var(--secondary));
+  color: hsl(var(--foreground));
+  border-left: 3px solid hsl(var(--primary));
 }
 
 .kb-item-row .item-title {
@@ -154,8 +161,8 @@
 }
 
 .kb-item-row .item-meta .ai-badge {
-  background: var(--accent, hsl(210 100% 50%));
-  color: #fff;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   font-size: 0.7em;
   padding: 0.1em 0.35em;
   border-radius: 3px;
@@ -186,8 +193,8 @@
 }
 
 .kb-tag-chip.active {
-  border-color: var(--accent, hsl(210 100% 50%));
-  background: hsl(var(--accent, 210 100% 50%) / 0.08);
+  border-color: hsl(var(--primary) / 0.6);
+  background: hsl(var(--secondary));
 }
 
 /* ─── 右详情面板 ───────────────────────────────────────────────────────── */

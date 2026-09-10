@@ -58,6 +58,12 @@ pub trait StoreBackend: Send {
 
   /// 原子写 notes.json
   fn write_notes(&self, json: &str) -> Result<(), String>;
+
+  /// 读 kb_index.json（AI 向量索引，Phase 3）；None = 不存在
+  fn read_kb_index(&self) -> Result<Option<String>, String>;
+
+  /// 原子写 kb_index.json
+  fn write_kb_index(&self, json: &str) -> Result<(), String>;
 }
 
 #[cfg(test)]
@@ -72,6 +78,7 @@ pub mod test_double {
     pub archive: RefCell<Option<String>>,
     pub runtime: RefCell<Option<String>>,
     pub notes: RefCell<Option<String>>,
+    pub kb_index: RefCell<Option<String>>,
     pub pre_split: RefCell<Option<String>>,
     pub backups: RefCell<Vec<String>>,
     pub fail_writes: RefCell<bool>,
@@ -87,6 +94,7 @@ pub mod test_double {
         archive: RefCell::new(None),
         runtime: RefCell::new(None),
         notes: RefCell::new(None),
+        kb_index: RefCell::new(None),
         pre_split: RefCell::new(None),
         backups: RefCell::new(Vec::new()),
         fail_writes: RefCell::new(false),
@@ -269,6 +277,18 @@ pub mod test_double {
         return Err("没有写入权限".to_string());
       }
       *self.notes.borrow_mut() = Some(json.to_string());
+      Ok(())
+    }
+
+    fn read_kb_index(&self) -> Result<Option<String>, String> {
+      Ok(self.kb_index.borrow().clone())
+    }
+
+    fn write_kb_index(&self, json: &str) -> Result<(), String> {
+      if *self.fail_writes.borrow() {
+        return Err("没有写入权限".to_string());
+      }
+      *self.kb_index.borrow_mut() = Some(json.to_string());
       Ok(())
     }
   }

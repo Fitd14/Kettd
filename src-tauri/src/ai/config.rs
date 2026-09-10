@@ -121,6 +121,14 @@ pub fn set_ai_config_cmd(
     if let Some(v) = patch.embedding_api_key { config.embedding_api_key = v; }
     if let Some(v) = patch.enabled { config.enabled = v; }
     save_config(keeper.as_ref(), &config)?;
+    // 埋点（无内容：只记轨位配置与否，绝不记 KEY/URL 本体）
+    crate::telemetry::record_str(
+      "ai_configured",
+      &[
+        ("chat", if !config.api_key.is_empty() && !config.model.is_empty() { "y" } else { "n" }),
+        ("embedding", if !config.embedding_api_key.is_empty() && !config.embedding_model.is_empty() { "y" } else { "n" }),
+      ],
+    );
     Ok(to_status(&config))
 }
 

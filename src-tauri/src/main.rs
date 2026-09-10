@@ -83,9 +83,21 @@ fn main() {
     .manage(runtime::HotkeyLock(Mutex::new(
       runtime::HotkeyRegistry::default(),
     )))
-    .manage(ai::AiKeeper::new(std::sync::Arc::new(
-      ai::secrets::InMemoryKeeper::new(),
-    )))
+    // 密钥存储：Windows = DPAPI per-user 加密落 secrets.json（qa-2 真实现）；
+    // 其余平台回退内存（Windows-first，启动即警示）
+    .manage(ai::AiKeeper::new({
+      #[cfg(target_os = "windows")]
+      {
+        std::sync::Arc::new(ai::secrets::DpapiKeeper::new(&store::data_dir()))
+          as std::sync::Arc<dyn ai::secrets::SecretsKeeper>
+      }
+      #[cfg(not(target_os = "windows"))]
+      {
+        eprintln!("[kettd] WARNING: 非 Windows 平台 AI 密钥仅存内存，重启丢失");
+        std::sync::Arc::new(ai::secrets::InMemoryKeeper::new())
+          as std::sync::Arc<dyn ai::secrets::SecretsKeeper>
+      }
+    }))
     .invoke_handler(tauri::generate_handler![
       commands::get_bootstrap,
       commands::get_tasks,

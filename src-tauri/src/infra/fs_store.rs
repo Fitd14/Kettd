@@ -13,6 +13,7 @@ pub const ARCHIVE_FILE: &str = "data.v1.json";
 pub const RUNTIME_FILE: &str = "runtime.json";
 pub const PRE_SPLIT_FILE: &str = "data.pre-split.json";
 pub const NOTES_FILE: &str = "notes.json";
+pub const KB_INDEX_FILE: &str = "kb_index.json";
 
 /// v1 同款目录：Windows 下 `dirs::data_dir()` == `%APPDATA%`
 pub fn default_dir() -> PathBuf {
@@ -67,6 +68,10 @@ impl FsBackend {
 
   fn notes_path(&self) -> PathBuf {
     self.dir.join(NOTES_FILE)
+  }
+
+  fn kb_index_path(&self) -> PathBuf {
+    self.dir.join(KB_INDEX_FILE)
   }
 
   fn archive_path(&self) -> PathBuf {
@@ -287,6 +292,19 @@ impl StoreBackend for FsBackend {
 
   fn write_notes(&self, json: &str) -> Result<(), String> {
     let target = self.notes_path();
+    self.write_data_at(&target, json)
+  }
+
+  fn read_kb_index(&self) -> Result<Option<String>, String> {
+    let path = self.kb_index_path();
+    if !path.exists() {
+      return Ok(None);
+    }
+    Self::read_text(&path).map(Some)
+  }
+
+  fn write_kb_index(&self, json: &str) -> Result<(), String> {
+    let target = self.kb_index_path();
     self.write_data_at(&target, json)
   }
 }
