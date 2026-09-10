@@ -186,8 +186,12 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `list_stickies` | — | `StickyNote[]` | 便签清单；设置页清单数据源。`content` **始终序列化**（含空串）——曾因 skip_serializing_if 吞空串导致前端 `content` undefined、设置页渲染 `.split` 抛 TypeError 整树卸载黑屏（真机复盘 2026-09-09），前端类型契约 `content: string` 必填 |
 | `update_sticky` | `id`, `content?`, `mini?` | `StickyNote` | 内容（≤500 字）/ 形态（`mini:true` → 窗口 380×40 置顶悬浮文本条；`mini:false` → 380×456 纸片并聚焦）；形态持久化，重启按原样恢复 |
 | `delete_sticky` | `id` | `void` | 关闭即销毁（一次性工具语义）：便签数据、窗口与 `note_pos` 记录一并回收，无确认无撤销，误关靠写前轮转备份兜底；记 `sticky_delete`。便签窗的 Alt+F4 走同一语义（`CloseRequested` 分支） |
-| `sticky_self` | — | `{ id, content, mini }` | 便签窗启动自述：label（`note:<id>`）→ 身份与形态 |
+| `sticky_self` | — | `{ id, content, mini, kbRef? }` | 便签窗启动自述：label（`note:<id>`）→ 身份与形态；`kbRef` 非空 = 知识便签（视口指向 KB 条目，skip_if_none） |
 | `get_form_hints` | — | `{ categories, priorities, sources, repeat, defaultHotkey, defaultCap, retentionDays, today }` | 表单常量，避免前端硬编码 |
+| `set_ai_config` | `patch { baseUrl?, model?, apiKey?, embeddingBaseUrl?, embeddingModel?, embeddingApiKey?, enabled? }` | `AiStatus` | AI 双轨配置（patch 语义：只更新非 null 字段；KEY 经 DPAPI 加密落 secrets.json，前端此后只拿掩码）。记 `ai_configured` |
+| `get_ai_status` | — | `{ chat, embedding, enabled, keyMask? }` | AI 配置状态快照（每轨 `{configured, model, baseUrl}`；keyMask=`sk-***末4位`；永不回显明文） |
+| `test_ai_connection` | `track: 'chat'\|'embedding'` | `{ ok, message }` | 对指定轨发最小请求验证连通（reqwest+rustls，30s 超时；仅 HTTPS，豁免 127.0.0.1）。结果只回成败与错误信息，不落内容 |
+| `search_kb_hybrid` | `query` | `HybridResult[] { id, source: 'local'\|'ai' }` | 混合检索：本地全文扫（kb.rs 打分）⊕ 向量召回（kb_index.json 余弦，0.4 权重）合并重排；`source:'ai'` 前端渲染「AI」徽标；embedding 未配置时等价纯本地 |
 
 参数名映射：Rust 侧 `snake_case` 形参由 Tauri v1 宏自动转成 camelCase（`task_id` → `taskId`，`include_deleted` → `includeDeleted`）。结构体入参（`TaskPayload` 等）本身带 `rename_all = "camelCase"`。
 

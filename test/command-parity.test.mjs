@@ -11,15 +11,20 @@ const read = (p) => readFileSync(join(root, p), 'utf8');
 
 const mainRs = read('src-tauri/src/main.rs');
 const commandsRs = read('src-tauri/src/commands.rs');
+const aiCommandsRs = read('src-tauri/src/ai/commands.rs');
 const apiTs = read('src-react/src/lib/api.ts');
 const doc = read('src-tauri/docs/V2-API.md');
 
-// ① generate_handler![] 里注册的命令名
+// ① generate_handler![] 里注册的命令名（ai::commands::xxx 命名空间形式一并匹配）
 const handlerBody = mainRs.match(/generate_handler!\[([\s\S]*?)\]/)[1];
-const handler = new Set([...handlerBody.matchAll(/commands::([a-z_]+)/g)].map((m) => m[1]));
+const handler = new Set([...handlerBody.matchAll(/(?:[a-z_]+::)*commands::([a-z_]+)/g)].map((m) => m[1]));
 
 // ② #[tauri::command] 函数名（含 async fn —— 建窗类命令必须 async，真机复盘 2026-09-08）
-const defined = new Set([...commandsRs.matchAll(/#\[tauri::command\]\s*(?:pub\s+)?(?:async\s+)?fn\s+([a-z_]+)/g)].map((m) => m[1]));
+// Phase 3 起 AI 命令独立成 ai/commands.rs，两侧都要扫
+const defined = new Set([
+  ...commandsRs.matchAll(/#\[tauri::command\]\s*(?:pub\s+)?(?:async\s+)?fn\s+([a-z_]+)/g),
+  ...aiCommandsRs.matchAll(/#\[tauri::command\]\s*(?:pub\s+)?(?:async\s+)?fn\s+([a-z_]+)/g),
+].map((m) => m[1]));
 
 // ③ api.ts 里 call('xxx') 的命令名
 const wrapped = new Set([...apiTs.matchAll(/call(?:<[^>]*>)?\('([a-z_]+)'/g)].map((m) => m[1]));

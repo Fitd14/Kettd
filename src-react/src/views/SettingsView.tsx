@@ -4,17 +4,14 @@ import {
   clearEvents,
   createSticky,
   deleteSticky,
-  getAiStatus,
   getHotkeyStatus,
   listStickies,
   openDataFolder,
-  setAiConfig,
   setSettings,
-  testAiConnection,
   updateSticky,
-  type AiStatus,
   type StickyNoteItem,
 } from '@/lib/api'
+import { AiSection } from '@/components/settings/ai-section'
 import { STICKY_PAPERS } from '@/views/sticky-labels'
 import { TimeText } from '@/components/time-text'
 
@@ -43,8 +40,6 @@ export function SettingsView({ boot, refresh }: Props) {
   const [confirmClear, setConfirmClear] = useState(false)
   const [confirmDel, setConfirmDel] = useState<string | null>(null)
   const [stickyList, setStickyList] = useState<StickyNoteItem[]>([])
-  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null)
-  const [aiTestResult, setAiTestResult] = useState<{ track: string; ok: boolean; msg: string } | null>(null)
   const clearTimer = useRef<number | null>(null)
 
   // 分池计数（Phase 2）
@@ -54,7 +49,6 @@ export function SettingsView({ boot, refresh }: Props) {
   useEffect(() => {
     void getHotkeyStatus().then((r) => { if (!r.err && r.data) setHotkeys(r.data) })
     void loadStickies()
-    void getAiStatus().then((r) => { if (!r.err && r.data) setAiStatus(r.data) })
   }, [])
 
   const loadStickies = () => {
@@ -382,70 +376,8 @@ export function SettingsView({ boot, refresh }: Props) {
         </div>
       </section>
 
-      {/* ─── AI 与检索（Phase 3）─── */}
-      <section className="section" aria-label="AI 与检索">
-        <div className="section-head"><b>AI 与检索</b><span>混合检索 · 本地全文 + AI 语义</span></div>
-        <div className="set-row"><span>总开关
-          <div className="tiny text-muted">关闭时搜索完全本地，不调用任何外部 API</div>
-        </span>
-          <div className="seg" role="group" aria-label="AI 总开关">
-            <button
-              className={`btn sm ${aiStatus?.enabled ? 'on' : ''}`}
-              onClick={() => { void setAiConfig({ enabled: true }).then((r) => { if (!r.err && r.data) setAiStatus(r.data) }) }}
-            >开</button>
-            <button
-              className={`btn sm ${!aiStatus?.enabled ? 'on' : ''}`}
-              onClick={() => { void setAiConfig({ enabled: false }).then((r) => { if (!r.err && r.data) setAiStatus(r.data) }) }}
-            >关</button>
-          </div>
-        </div>
-
-        {aiStatus?.enabled && (
-          <>
-            {/* Chat 模型 */}
-            <div className="set-row"><span>Chat 模型
-              <div className="tiny text-muted">用于对话/生成（本期不启用，预留）</div>
-            </span>
-              <span className="row-flex items-center gap-1.5">
-                <span className={`tiny ${aiStatus.chat.configured ? '' : 'text-muted'}`}>
-                  {aiStatus.chat.configured ? `✓ ${aiStatus.chat.model}` : '未配置'}
-                </span>
-              </span>
-            </div>
-
-            {/* Embedding 模型 */}
-            <div className="set-row"><span>Embedding 模型
-              <div className="tiny text-muted">语义检索向量模型——未配置时搜索仅支持字面匹配</div>
-            </span>
-              <span className="row-flex items-center gap-1.5">
-                <span className={`tiny ${aiStatus.embedding.configured ? '' : 'text-muted'}`}>
-                  {aiStatus.embedding.configured ? `✓ ${aiStatus.embedding.model}` : '未配置'}
-                </span>
-                <button
-                  className="btn xs ghost"
-                  disabled={!aiStatus.embedding.configured}
-                  onClick={async () => {
-                    const r = await testAiConnection('embedding')
-                    setAiTestResult({ track: 'embedding', ok: r.data?.ok ?? false, msg: r.data?.message ?? r.err ?? '未知错误' })
-                  }}
-                >测试连接</button>
-              </span>
-            </div>
-
-            {aiTestResult && (
-              <div className="set-row"><span className={`tiny ${aiTestResult.ok ? '' : 'text-muted'}`}>
-                {aiTestResult.ok ? '✓' : '✗'} {aiTestResult.msg}
-              </span></div>
-            )}
-
-            {/* KEY 安全提示 */}
-            <div className="set-row"><span className="tiny text-muted" style={{ lineHeight: 1.5 }}>
-              🔒 API KEY 加密存储（DPAPI），永不离开本机进程，永不记录日志。
-              如需配置 Chat/Embedding 模型，请使用 API 命令行工具（设置页暂不提供 KEY 输入框，安全优先）。
-            </span></div>
-          </>
-        )}
-      </section>
+      {/* ─── AI 与检索（Phase 3 + 真机修复：补配置表单）─── */}
+      <AiSection />
 
       <div className="version-line text-muted">Kettd v{boot.version} · 离线优先 · 数据只在本机</div>
     </div>

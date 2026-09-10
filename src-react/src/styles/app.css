@@ -808,3 +808,46 @@ details.overdue[open] summary::before {
   border-color: transparent;
   color: hsl(var(--secondary-foreground));
 }
+
+/* ─── AI 配置表单（Phase 3 + 真机修复）────────────────────────────────── */
+.ai-track {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid hsl(var(--muted-foreground) / 0.18);
+  border-radius: var(--radius);
+  margin: 4px 0;
+}
+.ai-track-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ai-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  align-items: center;
+}
+.ai-grid select,
+.ai-grid input {
+  padding: 4px 8px;
+  border: 1px solid hsl(var(--muted-foreground) / 0.25);
+  border-radius: 6px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  font-size: 0.85em;
+  min-width: 0;
+}
+.ai-grid select:focus,
+.ai-grid input:focus {
+  outline: none;
+  border-color: hsl(var(--primary));
+}
+.ai-track-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
