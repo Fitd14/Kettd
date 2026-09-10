@@ -1,162 +1,34 @@
 {
   "skill": "qa",
-  "generated_at": "2026-09-08T21:05:00+08:00",
-  "project_name": "Kettd v2 · 个人待办记录汇总",
-  "target": "多便签（multi-sticky-spec 全量）+ 单张便签规格回归：src-react/src/sticky/*、SettingsView 便签卡、src-tauri models/store/runtime/commands 便签面",
+  "generated_at": "2026-09-10T12:00:00+08:00",
+  "project_name": "Kettd · kb 知识库",
+  "target": "kb Phase 1-3 实现 + 真机六问题修复（src-react/src/{views/KbView,components/kb/*,rendering/*,sticky/StickyWindow,components/settings/ai-section} + src-tauri/src/ai/*），HEAD=1b7782e",
   "review_mode": "auto",
+  "archive_note": "上一轮 qa（多便签，2026-09-08）已归档至 qa-sticky-2026-09-08-archive.json",
   "deviations": [
-    {
-      "id": "qa3-01",
-      "dimension": "accessibility",
-      "severity": "major",
-      "design_source": "sticky-note-component-spec §8「正文常态对比 ≥4.5:1」+ check.json findings[4]",
-      "implementation": "kraft 牛皮纸未覆盖 --sticky-muted，继承基础 muted hsl(30 8% 40%)",
-      "delta": "muted/纸 3.55:1、muted/胶条 3.03:1（12px 胶条文字与完成划线/空态均 <4.5）",
-      "suggestion": ".paper-kraft 增加独立 --sticky-muted ≈ hsl(28 22% 26%)（实测对纸 6.14 / 对胶条 5.23）",
-      "location": "src-react/src/sticky/sticky.css:39-43",
-      "relates_to_check_finding": "findings[4]: 四纸色对比度需实测"
-    },
-    {
-      "id": "qa3-02",
-      "dimension": "accessibility",
-      "severity": "major",
-      "design_source": "同上",
-      "implementation": "cyan 淡青同样继承基础 muted",
-      "delta": "muted/胶条 3.89:1（胶条 12px 文字 <4.5）；muted/纸 4.50 踩线",
-      "suggestion": ".paper-cyan 增加独立 --sticky-muted（约 hsl(195 22% 30%)，按同法复算至双 ≥4.5）",
-      "location": "src-react/src/sticky/sticky.css:44-48",
-      "relates_to_check_finding": "findings[4]: 四纸色对比度需实测"
-    },
-    {
-      "id": "qa3-03",
-      "dimension": "color",
-      "severity": "major",
-      "design_source": "sticky-note-component-spec §12.1「dark 下默认落到暗墨，但用户可覆盖」",
-      "implementation": ".dark .sticky-note（sticky.css:57）在暗色下恒定覆盖 --sticky-paper/strip/ink，用户选 kraft/cyan 在暗色被吞",
-      "delta": "暗色下用户显式纸色选择无效（恒为暗墨）",
-      "suggestion": "dark 且 stickyPaper==='warm'（默认未选择）才落暗墨；显式 kraft/cyan/ink 尊重用户（调整规则顺序或加 :not 条件）",
-      "location": "src-react/src/sticky/sticky.css:57-63",
-      "relates_to_check_finding": null
-    },
-    {
-      "id": "qa3-04",
-      "dimension": "state-coverage",
-      "severity": "major",
-      "design_source": "multi-sticky-spec §3「自由便签 14 天未编辑且未钉 → 清单给建议清理标记」+ §6 AC4",
-      "implementation": "设置页便签清单无 14 天清理建议逻辑（全仓 grep 无对应实现）",
-      "delta": "spec AC4 后半（清理建议）0 实现",
-      "suggestion": "清单渲染时比较 updatedAt > 14 天且 !pinned && kind==='free' → 行内「建议清理」标记（可忽略）",
-      "location": "src-react/src/views/SettingsView.tsx 便签清单段",
-      "relates_to_check_finding": null
-    },
-    {
-      "id": "qa3-05",
-      "dimension": "radius-shadow",
-      "severity": "major",
-      "design_source": "sticky-note-component-spec §5「圆角（--r-lg）+ 柔和阴影（--shadow-md）」",
-      "implementation": "自定 box-shadow: 0 6px 24px hsl(30 10% 20%/.18)...，未引用 --shadow-md（token 已存在于 index.css）",
-      "delta": "阴影 token 不一致（--shadow-md vs 自定值）",
-      "suggestion": "改用 var(--shadow-md)（亮暗双态已随 token 翻转），纸色特调值如需保留并入 token 层",
-      "location": "src-react/src/sticky/sticky.css:21,55",
-      "relates_to_check_finding": null
-    },
-    {
-      "id": "qa3-06",
-      "dimension": "spacing",
-      "severity": "major",
-      "design_source": "brief 定性标准 + 项目 token 纪律（index.css --sp-1..8 已存在且便签窗加载该文件）",
-      "implementation": "sticky.css 间距全为裸 px（8/10/12/6/2px），未走 --sp-*",
-      "delta": "spacing token 覆盖率 0%",
-      "suggestion": "padding/gap 换算至 --sp 档位（4/8/12/16），确需 6px 的用 color-mix 无关的 calc(var(--sp-2) - 2px) 或收敛档位",
-      "location": "src-react/src/sticky/sticky.css 全文件",
-      "relates_to_check_finding": null
-    },
-    {
-      "id": "qa3-07",
-      "dimension": "state-coverage",
-      "severity": "minor",
-      "design_source": "PRD 6.9 状态矩阵（加载态）",
-      "implementation": "boot 未返回前 total=0 → 渲染空态文案，与「真空空态」无法区分（闪空态）",
-      "delta": "缺 loading 骨架/占位",
-      "suggestion": "boot===null 时渲染一条骨架行或空白（不渲染空态文案）",
-      "location": "src-react/src/sticky/StickyWindow.tsx:222-226",
-      "relates_to_check_finding": null
-    },
-    {
-      "id": "qa3-08",
-      "dimension": "interaction-states",
-      "severity": "minor",
-      "design_source": "multi-sticky-spec §2「contentEditable 单段纯文本（≤500 字）」",
-      "implementation": "textarea 实现（允许换行，功能超集、实现更稳）",
-      "delta": "单段约束未强制（可多行）",
-      "suggestion": "保存时折叠换行（content.replace(/\\s*\n\\s*/g,' ')）或回写规格为 textarea 方案",
-      "location": "src-react/src/sticky/StickyWindow.tsx:208-218",
-      "relates_to_check_finding": null
-    },
-    {
-      "id": "qa3-09",
-      "dimension": "state-coverage",
-      "severity": "minor",
-      "design_source": "multi-sticky-spec §2「存储：新文件 stickies.json」",
-      "implementation": "stickies 存于 data.json（AppData.stickies，ADR-0005 层次）",
-      "delta": "独立文件未拆；但获得轮转备份保护，优于 spec 原意「不进 runtime.json」",
-      "suggestion": "二选一：回写规格为 data.json 方案（推荐，备份语义更优）或按 spec 拆 stickies.json",
-      "location": "src-tauri/src/models.rs:419 AppData.stickies",
-      "relates_to_check_finding": null
-    },
-    {
-      "id": "qa3-10",
-      "dimension": "assets",
-      "severity": "minor",
-      "design_source": "sticky-note-component-spec §7 组件映射「进度 = shadcn Progress（复古描边覆盖）」",
-      "implementation": "进度以胶条文字「做完 N」承载，无 Progress 条",
-      "delta": "规格组件未挂载（信息无损、形式缺失）",
-      "suggestion": "胶条下加细 Progress（var(--sticky-accent) 填充）或回写规格为文字进度",
-      "location": "src-react/src/sticky/StickyWindow.tsx:194-200",
-      "relates_to_check_finding": null
-    }
-  ],
-  "check_finding_status": [
-    {
-      "finding": "check.json findings[0] brief-consistency: story-5 AC2 三态切换被定稿推翻但上游未回写",
-      "status": "unresolved（文档侧待回写；实现侧已按定稿执行）"
-    },
-    {
-      "finding": "check.json findings[1] window.prompt 在 Tauri wry 静默无效（qa2-04）",
-      "status": "resolved（src-react 已无 window.prompt；改两步内联确认/行内排期）"
-    },
-    {
-      "finding": "check.json findings[2] 规格内部矛盾：§7 宋体 vs §5 无衬线",
-      "status": "partial（实现正确跟随 §5；规格 §7 文案未改）"
-    },
-    {
-      "finding": "check.json findings[3] 老化术语三处不一（qa2-20）",
-      "status": "resolved（便签 badge 已改「顺延 N 天」，与 TaskRow 同词）"
-    },
-    {
-      "finding": "check.json findings[4] 四纸色对比度无实测",
-      "status": "partial（本轮已实测：正文 4/4 ≥4.5 过、琥珀文字已改墨字+琥珀底；kraft/cyan muted 残留 → qa3-01/02）"
-    }
+    { "id": "qa-1", "dimension": "state-coverage", "severity": "blocker", "design_source": "kb-spec §9 混合检索+AI徽标", "implementation": "hybrid.rs ai_map 恒空；embed_texts 零生产调用；kb_index.json 无读写", "delta": "语义检索与 AI 徽标完全未生效", "suggestion": "hybrid 改 async 接 query embedding→余弦 top-k→合并；条目保存防抖重建 chunk；kb_index 原子读写", "location": "src-tauri/src/ai/hybrid.rs:51-54; ai/embedding.rs:51; store.rs:608", "relates_to_check_finding": null },
+    { "id": "qa-2", "dimension": "state-coverage", "severity": "blocker", "design_source": "kb-spec §8 DPAPI 加密 secrets.json + 重启记住", "implementation": "main.rs 生产注入 InMemoryKeeper；DpapiKeeper 为 base64 占位未接 CryptProtectData；UI 文案宣称已加密", "delta": "配置重启全丢；secrets.json 永不落盘；加密承诺失实", "suggestion": "Windows 注入真 DpapiKeeper 并接 winapi DPAPI；文案落地前改「会话内存储」", "location": "src-tauri/src/main.rs:86; ai/secrets.rs", "relates_to_check_finding": null },
+    { "id": "qa-3", "dimension": "color", "severity": "major", "design_source": "index.css 令牌 --accent 为 HSL 三元组（须 hsl() 包裹）", "implementation": "kb.css 三处裸 var(--accent, fallback) → 命中后整值非法，声明被丢弃", "delta": "AI 徽标透明底白字不可见；active 行左边框失效；工具栏 on 文字色失效", "suggestion": "统一 hsl(var(--accent) / α)；徽标改用 --primary 反白", "location": "src-react/src/views/kb.css（.ai-badge/.kb-item-row.active）；rendering/styles/prosemirror.css（.kb-editor-tool.on）", "relates_to_check_finding": null },
+    { "id": "qa-4", "dimension": "interaction-states", "severity": "major", "design_source": "kb-spec §10 十三埋点（新验证门）", "implementation": "仅 kb_pin_desktop/kb_unpin_desktop/sticky_md_toggle 已接", "delta": "缺 10 个：kb_create/update/delete/search/open_from_task/item_to_task/task_kb_attach/detach/ai_configured/ai_call_*", "suggestion": "前端五处 trackEvent + Rust ai 三事件落 events.jsonl", "location": "src-react/src/views/KbView.tsx; components/kb/*; components/task-detail.tsx; src-tauri/src/ai/{config,embedding}.rs", "relates_to_check_finding": null },
+    { "id": "qa-5", "dimension": "accessibility", "severity": "major", "design_source": "QA 9.3/9.4 键盘可达与触发", "implementation": "KbItemRow 为 div+onClick，无 tabIndex/onKeyDown", "delta": "键盘用户无法选中任何条目", "suggestion": "行改 button 或补 tabIndex+Enter/Space 处理", "location": "src-react/src/components/kb/kb-item-row.tsx", "relates_to_check_finding": null },
+    { "id": "qa-6", "dimension": "state-coverage", "severity": "minor", "design_source": "kb-spec §3 add_task 放开 kbRefs", "implementation": "store.rs:314 仍硬编码 Vec::new；「条目→建待办」两步调用功能等价", "delta": "无用户可见差异，契约与 spec 不齐", "suggestion": "放开入参+测试对齐", "location": "src-tauri/src/store.rs:314", "relates_to_check_finding": null },
+    { "id": "qa-7", "dimension": "state-coverage", "severity": "minor", "design_source": "kb-spec §4 上限/失败提示", "implementation": "5k 上限、知识便签 4 张上限、贴桌面失败均静默；limit 空态变体不可达", "delta": "错误发生时 UI 无反馈", "suggestion": "inline-err 呈现命令错误", "location": "src-react/src/views/KbView.tsx handleCreate/onPin", "relates_to_check_finding": null },
+    { "id": "qa-8", "dimension": "state-coverage", "severity": "minor", "design_source": "kb-spec §7 删除引用提示", "implementation": "handleDelete 未读 delete_kb_item 返回值", "delta": "删除被引用条目无「N 个引用」提示", "suggestion": "读返回值弹提示", "location": "src-react/src/components/kb/kb-item-detail.tsx handleDelete", "relates_to_check_finding": null },
+    { "id": "qa-9", "dimension": "state-coverage", "severity": "minor", "design_source": "kb-phase2-supplement §4.2 便签清单显示条目标题", "implementation": "知识便签行显示「📎（知识便签）」占位", "delta": "无法分辨是哪条知识", "suggestion": "拉 KB 标题映射显示", "location": "src-react/src/views/SettingsView.tsx 便签清单", "relates_to_check_finding": null },
+    { "id": "qa-10", "dimension": "state-coverage", "severity": "minor", "design_source": "kb-spec §3 create_sticky(kbRef) 分池契约", "implementation": "V2-API §2 create_sticky 行仍写「只有自由便签/≥6 Err」", "delta": "参数与分池语义未入文档", "suggestion": "更新文档行（parity 只对命令名）", "location": "src-tauri/docs/V2-API.md:185", "relates_to_check_finding": null },
+    { "id": "qa-11", "dimension": "state-coverage", "severity": "minor", "design_source": "kb-spec §7 任务行资料图标（P1 可选）", "implementation": "未实现", "delta": "行级无资料指示", "suggestion": "按 spec 延后至有使用数据，或销账", "location": "src-react/src/components/task-row.tsx", "relates_to_check_finding": null },
+    { "id": "qa-12", "dimension": "interaction-states", "severity": "minor", "design_source": "交互态一致性", "implementation": "status 未加载时 enabled!==true → 「关」误高亮", "delta": "加载瞬间开关态显示错误", "suggestion": "status null 时两钮均不高亮", "location": "src-react/src/components/settings/ai-section.tsx segBtn", "relates_to_check_finding": null },
+    { "id": "qa-13", "dimension": "interaction-states", "severity": "minor", "design_source": "patch 语义只更新非空", "implementation": "save() 空 URL/模型总下发（Some(\"\") 覆盖）；status 加载失败时保存有清空风险", "delta": "边缘场景他轨配置被清", "suggestion": "空串字段不下发（与 KEY 同策略）", "location": "src-react/src/components/settings/ai-section.tsx save()", "relates_to_check_finding": null },
+    { "id": "qa-14", "dimension": "state-coverage", "severity": "minor", "design_source": "失效态居中排版（补充设计 §3.1）", "implementation": "失效态复用 .kb-empty，但 kb.css 不在便签窗 bundle", "delta": "便签窗内失效态无居中样式（可读可操作）", "suggestion": "失效态样式并入 sticky.css", "location": "src-react/src/sticky/StickyWindow.tsx 失效分支", "relates_to_check_finding": null }
   ],
   "summary": {
-    "total": 10,
-    "blocker": 0,
-    "major": 6,
-    "minor": 4,
-    "pass_dimensions": [
-      "typography",
-      "assets",
-      "responsive"
-    ],
+    "total": 14,
+    "blocker": 2,
+    "major": 3,
+    "minor": 9,
+    "pass_dimensions": ["spacing", "typography", "radius-shadow", "assets", "responsive"],
     "check_findings_resolved": 0,
-    "check_findings_unresolved": 1,
-    "check_finding_note": "5 条上游 finding：2 resolved、2 partial、1 unresolved（文档侧）；partial/unresolved 的实现侧残留已列入 deviations qa3-01/02"
-  },
-  "runtime_evidence": {
-    "note": "2026-09-08 20:03-20:44 owner 真实使用痕迹",
-    "notePos": 4,
-    "dynamic_notes": 3,
-    "window_bounds_check": "1 号便签窗 [2029,647,380,456] 与 notePos.sticky 及规格 §3 尺寸一致",
-    "lifecycle": "创建/钉住/收起 全链路真实发生（hidden=true ×3）"
+    "check_findings_unresolved": 0,
+    "check_findings_note": "上游 check.json 属多便签范围（09-07），与 kb 无对应 finding，N/A"
   }
 }
