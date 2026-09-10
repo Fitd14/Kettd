@@ -53,9 +53,10 @@
 .kb-editor-gridwrap { position: relative; }
 .kb-grid-picker {
   position: absolute; top: 30px; left: 0; z-index: 30;
-  border: 1px solid var(--line, hsl(var(--muted-foreground) / 0.25));
+  border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / 0.25));
   border-radius: 4px; padding: 8px;
-  background: hsl(var(--card)); box-shadow: 0 10px 30px -12px rgba(40,40,30,.3);
+  background: var(--paper, hsl(var(--card)));
+  box-shadow: 0 10px 30px -12px rgba(40,40,30,.3);
 }
 .kb-grid-picker .grid-cells { display: grid; grid-template-columns: repeat(4, 18px); gap: 3px; }
 .kb-grid-picker .grid-cell {
@@ -279,7 +280,7 @@
   width: 230px;
   border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / .25));
   border-radius: 4px; overflow: hidden;
-  background: hsl(var(--card));
+  background: var(--paper, hsl(var(--card)));
   box-shadow: 0 10px 34px -12px rgba(40,40,30,.3);
   font-family: "Noto Sans SC", system-ui, sans-serif;
 }
@@ -288,7 +289,7 @@
 .kb-slash-ico {
   width: 26px; height: 26px; border: 1px solid hsl(var(--muted-foreground) / .2); border-radius: 3px;
   display: inline-flex; align-items: center; justify-content: center;
-  color: hsl(var(--muted-foreground)); background: hsl(var(--card)); flex: none;
+  color: hsl(var(--muted-foreground)); background: var(--paper, hsl(var(--card))); flex: none;
 }
 .kb-slash-tx b { display: block; font-size: 12px; font-weight: 600; color: hsl(var(--foreground)); }
 .kb-slash-tx i { font-style: normal; font-size: 10px; color: hsl(var(--muted-foreground)); }
@@ -308,3 +309,10 @@
   display: inline-flex; align-items: center; justify-content: center;
 }
 .kb-bubble button:hover, .kb-bubble button.on { background: rgba(255,255,255,.16); }
+.kb-bubble-table button {
+  width: auto; min-width: 26px; padding: 0 7px;
+  font-size: 11px; font-family: "Noto Sans SC", system-ui, sans-serif;
+}
+.kb-bubble-table button.danger { color: #F9EDEA; }
+.kb-bubble-table button.danger:hover { background: rgba(192,87,79,.55); }
+.kb-bubble-sep { width: 1px; height: 14px; background: rgba(255,255,255,.25); margin: auto 4px; }

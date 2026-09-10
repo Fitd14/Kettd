@@ -404,6 +404,7 @@ export function TipTapEditor({
 
       {/* 选区浮动工具栏（B/I/行内码/删除线） */}
       <BubbleMenu
+        editor={editor}
         options={{ placement: 'top' }}
         shouldShow={({ editor: e, state }: { editor: typeof editor; state: any }) => {
           const { empty } = state.selection

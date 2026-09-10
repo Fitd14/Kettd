@@ -260,6 +260,7 @@ export function KbView({ boot }: Props) {
           )}
           {selected && (
             <KbItemDetail
+              key={selected.id}
               item={selected}
               refCount={refCountOf(selected.id)}
               onDeleted={(id) => { if (selectedId === id) setSelectedId(null); void refresh() }}
