@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 远端清理：原型文件、设计文档、根目录测试截图（2026-09-10 owner 指令，本地保留不提交）
+/test/
+/docs/superpowers/
+/spark-output/board/
+/spark-output/design/glass-vellum-demo.html
