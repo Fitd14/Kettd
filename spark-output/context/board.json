@@ -1,0 +1,36 @@
+{
+  "skill": "board",
+  "generated_at": "2026-09-10T22:00:00+08:00",
+  "project_name": "Kettd · kb 知识库编辑器",
+  "selected_scheme": "朱砂宣",
+  "style_keywords": ["朱砂", "暖宣", "印章", "沉浸"],
+  "color": {
+    "primary": "#C0574F",
+    "secondary": "#4A4A52",
+    "neutral": { "50": "#FAF6EE", "100": "#F9EDEA", "300": "#E0A29C", "500": "#96423C", "700": "#6E2B26", "900": "#3D1A17" },
+    "paper": { "base": "#FAF6EE", "deep": "#F2EBDC", "fiber_opacity": 0.06, "vignette": "inset 0 0 140px rgba(90,80,60,.10)" },
+    "ink": { "text": "#4A3A36", "text_2": "#7A655F", "text_3": "#A59089" },
+    "seal": "#C0574F"
+  },
+  "typography": { "heading_font": "Noto Serif SC", "body_font": "Noto Serif SC", "reading_line_height": 1.85, "reading_width": "76ch" },
+  "spacing": { "xs": "4px", "sm": "8px", "md": "16px", "lg": "24px", "xl": "32px" },
+  "radius": { "sm": "3px", "md": "4px", "lg": "6px", "full": "9999px" },
+  "component": {
+    "button": { "bg": "#C0574F", "color": "#fff", "padding": "6px 16px", "font_size": "11px" },
+    "input": { "border": "#E0A29C", "bg": "#FAF6EE", "width": "120px" },
+    "card": { "border": "#F2E2DE", "padding": "10px", "max_width": "140px" },
+    "tag": { "bg": "#F9EDEA", "color": "#96423C", "font_size": "9px" },
+    "toolbar_icon": { "stroke": "1.7", "size": "15px", "color": "#7A655F", "hover_bg": "#F9EDEA", "hover_color": "#C0574F" },
+    "save_pill": { "dot": "#C0574F", "text": "#A59089", "font_size": "11px" }
+  },
+  "material": {
+    "paper_fiber": "SVG feTurbulence fractalNoise 0.9 ×2 octaves, opacity 0.06, multiply",
+    "vignette": "inset 0 0 140px rgba(90,80,60,.10)",
+    "immersion": ["无模式画布", "76ch 阅读宽", "工具栏 88% 半透明纸底", "装饰全部隐入纸背"]
+  },
+  "assets": {
+    "moodboard": "spark-output/board/kb-editor-moodboard.html",
+    "prototype": "spark-output/board/kb-editor-prototype.html"
+  },
+  "note": "四方案对比记录见 moodboard（宣纸墨/青瓷/竹月/朱砂宣）；owner 2026-09-10 选定 D 朱砂宣"
+}
