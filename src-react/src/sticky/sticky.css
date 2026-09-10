@@ -369,8 +369,33 @@ body {
   outline: 1px solid color-mix(in srgb, var(--sticky-accent) 55%, transparent);
 }
 
-/* ─── 知识便签（Phase 2）─────────────────────────────────────────────────── */
-.sticky-note.knowledge-sticky {
+/* ─── MD 渲染开关（真机修复：便签窗无 app.css，btn 类不生效 → 自带样式）──────── */
+.sticky-md-btn {
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--sticky-ink) 22%, transparent);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--sticky-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+.sticky-md-btn:hover {
+  background: color-mix(in srgb, var(--sticky-ink) 8%, transparent);
+  color: var(--sticky-ink);
+}
+.sticky-md-btn.on {
+  background: var(--sticky-accent);
+  border-color: var(--sticky-accent);
+  color: #fff;
+}
+
+/* ─── 知识便签（Phase 2）─────────────────────────────────────────────────── */.sticky-note.knowledge-sticky {
   /* 知识便签纸色略深一档（视觉暗示「这是知识」） */
   --sticky-paper: hsl(44 35% 93%);
   --sticky-strip: hsl(44 28% 88%);

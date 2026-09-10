@@ -332,8 +332,10 @@ export interface StickySelf {
   kbRef?: string | null
 }
 
+// 真机复盘 2026-09-10：kbRef 必须在 invoke 参数**顶层**（Rust create_sticky(app, kb_ref)），
+// 之前嵌在 { args: {...} } 里 → Tauri 匹配不到顶层 kb_ref → 恒 None → 贴出去的全是自由便签
 export const createSticky = (args?: { kbRef?: string }) =>
-  call<StickyNoteItem>('create_sticky', { args: args ?? {} })
+  call<StickyNoteItem>('create_sticky', { kbRef: args?.kbRef ?? null })
 export const listStickies = () => call<StickyNoteItem[]>('list_stickies')
 export const updateSticky = (
   id: string,

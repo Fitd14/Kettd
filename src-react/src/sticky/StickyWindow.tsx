@@ -38,23 +38,36 @@ export default function StickyWindow() {
   const [kbItem, setKbItem] = useState<KbItem | null>(null)
   const [kbInvalid, setKbInvalid] = useState(false)
   const freeRef = useRef<HTMLTextAreaElement>(null)
+  const knowledgeBodyRef = useRef<HTMLDivElement>(null)
 
-  // 知识便签：加载 KB 条目
+  // 知识便签：加载 KB 条目（实时视口）。
+  // 编辑中（焦点在本窗编辑器内）跳过重拉——防止正在打的字被外部刷新回灌覆盖。
   const isKnowledge = !!self?.kbRef
-  useEffect(() => {
-    if (!self?.kbRef) return
-    let cancelled = false
-    getKbItems().then((r) => {
-      if (cancelled) return
+  const kbRef = self?.kbRef
+  const loadKbItem = useCallback(async () => {
+    if (!kbRef) return
+    const active = document.activeElement
+    if (active instanceof Node && knowledgeBodyRef.current?.contains(active)) return
+    try {
+      const r = await getKbItems()
       const items = r.data ?? []
-      const found = items.find((i) => i.id === self.kbRef)
-      if (found) setKbItem(found)
-      else setKbInvalid(true)
-    }).catch(() => {
-      if (!cancelled) setKbInvalid(true)
-    })
-    return () => { cancelled = true }
-  }, [self?.kbRef])
+      const found = items.find((i) => i.id === kbRef)
+      if (found) {
+        setKbItem(found)
+        setKbInvalid(false)
+      } else {
+        setKbInvalid(true)
+      }
+    } catch {
+      setKbInvalid(true)
+    }
+  }, [kbRef])
+
+  useEffect(() => {
+    setKbItem(null)
+    setKbInvalid(false)
+    void loadKbItem()
+  }, [loadKbItem])
 
   const refresh = useCallback(async () => {
     const [b, s] = await Promise.all([getBootstrap(), stickySelf()])
@@ -67,7 +80,9 @@ export default function StickyWindow() {
       // 编辑中不回灌内容（避免打字被刷新打断）
       if (document.activeElement !== freeRef.current) setFreeText(s.data.content)
     }
-  }, [])
+    // 知识便签：store-changed（主窗编辑 KB）→ 同步视口内容
+    void loadKbItem()
+  }, [loadKbItem])
 
   useEffect(() => {
     void refresh()
@@ -153,7 +168,15 @@ export default function StickyWindow() {
         <div className="sticky-body">
           <div className="kb-empty">
             <span>此知识条目已被删除</span>
-            <button className="btn primary" onClick={() => { void close() }}>拆除便签</button>
+            <button
+              className="sticky-md-btn on"
+              onClick={() => {
+                void trackEvent('kb_unpin_desktop', { itemId: self?.kbRef ?? '', reason: 'invalid' })
+                void close()
+              }}
+            >
+              拆除便签
+            </button>
           </div>
         </div>
       </div>
@@ -177,12 +200,20 @@ export default function StickyWindow() {
           <button className="sticky-btn" title="缩小为悬浮条" aria-label="缩小便签" onClick={() => { void setMini(true) }}>
             <Minus size={14} aria-hidden />
           </button>
-          <button className="sticky-btn" title="关闭便签（数据保留在知识库）" aria-label="关闭便签" onClick={() => { void close() }}>
+          <button
+            className="sticky-btn"
+            title="关闭便签（数据保留在知识库）"
+            aria-label="关闭便签"
+            onClick={() => {
+              void trackEvent('kb_unpin_desktop', { itemId: kbItem.id, reason: 'user' })
+              void close()
+            }}
+          >
             <X size={14} aria-hidden />
           </button>
         </div>
 
-        <div className="sticky-body">
+        <div className="sticky-body" ref={knowledgeBodyRef}>
           <TipTapEditor
             markdown={kbItem.bodyMd}
             onSave={(md) => { void updateKbItem(kbItem.id, { bodyMd: md }) }}
@@ -208,8 +239,9 @@ export default function StickyWindow() {
           便签{freeText.trim() && ' · 已保存'}
         </span>
         <button
-          className={`btn xs ${mdPreview ? 'primary' : 'ghost'}`}
+          className={`sticky-md-btn${mdPreview ? ' on' : ''}`}
           title={mdPreview ? '返回编辑' : '切换 Markdown 预览'}
+          aria-pressed={mdPreview}
           onClick={() => {
             const next = !mdPreview
             setMdPreview(next)
