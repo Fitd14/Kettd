@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -93,6 +93,15 @@ export function TipTapEditor({
     }
   }, [editor, markdown])
 
+  // 工具栏按钮随选区状态高亮：事务后强制重渲染
+  const [, bumpRender] = useState(0)
+  useEffect(() => {
+    if (!editor) return
+    const rerender = () => bumpRender((k) => k + 1)
+    editor.on('transaction', rerender)
+    return () => { editor.off('transaction', rerender) }
+  }, [editor])
+
   // 清理防抖 timer
   useEffect(() => {
     return () => {
@@ -102,8 +111,37 @@ export function TipTapEditor({
 
   if (!editor) return null
 
+  const chain = () => editor.chain().focus()
+  const tools: Array<{ label: string; title: string; active: boolean; run: () => void }> = [
+    { label: 'B', title: '加粗', active: editor.isActive('bold'), run: () => chain().toggleBold().run() },
+    { label: 'I', title: '斜体', active: editor.isActive('italic'), run: () => chain().toggleItalic().run() },
+    { label: 'H1', title: '一级标题', active: editor.isActive('heading', { level: 1 }), run: () => chain().toggleHeading({ level: 1 }).run() },
+    { label: 'H2', title: '二级标题', active: editor.isActive('heading', { level: 2 }), run: () => chain().toggleHeading({ level: 2 }).run() },
+    { label: '•', title: '无序列表', active: editor.isActive('bulletList'), run: () => chain().toggleBulletList().run() },
+    { label: '1.', title: '有序列表', active: editor.isActive('orderedList'), run: () => chain().toggleOrderedList().run() },
+    { label: '❝', title: '引用', active: editor.isActive('blockquote'), run: () => chain().toggleBlockquote().run() },
+    { label: '</>', title: '代码块', active: editor.isActive('codeBlock'), run: () => chain().toggleCodeBlock().run() },
+    { label: '✕', title: '清除格式', active: false, run: () => chain().unsetAllMarks().clearNodes().run() },
+  ]
+
   return (
     <div className={`kb-editor ${className ?? ''}`}>
+      <div className="kb-editor-toolbar" role="toolbar" aria-label="格式工具栏">
+        {tools.map((t) => (
+          <button
+            key={t.label}
+            type="button"
+            className={`kb-editor-tool${t.active ? ' on' : ''}`}
+            title={t.title}
+            aria-label={t.title}
+            aria-pressed={t.active}
+            onMouseDown={(e) => e.preventDefault()} /* 防止抢走编辑器选区 */
+            onClick={t.run}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
       <EditorContent editor={editor} />
     </div>
   )

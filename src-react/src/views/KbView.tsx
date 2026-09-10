@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { getKbItems, searchKb, addKbItem, createSticky, trackEvent, searchKbHybrid } from '@/lib/api'
 import type { KbItem } from '@/lib/api'
 import { KbSearchBar } from '@/components/kb/kb-search-bar'
@@ -29,6 +29,17 @@ export function KbView(_props: Props) {
   const [error, setError] = useState<string | null>(null)
   const [createTaskItem, setCreateTaskItem] = useState<KbItem | null>(null)
   const [aiHits, setAiHits] = useState<Set<string>>(new Set())
+  // 左侧清单折叠（真机反馈：太宽影响编辑）；localStorage 持久化
+  const [listCollapsed, setListCollapsed] = useState(
+    () => localStorage.getItem('kb.listCollapsed') === '1',
+  )
+
+  const toggleList = useCallback(() => {
+    setListCollapsed((prev) => {
+      localStorage.setItem('kb.listCollapsed', prev ? '0' : '1')
+      return !prev
+    })
+  }, [])
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -72,21 +83,35 @@ export function KbView(_props: Props) {
 
   useEffect(() => { void refresh() }, [refresh])
 
-  // Deep Link：#/kb?id={itemId} → 自动选中该条目
+  // Deep Link：#/kb?id={itemId} → 自动选中该条目。
+  // 监听 hashchange：同页内从任务详情切不同 id 也能响应（route 不变但查询串变了）。
+  const itemsRef = useRef<KbItem[]>([])
+  const pendingDeepRef = useRef<string | null>(null)
+  itemsRef.current = items
   useEffect(() => {
-    const hash = window.location.hash
-    const idMatch = hash.match(/[?&]id=([^&]+)/)
-    if (idMatch) {
+    const applyDeepLink = () => {
+      const idMatch = window.location.hash.match(/[?&]id=([^&]+)/)
+      if (!idMatch) return
       const targetId = decodeURIComponent(idMatch[1])
-      // 等 items 加载后选中
-      const trySelect = () => {
-        const found = items.find((i) => i.id === targetId)
-        if (found) setSelectedId(targetId)
+      // items 可能尚未加载完成：记下 pending，items 到位后由下方 effect 兜底选中
+      pendingDeepRef.current = targetId
+      if (itemsRef.current.some((i) => i.id === targetId)) {
+        setSelectedId(targetId)
+        pendingDeepRef.current = null
       }
-      trySelect()
-      // items 可能还没加载，延迟重试
-      const timer = setTimeout(trySelect, 500)
-      return () => clearTimeout(timer)
+    }
+    applyDeepLink()
+    window.addEventListener('hashchange', applyDeepLink)
+    return () => window.removeEventListener('hashchange', applyDeepLink)
+  }, [])
+
+  // items 变化后重试未完成的 Deep Link 选中
+  useEffect(() => {
+    const target = pendingDeepRef.current
+    if (!target) return
+    if (items.some((i) => i.id === target)) {
+      setSelectedId(target)
+      pendingDeepRef.current = null
     }
   }, [items])
 
@@ -122,19 +147,26 @@ export function KbView(_props: Props) {
 
   return (
     <div className="kb-view">
-      <KbSearchBar
-        query={query}
-        onChange={setQuery}
-        resultCount={filteredItems.length}
-      />
+      <div className="kb-topbar">
+        <KbSearchBar
+          query={query}
+          onChange={setQuery}
+          resultCount={filteredItems.length}
+        />
+        <button className="btn xs primary kb-new-btn" onClick={handleCreate} title="新建知识条目">
+          + 新建
+        </button>
+      </div>
 
-      <KbTagFilter
-        tags={allTags}
-        activeTag={activeTag}
-        onSelect={setActiveTag}
-      />
+      {!listCollapsed && (
+        <KbTagFilter
+          tags={allTags}
+          activeTag={activeTag}
+          onSelect={setActiveTag}
+        />
+      )}
 
-      <div className="kb-layout">
+      <div className={`kb-layout${listCollapsed ? ' is-collapsed' : ''}`}>
         {/* 左清单 */}
         <div className="kb-list" role="listbox" aria-label="知识条目">
           {loading && <KbEmptyState variant="empty" />}
@@ -158,6 +190,20 @@ export function KbView(_props: Props) {
 
         {/* 右详情面板 */}
         <div className="kb-detail">
+          {/* 折叠清单切换（常驻，未选中条目也可用） */}
+          <button
+            className="kb-list-toggle"
+            onClick={toggleList}
+            title={listCollapsed ? '展开列表' : '收起列表'}
+            aria-label={listCollapsed ? '展开列表' : '收起列表'}
+          >
+            {listCollapsed ? '⟩' : '⟨'}
+          </button>
+          {listCollapsed && (
+            <button className="kb-list-float-open" onClick={toggleList} title="展开列表" aria-label="展开列表">
+              ⟩ 列表
+            </button>
+          )}
           {!selected && !loading && filteredItems.length > 0 && (
             <div className="kb-empty">选择一条知识查看详情</div>
           )}

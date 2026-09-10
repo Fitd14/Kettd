@@ -1,3 +1,52 @@
+/* ─── 编辑器格式工具栏 ─────────────────────────────────────────────────── */
+
+.kb-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.kb-editor-toolbar {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  padding: 2px 0 6px;
+  border-bottom: 1px solid var(--border, hsl(var(--muted-foreground) / 0.15));
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.kb-editor-tool {
+  min-width: 26px;
+  height: 24px;
+  padding: 0 5px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground, hsl(var(--muted-foreground)));
+  font-size: 0.78em;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kb-editor-tool:hover {
+  background: var(--muted, hsl(var(--muted)));
+  color: hsl(var(--foreground));
+}
+
+.kb-editor-tool.on {
+  background: hsl(var(--accent, 210 100% 50%) / 0.12);
+  color: var(--accent, hsl(210 100% 50%));
+}
+
+.kb-editor-tool:focus-visible {
+  outline: 1px solid hsl(var(--muted-foreground) / 0.4);
+}
+
 /* ─── TipTap / ProseMirror 编辑器基础样式 ─────────────────────────────── */
 
 .kb-editor-content {
@@ -5,6 +54,16 @@
   min-height: 200px;
   font-family: var(--paper-font, system-ui, sans-serif);
   line-height: 1.65;
+}
+
+/* 真机反馈：contenteditable 默认 focus 黑框刺眼 → 全状态去 outline */
+.kb-editor-content:focus,
+.kb-editor-content:focus-visible,
+.ProseMirror:focus,
+.ProseMirror:focus-visible,
+.ProseMirror-focused {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .kb-editor-content p.is-editor-empty:first-child::before {

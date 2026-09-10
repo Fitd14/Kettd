@@ -10,6 +10,21 @@
 
 /* ─── 搜索栏 ───────────────────────────────────────────────────────────── */
 
+.kb-topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.kb-topbar .kb-search-bar {
+  flex: 1;
+}
+
+.kb-new-btn {
+  flex-shrink: 0;
+}
+
 .kb-search-bar {
   display: flex;
   align-items: center;
@@ -35,10 +50,65 @@
 
 .kb-layout {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 2fr;
+  /* 真机反馈：清单列太宽挤占编辑区 → 固定窄带（200-264px），可折叠 */
+  grid-template-columns: clamp(200px, 232px, 264px) 1fr;
   gap: 1rem;
   flex: 1;
   overflow: hidden;
+}
+
+.kb-layout.is-collapsed {
+  grid-template-columns: 0 1fr;
+  gap: 0;
+}
+
+.kb-layout.is-collapsed .kb-list {
+  display: none;
+  overflow: hidden;
+}
+
+/* 折叠切换钮：详情面板左缘竖条 */
+.kb-list-toggle {
+  position: absolute;
+  left: 0;
+  top: 0.5rem;
+  width: 20px;
+  height: 44px;
+  border: 1px solid var(--border, hsl(var(--muted-foreground) / 0.2));
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  background: var(--card, hsl(var(--card)));
+  color: var(--muted-foreground, hsl(var(--muted-foreground)));
+  cursor: pointer;
+  font-size: 0.8em;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.kb-list-toggle:hover {
+  color: hsl(var(--foreground));
+  background: var(--muted, hsl(var(--muted)));
+}
+
+/* 折叠后左缘的展开入口 */
+.kb-list-float-open {
+  align-self: flex-start;
+  margin-left: 1.5rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px dashed var(--border, hsl(var(--muted-foreground) / 0.3));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground, hsl(var(--muted-foreground)));
+  cursor: pointer;
+  font-size: 0.8em;
+}
+
+.kb-list-float-open:hover {
+  color: hsl(var(--foreground));
+  background: var(--muted, hsl(var(--muted)));
 }
 
 /* ─── 左清单 ───────────────────────────────────────────────────────────── */
@@ -123,12 +193,31 @@
 /* ─── 右详情面板 ───────────────────────────────────────────────────────── */
 
 .kb-detail {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   overflow-y: auto;
   border-left: 1px solid var(--border, hsl(var(--muted-foreground) / 0.15));
-  padding-left: 1rem;
+  padding-left: 1.25rem;
+}
+
+.kb-detail-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.kb-detail-body .kb-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+}
+
+.kb-detail-body .kb-editor .kb-editor-content {
+  flex: 1;
 }
 
 .kb-detail-toolbar {

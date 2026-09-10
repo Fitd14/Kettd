@@ -30,7 +30,8 @@ const ROUTES = [
 type Route = (typeof ROUTES)[number]['hash']
 
 function routeFromHash(): Route {
-  const h = window.location.hash as Route
+  // Deep Link 带查询串（#/kb?id=x）——按 ? 切掉再匹配，否则整串对不上回落今天页
+  const h = (window.location.hash.split('?')[0] || window.location.hash) as Route
   return ROUTES.some((r) => r.hash === h) ? h : '#/today'
 }
 
