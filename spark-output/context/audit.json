@@ -1,18 +1,15 @@
 {
   "skill": "audit",
-  "generated_at": "2026-09-02T11:20:00+08:00",
-  "project_name": "Kettd 重构 · 个人待办任务记录汇总",
+  "generated_at": "2026-09-10T21:00:00+08:00",
+  "project_name": "Kettd · kb 编辑器体验打磨",
   "target": {
     "type": "code",
-    "reference": "https://github.com/Fitd14/Kettd (src/ + src-tauri/, 7 files read)",
+    "reference": "src-react/src/components/kb/kb-item-detail.tsx + rendering/tiptap-editor.tsx",
     "pages_audited": [
-      "src/index.html",
-      "src/float.html",
-      "src/scheduled.html",
-      "src/api.js",
-      "src/style.css",
-      "src-tauri/src/main.rs",
-      "src-tauri/tauri.conf.json"
+      "kb-item-detail.tsx",
+      "tiptap-editor.tsx",
+      "md-static-render.tsx",
+      "package.json"
     ]
   },
   "audit_framework": [
@@ -21,312 +18,190 @@
     "performance"
   ],
   "upstream_refs": [
-    "bench"
+    "bench(竞品扫描:Typora/Notion/Obsidian/语雀 WYSIWYG 模式)",
+    "frame",
+    "scope"
   ],
   "findings": [
     {
-      "id": "audit-1",
-      "heuristic": "visibility",
+      "id": "N01",
+      "heuristic": "flexibility",
       "severity": "blocker",
-      "description": "搜索功能完全失效：input 事件只重渲染，filterTasks 从不读取搜索词",
-      "evidence": "src/index.html 脚本区 search-input 监听 + filterTasks()",
-      "suggestion": "接标题+描述关键词过滤、命中高亮、无结果空态",
-      "effort": "quick-win"
-    },
-    {
-      "id": "audit-2",
-      "heuristic": "user-control",
-      "severity": "blocker",
-      "description": "数据可被静默清空：data.json 损坏时 unwrap_or_default 返回空集合且无报错，下一次保存全量覆盖写盘（无备份/原子写）；前端 getTasks 失败返回 [] 呈现为无任务",
-      "evidence": "src-tauri/src/main.rs:63-74 load_data / save_data fs::write；api.js getTasks catch→[]",
-      "suggestion": "解析失败显式报错、写前 .bak 备份、前端错误态+重试，失败不得渲染为空列表",
-      "effort": "medium"
-    },
-    {
-      "id": "audit-3",
-      "heuristic": "visibility",
-      "severity": "major",
-      "description": "成片假控件：自绘窗口最小化/最大化/关闭无事件绑定且与原生标题条双层叠加；排序、scheduled 返回、float 暂停按钮与装饰性计时卡均无行为",
-      "evidence": "index/scheduled title-bar、filter 区静态排序 span、scheduled back-btn 无 handler、float.html 计时器 section 无 setInterval；tauri.conf decorations:true",
-      "suggestion": "decorations:false+接 IPC 或直接删自绘；按钮逐一实现或移除",
-      "effort": "medium"
-    },
-    {
-      "id": "audit-4",
-      "heuristic": "visibility",
-      "severity": "blocker",
-      "description": "提醒系统整体不可达：scheduled.html 无任何入口（float 管理按钮错误调用 openMainWindow）、主窗加载 reminders 但不渲染、后端无系统通知/定时调度代码",
-      "evidence": "src/scheduled.html 孤立文件；index.html reminders 未使用；main.rs 无 notification",
-      "suggestion": "提醒并入主导航 + Tauri notification + 后台调度 + float 直达管理",
+      "description": "阅读/编辑双模式割裂，即时渲染被人为切断",
+      "evidence": "kb-item-detail.tsx:60,121 onClick setMode('edit')",
+      "suggestion": "去模式化，TipTap 画布常驻即时渲染",
       "effort": "major-rework"
     },
     {
-      "id": "audit-5",
-      "heuristic": "error-prevention",
-      "severity": "major",
-      "description": "表单静默拒绝：空标题保存 if(!title) return 无任何反馈；日期留空默默兜底为今天",
-      "evidence": "index.html modal-save、scheduled.html reminder-save",
-      "suggestion": "inline 校验错误+按钮禁用态，默认值显性可见",
-      "effort": "quick-win"
-    },
-    {
-      "id": "audit-6",
-      "heuristic": "consistency",
-      "severity": "major",
-      "description": "编辑任务导致截止时间漂移约 8h/跨天：本地时间串与 toISOString(UTC) 混用，保存后错误落库；formatDate 按空格取时间对新 T 格式失效",
-      "evidence": "index.html formatDateTimeLocal + 种子 due_date '2026-07-06 15:00' api.js formatDate",
-      "suggestion": "统一 ISO 8601+显式时区转换，数据一次性迁移",
+      "id": "N02",
+      "heuristic": "flexibility",
+      "severity": "blocker",
+      "description": "表格无法创建：TipTap 无 Table 扩展（阅读态却能渲染）",
+      "evidence": "package.json extension-table 0 命中",
+      "suggestion": "Table 扩展族+Cmd+T 网格选择器+工具栏钮+气泡菜单",
       "effort": "medium"
     },
     {
-      "id": "audit-7",
+      "id": "N03",
       "heuristic": "user-control",
       "severity": "major",
-      "description": "删除无撤销：confirm 后全量重写剔除；备注/子任务无删除通道",
-      "evidence": "index.html deleteTask confirm；main.rs delete_task",
-      "suggestion": "软删除+toast 撤销，与日志簿设计合并落地",
+      "description": "标题不可就地改名（静态 h3）",
+      "evidence": "kb-item-detail.tsx:99",
+      "suggestion": "点击就地编辑",
       "effort": "medium"
     },
     {
-      "id": "audit-8",
-      "heuristic": "real-world-match",
+      "id": "N04",
+      "heuristic": "user-control",
       "severity": "major",
-      "description": "假协作语义误导：单用户本地应用却有『李经理』备注作者与协作头像；子任务只能勾选不能增删",
-      "evidence": "main.rs 种子 notes；index.html renderDetailPanel",
-      "suggestion": "改『我的笔记』单作者或清演示数据；补子任务 CRUD",
-      "effort": "quick-win"
-    },
-    {
-      "id": "audit-9",
-      "heuristic": "visibility",
-      "severity": "major",
-      "description": "悬浮面板标签与行为不符：『近2小时』实为全部未完成 top5；quick-add 静默归为个人/低/今日无告知",
-      "evidence": "float.html renderUpcomingTasks 无时间窗过滤、quick-add 硬编码默认值",
-      "suggestion": "实现真实 2h 过滤；快记后 chip 回显默认属性可点改",
-      "effort": "quick-win"
-    },
-    {
-      "id": "audit-10",
-      "heuristic": "visibility",
-      "severity": "major",
-      "description": "scheduled 页假数据：今日专注 2h15m、完成进度 37% 永不更新；番茄结束仅原生 alert，专注时长不入库",
-      "evidence": "scheduled.html overview-focus/完成进度静态文案",
-      "suggestion": "专注会话入库并驱动统计；原生 alert 换应用内通知",
+      "description": "标签不可增删（chips 只读）",
+      "evidence": "kb-item-detail.tsx:104",
+      "suggestion": "就地增删 chips",
       "effort": "medium"
     },
     {
-      "id": "audit-11",
+      "id": "N05",
       "heuristic": "visibility",
       "severity": "major",
-      "description": "『已完成/进度』三处口径矛盾：stat-completed=全历史，侧栏=今日窗口，初始 DOM 硬编码 60% 进度与假角标闪现",
-      "evidence": "index.html stats-row/updateStats/side-footer/12·5·8·24 初始值",
-      "suggestion": "单一事实源+口径命名分离；初始渲染骨架屏",
+      "description": "自动保存无已保存反馈",
+      "evidence": "kb-item-detail.tsx 无保存状态指示（便签窗有）",
+      "suggestion": "保存状态指示（编辑中/已保存）",
       "effort": "quick-win"
     },
     {
-      "id": "audit-12",
+      "id": "N06",
+      "heuristic": "help-docs",
+      "severity": "major",
+      "description": "提示体系缺失：无 slash 命令/浮动工具栏/语法引导",
+      "evidence": "tiptap-editor.tsx 仅 9 钮静态工具栏",
+      "suggestion": "slash 面板+选区浮动条+placeholder 引导",
+      "effort": "medium"
+    },
+    {
+      "id": "N07",
       "heuristic": "aesthetic",
       "severity": "major",
-      "description": "双轨分类入口冗余可矛盾（filter-bar vs 侧栏）；视图语义漂移：即将到来=全部未完成、收件箱含已完成",
-      "evidence": "index.html filter-bar/renderNavCounts",
-      "suggestion": "一层一语义，对齐收件箱/今天/计划 GTD 心智（bench takeaway-2）",
+      "description": "阅读排版弱：层级对比不足、无宽度上限、代码块密度高",
+      "evidence": "kb-md-render 与编辑态同字号，无 max-width",
+      "suggestion": "排版阶梯+阅读宽度上限",
       "effort": "medium"
     },
     {
-      "id": "audit-13",
+      "id": "N08",
       "heuristic": "consistency",
-      "severity": "major",
-      "description": "暗色模式失效：.dark 变量定义后无组件消费，样式全内联硬编码亮色，切换后界面不可读；入口伪装成头像 U",
-      "evidence": "style.css .light/.dark vs 三页内联样式；index theme-toggle",
-      "suggestion": "建 token 层收编样式（bench 视觉策略落地基座），主题入口显性化",
-      "effort": "major-rework"
-    },
-    {
-      "id": "audit-14",
-      "heuristic": "responsive",
-      "severity": "major",
-      "description": "固定 1440×900 内容壳 + resizable 无最小尺寸：窗口缩小双侧裁切，1366×768 笔电不可用",
-      "evidence": "#app-shell width/height、tauri.conf.json windows 配置",
-      "suggestion": "自适应布局+最小尺寸+侧栏可折叠",
-      "effort": "medium"
-    },
-    {
-      "id": "audit-15",
-      "heuristic": "help-docs",
       "severity": "minor",
-      "description": "无首次引导/快捷键提示/帮助；主题入口伪装",
-      "evidence": "全仓库无 onboarding/help 相关代码",
-      "suggestion": "一次性 3 屏渐进引导（bench avoid A-4）",
+      "description": "工具栏字符图标与全 app lucide 语言不一致",
+      "evidence": "tiptap-editor.tsx tools 数组用 B/I/❝/</>",
+      "suggestion": "换 lucide 图标",
       "effort": "quick-win"
     },
     {
-      "id": "audit-16",
+      "id": "N09",
+      "heuristic": "visibility",
+      "severity": "minor",
+      "description": "模式按钮当前态辨识弱",
+      "evidence": "kb-item-detail.tsx 阅读/编辑等权按钮",
+      "suggestion": "随 N01 去模式化消灭",
+      "effort": "quick-win"
+    },
+    {
+      "id": "N10",
       "heuristic": "flexibility",
       "severity": "minor",
-      "description": "零键盘流：无全局热键快捕获、无列表键盘操作、无撤销快捷键（策略缺口，重构必补）",
-      "evidence": "无 register shortcut 相关代码",
-      "suggestion": "按 bench takeaway-1/5 实现全局捕获+5 键键盘流",
-      "effort": "major-rework"
-    },
-    {
-      "id": "audit-17",
-      "heuristic": "visibility",
-      "severity": "minor",
-      "description": "操作无 loading/toast；整列表 innerHTML 重建丢滚动位置；双窗靠 30s 轮询不同步",
-      "evidence": "index.html loadData、float.html setInterval(loadTasks,30000)",
-      "suggestion": "事件总线即时同步+增量渲染+操作反馈",
-      "effort": "medium"
-    },
-    {
-      "id": "audit-18",
-      "heuristic": "user-control",
-      "severity": "minor",
-      "description": "弹窗无 ESC/遮罩关闭，编辑中误关无挽留无草稿",
-      "evidence": "index.html/scheduled modal 实现",
-      "suggestion": "统一 Modal 交互规范",
+      "description": "无快捷键提示与补充快捷键",
+      "evidence": "工具栏无 kbd 提示；无 Cmd+K/Cmd+T",
+      "suggestion": "kbd 提示+补快捷键",
       "effort": "quick-win"
     },
     {
-      "id": "audit-19",
-      "heuristic": "consistency",
+      "id": "N11",
+      "heuristic": "error-prevention",
       "severity": "minor",
-      "description": "视觉实现漂移：detail-footer 内联复制按钮样式、原生 confirm/alert 与 modal 混用、手画 SVG 图标风格不一",
-      "evidence": "renderDetailPanel 按钮 style、确认框混用",
-      "suggestion": "组件化按钮/对话框/图标集",
-      "effort": "medium"
-    },
-    {
-      "id": "audit-20",
-      "heuristic": "error-recovery",
-      "severity": "major",
-      "description": "写盘失败假成功：invoke Err 后大量调用链无 catch，界面显示成功重启后数据回滚",
-      "evidence": "index/float toggleTask().then(loadData) 无 catch 等",
-      "suggestion": "错误中间层+应用内 toast+乐观更新回滚",
-      "effort": "medium"
-    },
-    {
-      "id": "audit-21",
-      "heuristic": "aesthetic",
-      "severity": "minor",
-      "description": "列表/提醒/搜索无空态（仅详情面板有）",
-      "evidence": "renderTaskList 空时留空容器",
-      "suggestion": "补三类空态插画与引导文案",
+      "description": "阅读态任意点击进编辑，误触率高",
+      "evidence": "kb-item-detail.tsx:60",
+      "suggestion": "并入 N01 去模式化",
       "effort": "quick-win"
     },
     {
-      "id": "audit-22",
-      "heuristic": "recognition",
-      "severity": "minor",
-      "description": "『已逾期』在任务行重复显示两次",
-      "evidence": "renderTaskList overdueBadge+dateSpan 同为已逾期",
-      "suggestion": "保留一个，日期位显示原日期",
-      "effort": "quick-win"
-    },
-    {
-      "id": "audit-23",
+      "id": "N12",
       "heuristic": "performance",
       "severity": "minor",
-      "description": "任意勾选=全量读+pretty 全量写+整列表重建，规模增长将现延迟",
-      "evidence": "main.rs 每命令 load_data/save_data；前端全量重渲染",
-      "suggestion": "写盘防抖+增量渲染",
-      "effort": "medium"
-    },
-    {
-      "id": "audit-24",
-      "heuristic": "consistency",
-      "severity": "minor",
-      "description": "术语漂移：定时任务/提醒/今日提醒三称混用；分类中文值与英文导航 key 硬映射；float 标题与托盘措辞不一",
-      "evidence": "scheduled.html h1/reminder-section、data-nav 与 names 映射",
-      "suggestion": "统一命名表+分类改枚举 id",
+      "description": "模式切换重挂载编辑器全量重解析",
+      "evidence": "mode 切换条件渲染 TipTapEditor",
+      "suggestion": "随 N01 去模式化自然消失",
       "effort": "quick-win"
     }
   ],
   "opportunities": [
     {
-      "title": "让核心记录-修改-删除回路可信（搜索/持久化零丢失/时间正确/删除可撤销）",
+      "title": "单一即时渲染画布（去模式化）",
       "addresses_findings": [
-        "audit-1",
-        "audit-2",
-        "audit-5",
-        "audit-6",
-        "audit-7",
-        "audit-20"
+        "N01",
+        "N09",
+        "N11",
+        "N12"
       ],
       "priority": "high",
-      "rationale": "3 条 blocker 中 2 条在此；记了会丢、改了会错、删了回不来=信任崩塌不可逆，行业底线（bench M-1/M-3）"
+      "rationale": "owner 问题①的根：Typora 证明无模式才是即时渲染正形；顺带消灭误触/滚动丢失/重挂载三个次生问题"
     },
     {
-      "title": "提醒与计时能力真正交付（scheduled 并入主窗+系统通知+float 计时真实化）",
+      "title": "表格全能力",
       "addresses_findings": [
-        "audit-4",
-        "audit-9",
-        "audit-10"
+        "N02"
       ],
       "priority": "high",
-      "rationale": "不会响的提醒等于没有；bench takeaway-3/M-2 指明桌面常驻+真提醒是竞品护城河与本项目核心承诺"
+      "rationale": "功能缺口：编辑器造不出表格而阅读态能渲染；三路径（快捷键网格/工具栏/slash）业界并行"
     },
     {
-      "title": "消灭装饰性 UI 并统一今日口径（假控件实装、统计单一事实源、双轨分类收敛）",
+      "title": "编辑提示体系",
       "addresses_findings": [
-        "audit-3",
-        "audit-11",
-        "audit-12",
-        "audit-22",
-        "audit-24"
+        "N06",
+        "N10"
       ],
       "priority": "high",
-      "rationale": "点了没反应、看了不可信是 v1 最密集体感毒点；口径矛盾掩盖了『今天』的真实语义（bench takeaway-2）"
+      "rationale": "owner 问题②④：Notion slash 面板+选区浮动条是已验证模式"
     },
     {
-      "title": "主题真实化与桌面窗口适配重构（token 层+dark 落地+窗口最小尺寸/自适应）",
+      "title": "阅读排版体系",
       "addresses_findings": [
-        "audit-13",
-        "audit-14",
-        "audit-19",
-        "audit-21"
+        "N07"
       ],
       "priority": "medium",
-      "rationale": "视觉债不清，bench 的 diverge 视觉策略无法落地；小屏笔电不可用直接流失目标人群"
+      "rationale": "owner 问题③：去模式化后阅读感由排版承担"
     },
     {
-      "title": "效率与诚实性基线（全局热键快捕获+键盘流+引导+子任务 CRUD+双窗同步）",
+      "title": "元数据就地编辑+保存可见",
       "addresses_findings": [
-        "audit-8",
-        "audit-15",
-        "audit-16",
-        "audit-17",
-        "audit-18",
-        "audit-23"
+        "N03",
+        "N04",
+        "N05",
+        "N08"
       ],
       "priority": "medium",
-      "rationale": "定义了重构后与滴答重型化的差异：少而诚实、快到肌肉记忆（bench takeaway-1/5、avoid A-4）"
+      "rationale": "owner 问题②的元数据侧：quick-win 集合"
     }
   ],
   "summary": {
-    "total_findings": 24,
+    "total_findings": 12,
     "by_severity": {
-      "blocker": 3,
-      "major": 12,
-      "minor": 9
+      "blocker": 2,
+      "major": 5,
+      "minor": 5
     },
     "by_heuristic": {
-      "visibility": 7,
-      "user-control": 3,
-      "error-prevention": 1,
-      "consistency": 4,
-      "real-world-match": 1,
-      "aesthetic": 2,
-      "responsive": 1,
+      "flexibility": 3,
+      "user-control": 2,
+      "visibility": 2,
       "help-docs": 1,
-      "flexibility": 1,
-      "error-recovery": 1,
-      "recognition": 1,
+      "aesthetic": 1,
+      "consistency": 1,
+      "error-prevention": 1,
       "performance": 1
     },
     "top_opportunities": [
-      "让核心记录-修改-删除回路可信",
-      "提醒与计时能力真正交付",
-      "消灭装饰性 UI 并统一今日口径"
+      "单一即时渲染画布",
+      "表格全能力",
+      "编辑提示体系"
     ]
   }
 }
