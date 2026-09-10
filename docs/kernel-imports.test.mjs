@@ -1,0 +1,98 @@
+/**
+ * 共享内核导入一致性检查（ADR-0006）
+ *
+ * 为什么需要：vanilla 三窗**没有构建步骤**，`import { A, B } from './kernel/x.js'`
+ * 里写错一个名字，浏览器只会在运行时抛 ReferenceError —— 而运行时表现是"整个
+ * module script 崩掉、页面全白"，没有编译期报错、没有类型检查。
+ * 本检查在 node 里静态比对「导入名集合 ⊆ 内核导出名集合」，把这类错误挡在提交前。
+ *
+ * 跑法：node test/kernel-imports.test.mjs
+ */
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const KDIR = path.join(root, 'src-react', 'src', 'kernel');
+
+const exportsOf = (file) => {
+  const src = readFileSync(file, 'utf8');
+  const names = new Set();
+  for (const m of src.matchAll(/export\s+(?:async\s+)?(?:function|const|let|class)\s+(\w+)/g)) names.add(m[1]);
+  for (const m of src.matchAll(/export\s*\{([^}]*)\}/g)) {
+    for (const part of m[1].split(',')) {
+      const n = part.trim().split(/\s+as\s+/).pop().trim();
+      if (n) names.add(n);
+    }
+  }
+  return names;
+};
+
+const kernelFiles = existsSync(KDIR) ? readdirSync(KDIR).filter((f) => f.endsWith('.js')) : [];
+assert.ok(kernelFiles.length >= 2, `src-react/src/kernel/ 至少应有 text.js 与 rem-editor.js，实际：${kernelFiles.join(',')}`);
+
+const exported = new Map();
+for (const f of kernelFiles) exported.set(f, exportsOf(path.join(KDIR, f)));
+
+// 消费方 = src-react 全窗（M4 已退役 vanilla，内核随 React；ADR-0006 唯一实现原则不变）
+const consumers = [
+  'src-react/src/App.tsx', 'src-react/src/lib/api.ts', 'src-react/src/lib/kernel.ts',
+  'src-react/src/capture/CaptureWindow.tsx', 'src-react/src/capture/main.tsx',
+  'src-react/src/sticky/StickyWindow.tsx',
+  'src-react/src/views/TodayView.tsx', 'src-react/src/views/InboxView.tsx',
+  'src-react/src/views/PlannedView.tsx', 'src-react/src/views/ReviewView.tsx',
+  'src-react/src/views/SettingsView.tsx',
+  // 内核单测同样算消费方（直接钉住导出 API，防漂移）
+  'test/selectors.test.mjs', 'test/today-inbox-selectors.test.mjs',
+  'test/event-bus.test.mjs', 'test/capture-syntax.test.mjs',
+]
+  .filter((p) => existsSync(path.join(root, p)));
+assert.ok(consumers.length >= 4, '消费方清单与实际文件不符，检查是否漏了窗口文件');
+
+let checks = 0;
+for (const rel of consumers) {
+  const src = readFileSync(path.join(root, rel), 'utf8');
+  for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s*['"]([^'"]*kernel\/[\w.-]+\.js)['"]/g)) {
+    const spec = path.basename(m[2]);
+    assert.ok(exported.has(spec), `${rel}: 引用了不存在的内核模块 ${spec}`);
+    const names = m[1].split(',').map((s) => s.trim().split(/\s+as\s+/)[0]).filter(Boolean);
+    for (const n of names) {
+      assert.ok(exported.get(spec).has(n),
+        `${rel} 从 ${spec} 导入 "${n}"，但该模块未导出它（vanilla 无构建步骤，这会在运行时白屏）`);
+      checks++;
+    }
+  }
+}
+assert.ok(checks >= 10, `只比对了 ${checks} 个导入名，疑似正则没匹配上，检查内核引用写法`);
+
+// 反向：内核不许留无人使用的导出（投机 API 会变第二份漂移实现）。
+// 消费路径有两种：① 直接 import { A } from './kernel/x.js'；
+// ② api.js 再导出 export { A } from './kernel/x.js'，各窗口以 api.A 使用。
+const usedNames = new Set();
+const BRACE_RE = /(?:import|export)\s*\{([^}]*)\}\s*from\s*['"][^'"]*kernel\/[\w.-]+\.js['"]/g;
+// 内核文件互相导入同样算「被使用」（如 selectors 用 time 的 pad2）
+const INNER_RE = /(?:import|export)\s*\{([^}]*)\}\s*from\s*['"]\.\/[\w.-]+\.js['"]/g;
+for (const f of kernelFiles) {
+  const src = readFileSync(path.join(KDIR, f), 'utf8');
+  for (const m of src.matchAll(INNER_RE)) {
+    for (const part of m[1].split(',')) {
+      const n = part.trim().split(/\s+as\s+/)[0].trim();
+      if (n) usedNames.add(n);
+    }
+  }
+}
+for (const rel of consumers) {
+  const src = readFileSync(path.join(root, rel), 'utf8');
+  for (const m of src.matchAll(BRACE_RE)) {
+    for (const part of m[1].split(',')) {
+      const n = part.trim().split(/\s+as\s+/)[0].trim();
+      if (n) usedNames.add(n);
+    }
+  }
+}
+const unused = [...exported.values()].flatMap((set) => [...set]).filter((n) => !usedNames.has(n));
+assert.deepEqual(unused, [], `内核有无人使用的导出：${unused.join(', ')} —— 要么接上调用方，要么删掉`);
+
+console.log(`  ✓ ${consumers.length} 个消费方、${checks} 个导入名全部可在内核中解析，且无未使用导出`);
+console.log('\n导入一致性通过');
