@@ -47,14 +47,40 @@
   outline: 1px solid hsl(var(--muted-foreground) / 0.4);
 }
 
+.kb-tool-sep { width: 1px; height: 16px; background: hsl(var(--muted-foreground) / 0.2); margin: 0 6px; }
+
+/* 表格网格选择器（Typora Ctrl+T 同款交互） */
+.kb-editor-gridwrap { position: relative; }
+.kb-grid-picker {
+  position: absolute; top: 30px; left: 0; z-index: 30;
+  border: 1px solid var(--line, hsl(var(--muted-foreground) / 0.25));
+  border-radius: 4px; padding: 8px;
+  background: hsl(var(--card)); box-shadow: 0 10px 30px -12px rgba(40,40,30,.3);
+}
+.kb-grid-picker .grid-cells { display: grid; grid-template-columns: repeat(4, 18px); gap: 3px; }
+.kb-grid-picker .grid-cell {
+  width: 18px; height: 18px; padding: 0;
+  border: 1px solid hsl(var(--muted-foreground) / 0.3); background: transparent;
+  border-radius: 2px; cursor: pointer;
+}
+.kb-grid-picker .grid-cell.on { background: var(--seal, hsl(var(--primary))); border-color: var(--seal, hsl(var(--primary))); }
+.kb-grid-picker .grid-hint { margin-top: 6px; font-size: 10px; color: hsl(var(--muted-foreground)); text-align: center; }
+
 /* ─── TipTap / ProseMirror 编辑器基础样式 ─────────────────────────────── */
 
 .kb-editor-content {
   outline: none;
   min-height: 200px;
   font-family: var(--paper-font, system-ui, sans-serif);
-  line-height: 1.65;
+  line-height: 1.85;
 }
+
+/* 排版阶梯 + 阅读宽度（editor-polish-spec §5；scope 纸面详情，便签窄窗不受限） */
+.kb-detail .kb-editor-content { max-width: 76ch; font-size: 16px; }
+.kb-detail .kb-editor-content h1 { font-size: 1.35em; margin: 1.5em 0 .5em; letter-spacing: .4px; }
+.kb-detail .kb-editor-content h2 { font-size: 1.2em; margin: 1.3em 0 .45em; }
+.kb-detail .kb-editor-content h3 { font-size: 1.05em; margin: 1.1em 0 .4em; }
+.kb-detail .kb-editor-content p { margin: .65em 0; }
 
 /* 真机反馈：contenteditable 默认 focus 黑框刺眼 → 全状态去 outline */
 .kb-editor-content:focus,
@@ -127,8 +153,30 @@
 
 .kb-editor-content th {
   font-weight: 600;
-  background: var(--hover-bg, rgba(0, 0, 0, 0.02));
+  background: var(--seal-soft, hsl(var(--secondary)));
 }
+
+/* 表格（编辑态）：选中表格高亮工具栏、单元格最小宽 */
+.kb-editor-content table { border-collapse: collapse; width: 100%; margin: .8em 0; font-size: .93em; }
+.kb-editor-content th, .kb-editor-content td {
+  border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / .25));
+  padding: .45em .8em; text-align: left; min-width: 4em;
+}
+.kb-editor-content .selectedCell:after {
+  content: ""; position: absolute; inset: 0;
+  background: var(--seal, #C0574F); opacity: .12; pointer-events: none;
+}
+.kb-editor-content pre { position: relative; }
+.kb-editor-content pre[data-language]::after {
+  content: attr(data-language);
+  position: absolute; top: 6px; right: 10px;
+  font-size: 10px; letter-spacing: 1px; color: var(--ink-3, #A59089);
+  text-transform: uppercase; pointer-events: none;
+}
+
+/* 任务清单（可勾选） */
+.kb-editor-content ul[data-type="taskList"] li > label { margin-top: .3em; }
+.kb-editor-content ul[data-type="taskList"] li[data-checked="true"] > div { color: var(--ink-3, #A59089); text-decoration: line-through; }
 
 /* 任务列表 */
 .kb-editor-content ul[data-type="taskList"] {
@@ -223,3 +271,40 @@
   max-width: 100%;
   border-radius: 4px;
 }
+
+/* ─── slash 命令面板 ─────────────────────────────────────────────────── */
+
+.kb-slash {
+  z-index: 40;
+  width: 230px;
+  border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / .25));
+  border-radius: 4px; overflow: hidden;
+  background: hsl(var(--card));
+  box-shadow: 0 10px 34px -12px rgba(40,40,30,.3);
+  font-family: "Noto Sans SC", system-ui, sans-serif;
+}
+.kb-slash-item { display: flex; align-items: center; gap: 10px; padding: 7px 12px; cursor: pointer; }
+.kb-slash-item.on { background: var(--seal-soft, hsl(var(--secondary))); }
+.kb-slash-ico {
+  width: 26px; height: 26px; border: 1px solid hsl(var(--muted-foreground) / .2); border-radius: 3px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: hsl(var(--muted-foreground)); background: hsl(var(--card)); flex: none;
+}
+.kb-slash-tx b { display: block; font-size: 12px; font-weight: 600; color: hsl(var(--foreground)); }
+.kb-slash-tx i { font-style: normal; font-size: 10px; color: hsl(var(--muted-foreground)); }
+.kb-slash-empty { padding: 12px; font-size: 11px; color: hsl(var(--muted-foreground)); text-align: center; }
+
+/* ─── 选区浮动工具栏（气泡）──────────────────────────────────────────── */
+
+.kb-bubble {
+  display: flex; gap: 1px; padding: 3px;
+  border-radius: 4px;
+  background: color-mix(in srgb, #3a332e 92%, transparent);
+  box-shadow: 0 8px 24px -10px rgba(40,40,30,.45);
+}
+.kb-bubble button {
+  width: 26px; height: 24px; border: none; border-radius: 3px;
+  background: transparent; color: #fff; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.kb-bubble button:hover, .kb-bubble button.on { background: rgba(255,255,255,.16); }

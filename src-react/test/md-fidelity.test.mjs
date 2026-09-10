@@ -20,6 +20,8 @@ const samples = [
   { name: 'link',           md: '[click here](https://example.com)' },
   { name: 'blockquote',     md: '> quoted line\n> multi-line quote' },
   { name: 'table',          md: '| a | b |\n|---|---|\n| 1 | 2 |' },
+  { name: 'table-header',   md: '| 材质 | 底色 |\n| --- | --- |\n| 宣纸 | 米白偏暖 |\n| 青瓷 | 米白偏青 |' },
+  { name: 'task-list-gfm',  md: '- [ ] 未完成\n- [x] 已完成项' },
   { name: 'nested-complex', md: '## Title\n\n- [ ] task\n\n> quote\n\n```ts\nconst x = 1\n```' },
 ]
 
