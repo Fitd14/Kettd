@@ -63,6 +63,7 @@ fn enforce_single_instance() {
 }
 
 fn main() {
+  infra::env::load();
   runtime::mark_main_thread();
   #[cfg(windows)]
   enforce_single_instance();
