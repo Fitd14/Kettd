@@ -81,7 +81,7 @@ Kettd/
 │   │   ├── ports/ infra/ app/  # 六边形分层
 │   │   └── telemetry.rs    # 本地度量
 ├── test/                   # 命令四方对账门禁
-└── docs/                   # 契约文档（V2-API / 架构 / PRD / ADR）+ 功能文档
+└── docs/                   # requirements / capability / design / adr / V2-API / ARCHITECTURE
 ```
 
 **关键接口**：
@@ -189,11 +189,12 @@ Kettd/
 ## 8. 相关文档
 
 - `README.md`：快速上手、使用说明、开发环境
-- `docs/功能文档/`：10 个功能模块的设计/开发指南/现状
+- `docs/capability/`：10 个功能模块的设计/开发指南/现状
 - `docs/V2-API.md`：55 个命令的契约真相源
 - `docs/ARCHITECTURE.md`：架构设计
 - `docs/adr/`：历史决策档案（0001–0007，已落地）
-- `docs/需求/总体需求.md`：产品需求文档（理想态，部分未实现）
+- `docs/requirements/总体需求.md`：产品需求文档（理想态，部分未实现）
+- `docs/design/`：历史设计参考（v1 时代调研与方案）
 
 ---
 

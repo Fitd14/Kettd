@@ -4,7 +4,7 @@ Kettd 技术决策存档。所有决策均已 Accepted 并落地到代码，本�
 
 - **当前架构**：[`../ARCHITECTURE.md`](../ARCHITECTURE.md)
 - **接口契约**：[`../V2-API.md`](../V2-API.md)（55 命令，有对账门禁）
-- **需求规格**：[`../需求/总体需求.md`](../需求/总体需求.md)
+- **需求规格**：[`../requirements/总体需求.md`](../requirements/总体需求.md)
 
 ## 索引
 
