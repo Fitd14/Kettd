@@ -30,3 +30,7 @@ dist-ssr
 
 # 历史决策档案（本地保留，不提交）
 /docs/adr/
+
+# 本地环境配置（模板 .env.example 提交）
+.env
+!.env.example
