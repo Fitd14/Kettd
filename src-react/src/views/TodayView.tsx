@@ -63,8 +63,8 @@ export function TodayView({ boot, refresh, undo }: Props) {
     await refresh()
   }
 
-  const schedule = async (id: string, dueAt: string | null) => {
-    const r = await updateTask(id, { dueAt: dueAt ? `${dueAt}T09:00` : null })
+  const schedule = async (id: string, dueAt: string | null, time = '09:00') => {
+    const r = await updateTask(id, { dueAt: dueAt ? `${dueAt}T${time}` : null })
     if (r.err) { setSaveErr(r.err); return }
     setSaveErr(null)
     await refresh()
@@ -84,8 +84,8 @@ export function TodayView({ boot, refresh, undo }: Props) {
   }
 
   const rescheduleOverdue = async (id: string) => {
-    // 逾期处置：改截止 = 顺延到今天 18:00（明示字面值，本地语义）
-    await schedule(id, today)
+    // 逾期处置：改截止 = 顺延到今天 18:00（与按钮文案一致，本地语义）
+    await schedule(id, today, '18:00')
   }
 
   const captureCommit = async () => {
