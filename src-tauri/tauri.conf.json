@@ -7,7 +7,7 @@
     "withGlobalTauri": true
   },
   "package": {
-    "productName": "待办列表",
+    "productName": "Kettd",
     "version": "2.2.0"
   },
   "tauri": {
@@ -43,9 +43,9 @@
         "icons/icon.ico"
       ],
       "identifier": "com.todo.list",
-      "longDescription": "一款简洁高效的待办列表应用，支持悬浮面板、定时提醒和本地数据持久化",
+      "longDescription": "一款简洁高效的本地待办应用，支持待办、多便签、定时提醒和本地数据持久化",
       "resources": [],
-      "shortDescription": "待办列表",
+      "shortDescription": "Kettd",
       "targets": "all",
       "windows": {
         "certificateThumbprint": null,
@@ -68,7 +68,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "待办列表",
+        "title": "Kettd",
         "width": 1100,
         "height": 720,
         "minWidth": 1024,

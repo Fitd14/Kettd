@@ -171,7 +171,7 @@ export default function CaptureWindow() {
     <div className="cap-frame" id="frame" ref={frameRef}>
       {phase === 'input' ? (
         <div className="cap-row">
-          <span className="cap-hint" aria-hidden data-tauri-drag-region title="按住拖动">✎</span>
+          <span className="cap-hint" data-tauri-drag-region title="按住拖动">✎</span>
           <input
             ref={inputRef}
             className={`input${error ? ' invalid' : ''}`}
@@ -185,7 +185,7 @@ export default function CaptureWindow() {
           <button className="btn icon" title="记下（Enter）" aria-label="记下" onClick={() => { void commit() }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
           </button>
-          <button className="btn ghost xs" title="关闭（Esc）" aria-label="关闭" onClick={() => { void closeOverlay() }}>✕</button>
+          {/* <button className="btn ghost xs" title="关闭（Esc）" aria-label="关闭" onClick={() => { void closeOverlay() }}>✕</button> */}
         </div>
       ) : (
         <div className="cap-receipt">
