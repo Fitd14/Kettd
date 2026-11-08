@@ -27,3 +27,6 @@ dist-ssr
 /docs/superpowers/
 /spark-output/board/
 /spark-output/design/glass-vellum-demo.html
+
+# 历史决策档案（本地保留，不提交）
+/docs/adr/

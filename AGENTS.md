@@ -11,7 +11,7 @@
 - **技术栈**：Tauri v1（Rust 后端）+ React 19（前端）+ TypeScript + Tailwind v4 + shadcn + Tiptap 3
 - **架构**：六边形分层（ports/infra/app）；JSON 文件持久化；无数据库
 - **命令契约**：55 个 Tauri 命令，四方同步（`generate_handler!` ↔ `#[tauri::command]` ↔ `api.ts` ↔ `ARCHITECTURE.md 附录 §2`）
-- **分支策略**：master 与 v2 镜像同步；提交后双推并同步本地引用
+- **分支策略**：仅 master 分支（v2 已于 2026-11-08 归档删除）
 - **当前版本**：2.2.0
 
 ---
@@ -163,8 +163,8 @@ Kettd/
 
 ## 6. 分支与提交
 
-- **分支策略**：master 与 v2 镜像同步；提交后双推并同步本地引用
-- **推送链路**：`git push origin master master:v2`（E 盘 Git + GCM 凭据；Clash 全局模式）
+- **分支策略**：仅 master 分支（v2 已于 2026-11-08 归档删除）
+- **推送链路**：`git push origin master`（E 盘 Git + GCM 凭据；Clash 全局模式）
 - **文档审核门禁**：文档类交付（功能文档 / AGENTS.md / README 等）**先提供内容待人工审核，批准前不 commit/push**；代码任务不受此门禁
 - **提交信息风格**：中文，conventional-commit 格式（`feat(kb):` / `fix(test):` / `chore:` / `refactor(kb):`）
 
