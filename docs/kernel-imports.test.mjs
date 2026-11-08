@@ -44,8 +44,8 @@ const consumers = [
   'src-react/src/views/PlannedView.tsx', 'src-react/src/views/ReviewView.tsx',
   'src-react/src/views/SettingsView.tsx',
   // 内核单测同样算消费方（直接钉住导出 API，防漂移）
-  'test/selectors.test.mjs', 'test/today-inbox-selectors.test.mjs',
-  'test/event-bus.test.mjs', 'test/capture-syntax.test.mjs',
+  'docs/selectors.test.mjs', 'docs/today-inbox-selectors.test.mjs',
+  'docs/event-bus.test.mjs', 'docs/capture-syntax.test.mjs',
 ]
   .filter((p) => existsSync(path.join(root, p)));
 assert.ok(consumers.length >= 4, '消费方清单与实际文件不符，检查是否漏了窗口文件');
