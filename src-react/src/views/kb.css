@@ -160,15 +160,6 @@
   flex-wrap: wrap;
 }
 
-.kb-item-row .item-meta .ai-badge {
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-  font-size: 0.7em;
-  padding: 0.1em 0.35em;
-  border-radius: 3px;
-  font-weight: 600;
-}
-
 /* ─── 标签筛选 ─────────────────────────────────────────────────────────── */
 
 .kb-tag-filter {

@@ -188,10 +188,6 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `delete_sticky` | `id` | `void` | 关闭即销毁（一次性工具语义）：便签数据、窗口与 `note_pos` 记录一并回收，无确认无撤销，误关靠写前轮转备份兜底；记 `sticky_delete`。便签窗的 Alt+F4 走同一语义（`CloseRequested` 分支） |
 | `sticky_self` | — | `{ id, content, mini, kbRef? }` | 便签窗启动自述：label（`note:<id>`）→ 身份与形态；`kbRef` 非空 = 知识便签（视口指向 KB 条目，skip_if_none） |
 | `get_form_hints` | — | `{ categories, priorities, sources, repeat, defaultHotkey, defaultCap, retentionDays, today }` | 表单常量，避免前端硬编码 |
-| `set_ai_config` | `patch { baseUrl?, model?, apiKey?, embeddingBaseUrl?, embeddingModel?, embeddingApiKey?, enabled? }` | `AiStatus` | AI 双轨配置（patch 语义：只更新非 null 字段；KEY 经 DPAPI 加密落 secrets.json，前端此后只拿掩码）。记 `ai_configured` |
-| `get_ai_status` | — | `{ chat, embedding, enabled, keyMask? }` | AI 配置状态快照（每轨 `{configured, model, baseUrl}`；keyMask=`sk-***末4位`；永不回显明文） |
-| `test_ai_connection` | `track: 'chat'\|'embedding'` | `{ ok, message }` | 对指定轨发最小请求验证连通（reqwest+rustls，30s 超时；仅 HTTPS，豁免 127.0.0.1）。结果只回成败与错误信息，不落内容 |
-| `search_kb_hybrid` | `query` | `HybridResult[] { id, source: 'local'\|'ai' }` | 混合检索：本地全文扫（kb.rs 打分）⊕ 向量召回（kb_index.json 余弦，0.4 权重）合并重排；`source:'ai'` 前端渲染「AI」徽标；embedding 未配置时等价纯本地 |
 
 参数名映射：Rust 侧 `snake_case` 形参由 Tauri v1 宏自动转成 camelCase（`task_id` → `taskId`，`include_deleted` → `includeDeleted`）。结构体入参（`TaskPayload` 等）本身带 `rename_all = "camelCase"`。
 
@@ -315,7 +311,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | 项 | 手段 | 结果 |
 | --- | --- | --- |
 | 类型检查与链接 | `cargo check` / `cargo build`（debug） | **0 error**；7 条 `dead_code` warning（`models.rs:21/187/243/385/573/748`、`store.rs:688`） |
-| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **59 ↔ 59 ↔ 59**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + 方案B `capture_resize` + sticky-separation 4 项 + todo-float `register_todo_hotkey` / `hide_todo_float` + Phase 3 AI `set_ai_config` / `get_ai_status` / `test_ai_connection` / `search_kb_hybrid`） |
+| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **55 ↔ 55 ↔ 55**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + 方案B `capture_resize` + sticky-separation 4 项 + todo-float `register_todo_hotkey` / `hide_todo_float`；Phase 3 AI 4 命令于 2026-11-07 随混合检索放弃整体摘除） |
 | 存储安全自查 | 人工 | 无 `unwrap_or_default()` 式空库回退；无 `toISOString`/`Utc`/`naive_utc` 混入；`tauri.conf.json` JSON 合法 |
 | 提醒编辑器逻辑 | `node test/rem-editor.test.mjs`（从 `index.html` 抽真实函数源码断言，17 项） | 全绿：多时刻 round-trip 四形态、模式收敛、渲染契约、aria-label、文案不含手输格式 |
 | 时间契约 + v1 迁移十规则 | `cargo test`（**30 项** = `models` 14 时间契约 + `store` 16 迁移规则，纯内存 fixture，不碰数据目录） | 全绿。过程逼出 `parse_clock` 两处加固：带秒输入归零（否则永不命中整分 tick = 到点不响）、接受裸 `HH:MM:SS` 与单位数小时 |

@@ -12,7 +12,6 @@ import {
   updateSticky,
   type StickyNoteItem,
 } from '@/lib/api'
-import { AiSection } from '@/components/settings/ai-section'
 import { STICKY_PAPERS } from '@/views/sticky-labels'
 import { TimeText } from '@/components/time-text'
 
@@ -352,7 +351,6 @@ export function SettingsView({ boot, refresh }: Props) {
       </section>
 
       <section className="section" aria-label="数据">
-        <div className="section-head"><b>数据</b><span>全在本机 · 不出网</span></div>
         <div className="set-row"><span>数据健康
           <div className="tiny text-muted">
             {boot.health.health === 'ok'
@@ -381,10 +379,7 @@ export function SettingsView({ boot, refresh }: Props) {
         </div>
       </section>
 
-      {/* ─── AI 与检索（Phase 3 + 真机修复：补配置表单）─── */}
-      <AiSection />
-
-      <div className="version-line text-muted">Kettd v{boot.version} · 离线优先 · 数据只在本机</div>
+      <div className="version-line text-muted">Kettd v{boot.version} · 离线保存</div>
     </div>
   )
 }

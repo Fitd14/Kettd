@@ -605,8 +605,6 @@ pub struct Store {
   pub runtime: RuntimeState,
   /// 知识条目（notes.json，frame H1b）：与 data.json 物理隔离
   pub kb: Vec<KbItem>,
-  /// AI 向量索引（kb_index.json，Phase 3）：衍生数据，可全量重建
-  pub kb_index: Vec<crate::ai::embedding::ChunkIndex>,
   pub health: String,
   pub corrupt_file: Option<String>,
   pub last_error: Option<String>,
@@ -622,7 +620,6 @@ impl Store {
       data: AppData::default(),
       runtime: RuntimeState::default(),
       kb: Vec::new(),
-      kb_index: Vec::new(),
       health: HEALTH_OK.to_string(),
       corrupt_file: None,
       last_error: None,
@@ -763,15 +760,6 @@ impl Store {
           .flatten()
           .and_then(|text| parse_value(&text).ok())
           .and_then(|value| serde_json::from_value::<Vec<KbItem>>(value).ok())
-          .unwrap_or_default();
-        // AI 向量索引（kb_index.json，衍生数据）：缺失/损坏 → 静默空（下次搜索触发重建）
-        store.kb_index = store
-          .backend
-          .read_kb_index()
-          .ok()
-          .flatten()
-          .and_then(|text| parse_value(&text).ok())
-          .and_then(|value| serde_json::from_value::<Vec<crate::ai::embedding::ChunkIndex>>(value).ok())
           .unwrap_or_default();
         store
       }
@@ -979,14 +967,6 @@ impl Store {
     let json = serde_json::to_string_pretty(&self.kb)
       .map_err(|error| format!("知识条目序列化失败：{}", brief(&error.to_string())))?;
     self.backend.write_notes(&json)
-  }
-
-  /// 只写 AI 向量索引（kb_index.json，衍生数据；损坏可重建，无需轮转）
-  pub fn save_kb_index(&mut self) -> Result<(), String> {
-    self.ensure_writable()?;
-    let json = serde_json::to_string_pretty(&self.kb_index)
-      .map_err(|error| format!("向量索引序列化失败：{}", brief(&error.to_string())))?;
-    self.backend.write_kb_index(&json)
   }
 
   pub fn save_runtime_only(&mut self) -> Result<(), String> {

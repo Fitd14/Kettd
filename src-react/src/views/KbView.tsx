@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { getKbItems, searchKb, addKbItem, createSticky, trackEvent, searchKbHybrid } from '@/lib/api'
-import type { Bootstrap, KbItem, HybridResult } from '@/lib/api'
+import { getKbItems, searchKb, addKbItem, createSticky, trackEvent } from '@/lib/api'
+import type { Bootstrap, KbItem } from '@/lib/api'
 import { KbSearchBar } from '@/components/kb/kb-search-bar'
 import { KbTagFilter } from '@/components/kb/kb-tag-filter'
 import { KbItemRow } from '@/components/kb/kb-item-row'
@@ -28,7 +28,6 @@ export function KbView({ boot }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [createTaskItem, setCreateTaskItem] = useState<KbItem | null>(null)
-  const [aiHits, setAiHits] = useState<Set<string>>(new Set())
   const [actionErr, setActionErr] = useState<string | null>(null)
   // 左侧清单折叠（真机反馈：太宽影响编辑）；localStorage 持久化
   const [listCollapsed, setListCollapsed] = useState(
@@ -42,25 +41,18 @@ export function KbView({ boot }: Props) {
     })
   }, [])
 
-  // 渐进增强检索（kb-qa-fixes qa-1 拍板）：
-  // 第一跳 键入即本地渲染（零延迟）→ 第二跳 停 400ms 后 hybrid 合并 + AI 徽标。
-  // 同词 60s 缓存不重复计费；失败后 60s 冷却；请求序号防竞态（只认最新）。
-  const hybridCacheRef = useRef(new Map<string, { ts: number; data: HybridResult[] }>())
-  const failTsRef = useRef(0)
-  const seqRef = useRef(0)
   const itemsRef = useRef<KbItem[]>([])
   itemsRef.current = items
 
   const refresh = useCallback(async () => {
     setLoading(true)
     setError(null)
-    setAiHits(new Set())
     try {
       const result = await getKbItems()
       const all = result.data ?? []
       const q = query.trim()
       if (q) {
-        // 第一跳：本地扫，立即渲染
+        // 本地全文扫，立即渲染
         const rankedResult = await searchKb(q)
         const ranked = rankedResult.data ?? []
         const rankedIds = new Set(ranked.map((i) => i.id))
@@ -78,47 +70,6 @@ export function KbView({ boot }: Props) {
   }, [query])
 
   useEffect(() => { void refresh() }, [refresh])
-
-  // 第二跳：停 400ms 后语义召回，到达合并（渐进增强）
-  useEffect(() => {
-    const q = query.trim()
-    if (!q) {
-      seqRef.current += 1 // 使在途请求失效
-      return
-    }
-    const seq = ++seqRef.current
-    const timer = setTimeout(async () => {
-      const now = Date.now()
-      if (now - failTsRef.current < 60_000) return // 失败冷却期
-      const cached = hybridCacheRef.current.get(q)
-      if (cached && now - cached.ts < 60_000) {
-        applyHybrid(cached.data)
-        return
-      }
-      try {
-        const r = await searchKbHybrid(q)
-        if (seq !== seqRef.current) return // 过期响应丢弃
-        const data = r.data ?? []
-        hybridCacheRef.current.set(q, { ts: Date.now(), data })
-        applyHybrid(data)
-      } catch {
-        if (seq === seqRef.current) failTsRef.current = Date.now()
-      }
-    }, 400)
-    return () => clearTimeout(timer)
-
-    function applyHybrid(data: HybridResult[]) {
-      const aiIds = new Set(data.filter((r) => r.source === 'ai').map((r) => r.id))
-      setAiHits(aiIds)
-      if (aiIds.size === 0) return
-      // 用混合顺序重排（hybrid 返回已按合并分排序）
-      const idMap = new Map(itemsRef.current.map((i) => [i.id, i]))
-      const ranked = data.map((r) => idMap.get(r.id)).filter((i): i is KbItem => !!i)
-      const rankedIds = new Set(ranked.map((i) => i.id))
-      const rest = itemsRef.current.filter((i) => !rankedIds.has(i.id))
-      setItems([...ranked, ...rest])
-    }
-  }, [query])
 
   // Deep Link：#/kb?id={itemId} → 自动选中该条目。
   // 监听 hashchange：同页内从任务详情切不同 id 也能响应（route 不变但查询串变了）。
@@ -234,7 +185,6 @@ export function KbView({ boot }: Props) {
               item={item}
               isActive={selectedId === item.id}
               onSelect={setSelectedId}
-              isAiHit={aiHits.has(item.id)}
             />
           ))}
         </div>

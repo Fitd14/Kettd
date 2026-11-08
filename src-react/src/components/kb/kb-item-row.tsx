@@ -4,8 +4,6 @@ interface Props {
   item: KbItem
   isActive: boolean
   onSelect: (id: string) => void
-  /** AI 语义命中标记（Phase 3 接线） */
-  isAiHit?: boolean
 }
 
 function relativeTime(iso: string): string {
@@ -18,7 +16,7 @@ function relativeTime(iso: string): string {
   return `${days}天前`
 }
 
-export function KbItemRow({ item, isActive, onSelect, isAiHit }: Props) {
+export function KbItemRow({ item, isActive, onSelect }: Props) {
   return (
     <button
       type="button"
@@ -33,7 +31,6 @@ export function KbItemRow({ item, isActive, onSelect, isAiHit }: Props) {
           <span key={t} className="kb-tag-chip">{t}</span>
         ))}
         <span>{relativeTime(item.updatedAt)}</span>
-        {isAiHit && <span className="ai-badge">AI</span>}
       </span>
     </button>
   )
