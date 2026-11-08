@@ -12,7 +12,7 @@ const read = (p) => readFileSync(join(root, p), 'utf8');
 const mainRs = read('src-tauri/src/main.rs');
 const commandsRs = read('src-tauri/src/commands.rs');
 const apiTs = read('src-react/src/lib/api.ts');
-const doc = read('src-tauri/docs/V2-API.md');
+const doc = read('docs/V2-API.md');
 
 // ① generate_handler![] 里注册的命令名
 const handlerBody = mainRs.match(/generate_handler!\[([\s\S]*?)\]/)[1];

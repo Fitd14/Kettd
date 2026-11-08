@@ -80,13 +80,12 @@ Kettd/
 │   │   ├── kb.rs           # 知识库搜索打分
 │   │   ├── ports/ infra/ app/  # 六边形分层
 │   │   └── telemetry.rs    # 本地度量
-│   └── docs/               # 契约文档（V2-API / 架构 / PRD / ADR）
 ├── test/                   # 命令四方对账门禁
-└── docs/功能文档/           # 功能文档（设计/开发指南/现状）
+└── docs/                   # 契约文档（V2-API / 架构 / PRD / ADR）+ 功能文档
 ```
 
 **关键接口**：
-- **命令契约真相源**：`src-tauri/docs/V2-API.md`
+- **命令契约真相源**：`docs/V2-API.md`
 - **前端桥接**：`src-react/src/lib/api.ts`（55 命令类型化封装）
 - **内核单源**：`src-react/src/kernel/`（时间/选择器/事件总线/捕获语法，禁止第二份实现）
 
@@ -122,7 +121,7 @@ Kettd/
 1. `src-tauri/src/main.rs` `generate_handler![]` 注册
 2. `src-tauri/src/commands.rs` `#[tauri::command]` 定义
 3. `src-react/src/lib/api.ts` 类型化封装
-4. `src-tauri/docs/V2-API.md` §2 表格 + §10 计数断言
+4. `docs/V2-API.md` §2 表格 + §10 计数断言
 
 **parity 门禁**：`test/command-parity.test.mjs` 当场拦截不一致。
 
@@ -191,10 +190,10 @@ Kettd/
 
 - `README.md`：快速上手、使用说明、开发环境
 - `docs/功能文档/`：10 个功能模块的设计/开发指南/现状
-- `src-tauri/docs/V2-API.md`：55 个命令的契约真相源
-- `src-tauri/docs/ARCHITECTURE-v3.md`：架构设计
-- `src-tauri/docs/adr/`：架构决策记录（0001–0007）
-- `src-tauri/docs/PRD-v2.md`：产品需求文档（理想态，部分未实现）
+- `docs/V2-API.md`：55 个命令的契约真相源
+- `docs/ARCHITECTURE-v3.md`：架构设计
+- `docs/adr/`：架构决策记录（0001–0007）
+- `docs/PRD-v2.md`：产品需求文档（理想态，部分未实现）
 
 ---
 
