@@ -114,6 +114,7 @@ Kettd/
 - **原子写**：`fs_store.rs` `write_data_at`（tmp+rename）；新增持久文件必须走 `StoreBackend` trait
 - **写前轮转**：`data.json` 写前轮转 5 份备份，**不可跳过**
 - **损坏通道**：主数据进恢复页；runtime 静默重建；KB 静默空库——**绝不渲染假空态**
+- **环境变量**：`main()` 第一行 `infra::env::load()` 加载 .env（exe 同目录 > 项目根，不覆盖系统变量）；`KETTD_DATA_DIR` 覆盖存储根，口径集中在 `fs_store::resolve_data_dir`
 
 ### 4.4 命令契约四方同步
 
@@ -154,7 +155,7 @@ Kettd/
 | 假空态 | 数据损坏时绝不渲染「你还没有任务」；进恢复页 | `store.rs` 加载逻辑 |
 | 三处「今天」同源 | 侧栏/悬浮窗/统计必须同一 selector | `kernel/selectors.js` 注释 |
 | AI 栈已废弃 | 不要重新引入 embedding/hybrid/secrets | 2026-11-07 提交 |
-| 用户数据目录 | `%APPDATA%\todo-list`；测试/脚本禁止写入生产目录 | `fs_store.rs` `default_dir()` |
+| 用户数据目录 | 默认 `%APPDATA%\todo-list`，`KETTD_DATA_DIR` 可覆盖；测试/脚本禁止写入生产目录 | `fs_store.rs` `default_dir()` |
 | 时间零 UTC | 全链路本地语义字符串；`toISOString` / `Utc` 混入视为 bug | `models.rs` 注释 |
 | 写前轮转不可跳过 | `data.json` 写前必须轮转 5 份备份 | `store.rs` `save()` |
 | 损坏通道分流 | 主数据恢复页；runtime 静默重建；KB 静默空库 | `store.rs` `load()` |
