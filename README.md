@@ -71,7 +71,7 @@ Windows 桌面应用，基于 Tauri v1（Rust 后端）+ React 19（前端）。
 
 - **前端** `src-react/`：Vite 8 · React 19 · TypeScript · Tailwind v4 · shadcn · Tiptap 3；hash 路由，无状态库；`lib/api.ts` 为 55 个 Tauri 命令的类型化桥接
 - **后端** `src-tauri/`：Tauri v1 · Rust（ports / infra / app 六边形分层）；JSON 文件持久化，无数据库
-- **契约文档** `docs/`：`V2-API.md`（命令契约真相源）、`ARCHITECTURE-v3.md`、`PRD-v2.md`、ADR 0001–0007
+- **契约文档** `docs/`：`V2-API.md`（命令契约真相源）、`ARCHITECTURE.md`、`需求/总体需求.md`、ADR 0001–0007（历史档案）
 
 ### 环境要求
 
