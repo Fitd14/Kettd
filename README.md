@@ -71,7 +71,7 @@ Windows 桌面应用，基于 Tauri v1（Rust 后端）+ React 19（前端）。
 
 - **前端** `src-react/`：Vite 8 · React 19 · TypeScript · Tailwind v4 · shadcn · Tiptap 3；hash 路由，无状态库；`lib/api.ts` 为 55 个 Tauri 命令的类型化桥接
 - **后端** `src-tauri/`：Tauri v1 · Rust（ports / infra / app 六边形分层）；JSON 文件持久化，无数据库
-- **契约文档** `docs/`：`V2-API.md`（命令契约真相源）、`ARCHITECTURE.md`、`requirements/总体需求.md`、ADR 0001–0007（历史档案）
+- **契约文档** `docs/`：`ARCHITECTURE.md`（架构 + 命令契约附录）、`requirements/总体需求.md`、ADR 0001–0007（历史档案）
 
 ### 环境要求
 
@@ -102,12 +102,12 @@ npm run tauri build         # 自动先构建前端，产出安装包
 
 ```bash
 cd src-tauri && cargo test && cd ..                    # Rust 单测（时间契约 / 迁移规则 / 存储编排）
-node --test test/command-parity.test.mjs               # 命令四方对账：注册 ↔ 定义 ↔ api.ts ↔ V2-API
+node --test test/command-parity.test.mjs               # 命令四方对账：注册 ↔ 定义 ↔ api.ts ↔ ARCHITECTURE 附录
 node --test src-react/test/md-fidelity.test.mjs        # Markdown 渲染保真
 cd src-react && npx tsc -b                             # 前端类型检查
 ```
 
-新增 / 删除命令时，四方（`generate_handler!`、`#[tauri::command]`、`api.ts`、`V2-API.md §2`）必须同步，parity 门禁会当场拦截不一致。
+新增 / 删除命令时，四方（`generate_handler!`、`#[tauri::command]`、`api.ts`、`ARCHITECTURE.md 附录 §2`）必须同步，parity 门禁会当场拦截不一致。
 
 ### 目录结构
 
@@ -135,5 +135,5 @@ Kettd/
 │   │   ├── ports/ infra/ app/  # 六边形分层
 │   │   └── telemetry.rs    # 本地度量
 ├── test/                   # 命令四方对账门禁
-└── docs/                   # requirements / capability / design / adr / V2-API / ARCHITECTURE
+└── docs/                   # requirements / capability / design / adr / ARCHITECTURE（含命令契约）
 ```

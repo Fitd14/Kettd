@@ -14,7 +14,7 @@
 - 想了解"某功能应该做什么" → 功能需求/ 对应模块
 - 想了解"某功能实际怎么做的" → capability/ 对应模块
 - 想了解"系统怎么搭的" → [ARCHITECTURE.md](../ARCHITECTURE.md)
-- 想了解"命令接口契约" → [V2-API.md](../V2-API.md)
+- 想了解"命令接口契约" → [ARCHITECTURE.md 附录](../ARCHITECTURE.md#附录后端命令契约原-v2-apimd)
 
 ## 说明
 

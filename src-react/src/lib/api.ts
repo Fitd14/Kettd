@@ -1,6 +1,6 @@
 /**
  * Kettd v3 · 类型化 Tauri 桥接（M2）。
- * 契约真相源：docs/V2-API.md —— 41 个命令逐一对应，参数名一律 camelCase；
+ * 契约真相源：docs/ARCHITECTURE.md 附录 —— 41 个命令逐一对应，参数名一律 camelCase；
  * 延续 vanilla 时代 { data, err } 约定（M4 后 vanilla 已退役）：err 为后端可直接展示的中文短句，永不 throw。
  * 事件补发队列语义住在 src/kernel/event-bus.js（E14 唯一实现，测试 test/event-bus.test.mjs）。
  * 时间全链路本地语义字符串，零 UTC 换算（不用 toISOString）。

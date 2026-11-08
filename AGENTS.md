@@ -10,7 +10,7 @@
 
 - **技术栈**：Tauri v1（Rust 后端）+ React 19（前端）+ TypeScript + Tailwind v4 + shadcn + Tiptap 3
 - **架构**：六边形分层（ports/infra/app）；JSON 文件持久化；无数据库
-- **命令契约**：55 个 Tauri 命令，四方同步（`generate_handler!` ↔ `#[tauri::command]` ↔ `api.ts` ↔ `V2-API.md §2`）
+- **命令契约**：55 个 Tauri 命令，四方同步（`generate_handler!` ↔ `#[tauri::command]` ↔ `api.ts` ↔ `ARCHITECTURE.md 附录 §2`）
 - **分支策略**：master 与 v2 镜像同步；提交后双推并同步本地引用
 - **当前版本**：2.2.0
 
@@ -81,11 +81,11 @@ Kettd/
 │   │   ├── ports/ infra/ app/  # 六边形分层
 │   │   └── telemetry.rs    # 本地度量
 ├── test/                   # 命令四方对账门禁
-└── docs/                   # requirements / capability / design / adr / V2-API / ARCHITECTURE
+└── docs/                   # requirements / capability / design / adr / ARCHITECTURE（含命令契约）
 ```
 
 **关键接口**：
-- **命令契约真相源**：`docs/V2-API.md`
+- **命令契约真相源**：`docs/ARCHITECTURE.md` 附录（原 V2-API）
 - **前端桥接**：`src-react/src/lib/api.ts`（55 命令类型化封装）
 - **内核单源**：`src-react/src/kernel/`（时间/选择器/事件总线/捕获语法，禁止第二份实现）
 
@@ -121,7 +121,7 @@ Kettd/
 1. `src-tauri/src/main.rs` `generate_handler![]` 注册
 2. `src-tauri/src/commands.rs` `#[tauri::command]` 定义
 3. `src-react/src/lib/api.ts` 类型化封装
-4. `docs/V2-API.md` §2 表格 + §10 计数断言
+4. `docs/ARCHITECTURE.md` 附录 §2 表格 + §10 计数断言
 
 **parity 门禁**：`test/command-parity.test.mjs` 当场拦截不一致。
 
@@ -190,8 +190,7 @@ Kettd/
 
 - `README.md`：快速上手、使用说明、开发环境
 - `docs/capability/`：10 个功能模块的设计/开发指南/现状
-- `docs/V2-API.md`：55 个命令的契约真相源
-- `docs/ARCHITECTURE.md`：架构设计
+- `docs/ARCHITECTURE.md`：架构设计 + 命令契约（附录）
 - `docs/adr/`：历史决策档案（0001–0007，已落地）
 - `docs/requirements/总体需求.md`：产品需求文档（理想态，部分未实现）
 - `docs/design/`：历史设计参考（v1 时代调研与方案）

@@ -3,7 +3,7 @@
 Kettd 技术决策存档。所有决策均已 Accepted 并落地到代码，本目录作为**历史档案**保留——解释"为什么这样设计"，不再指导执行。
 
 - **当前架构**：[`../ARCHITECTURE.md`](../ARCHITECTURE.md)
-- **接口契约**：[`../V2-API.md`](../V2-API.md)（55 命令，有对账门禁）
+- **接口契约**：[`../ARCHITECTURE.md`](../ARCHITECTURE.md) 附录（55 命令，有对账门禁）
 - **需求规格**：[`../requirements/总体需求.md`](../requirements/总体需求.md)
 
 ## 索引
