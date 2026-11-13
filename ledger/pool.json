@@ -1,6 +1,5 @@
 {
   "tasks": {
-    "20261113-1438-c285-处理-createwebview-错误并指定可写用户数据目录": {"category": "稳定性", "created": "2026-11-13 14:38:13", "creator": "afcfcca0-be4c-4afd-931b-16fdade9d4fd", "creator_name": "simy", "finished": null, "owner": null, "owner_name": null, "started": null, "status": "open", "tags": ["WebView2", "建窗", "数据目录", "错误处理"], "title": "处理 CreateWebview 错误并指定可写用户数据目录", "updated": "2026-11-13 14:38:13", "worklog": "worklog/202611/13-1438-c285-处理-createwebview-错误并指定可写用户数据目录.md"}
   },
   "version": "20261022000000"
 }

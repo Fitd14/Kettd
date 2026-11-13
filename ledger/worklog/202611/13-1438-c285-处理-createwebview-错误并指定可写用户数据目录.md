@@ -1,7 +1,7 @@
 # 20261113-1438-c285-处理-createwebview-错误并指定可写用户数据目录: 处理 CreateWebview 错误并指定可写用户数据目录
 
 - **Tags**: WebView2, 建窗, 数据目录, 错误处理
-- **Status**: open · 2026-11-13 14:38:13
+- **Status**: doing · 2026-11-13 14:38:20 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 - **Created**: 2026-11-13 14:38:13 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 
 <!-- Header lines are maintained by the script, fixed order: Tags → Status → Created → Sealed.
@@ -34,3 +34,4 @@
 <!-- Maintained by the script: appended by new / claim / set / release / log / close. Do not edit.
      Backfill with: progress log --id 20261113-1438-c285-处理-createwebview-错误并指定可写用户数据目录 --note "...". -->
 - 2026-11-13 14:38:13 · new · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · created
+- 2026-11-13 14:38:20 · claim · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · claimed → doing
