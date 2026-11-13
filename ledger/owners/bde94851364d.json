@@ -1,7 +1,7 @@
 {
   "identity": {"uuid": "afcfcca0-be4c-4afd-931b-16fdade9d4fd"},
   "tasks": {
-    "20261113-1418-7cd7-知识库与编辑器-15-项迭代": {"category": "体验优化", "created": "2026-11-13 14:18:36", "creator": "afcfcca0-be4c-4afd-931b-16fdade9d4fd", "creator_name": "simy", "finished": null, "owner": "afcfcca0-be4c-4afd-931b-16fdade9d4fd", "owner_name": "simy", "started": "2026-11-13 14:33:53", "status": "doing", "tags": ["知识库", "编辑器", "便签", "交互", "备份"], "title": "知识库与编辑器 15 项迭代", "updated": "2026-11-13 15:40:25", "worklog": "worklog/202611/13-1418-7cd7-知识库与编辑器-15-项迭代.md"},
+    "20261113-1418-7cd7-知识库与编辑器-15-项迭代": {"category": "体验优化", "created": "2026-11-13 14:18:36", "creator": "afcfcca0-be4c-4afd-931b-16fdade9d4fd", "creator_name": "simy", "finished": null, "owner": "afcfcca0-be4c-4afd-931b-16fdade9d4fd", "owner_name": "simy", "started": "2026-11-13 14:33:53", "status": "doing", "tags": ["知识库", "编辑器", "便签", "交互", "备份"], "title": "知识库与编辑器 15 项迭代", "updated": "2026-11-13 16:16:33", "worklog": "worklog/202611/13-1418-7cd7-知识库与编辑器-15-项迭代.md"},
     "20261113-1438-c285-处理-createwebview-错误并指定可写用户数据目录": {"category": "稳定性", "created": "2026-11-13 14:38:13", "creator": "afcfcca0-be4c-4afd-931b-16fdade9d4fd", "creator_name": "simy", "finished": null, "owner": "afcfcca0-be4c-4afd-931b-16fdade9d4fd", "owner_name": "simy", "started": "2026-11-13 14:38:20", "status": "doing", "tags": ["WebView2", "建窗", "数据目录", "错误处理"], "title": "处理 CreateWebview 错误并指定可写用户数据目录", "updated": "2026-11-13 15:24:29", "worklog": "worklog/202611/13-1438-c285-处理-createwebview-错误并指定可写用户数据目录.md"}
   },
   "version": "20261022000000"
