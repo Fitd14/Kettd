@@ -1,7 +1,7 @@
 # 20261113-1438-c285-处理-createwebview-错误并指定可写用户数据目录: 处理 CreateWebview 错误并指定可写用户数据目录
 
 - **Tags**: WebView2, 建窗, 数据目录, 错误处理
-- **Status**: doing · 2026-11-13 14:38:46 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
+- **Status**: doing · 2026-11-13 15:24:29 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 - **Created**: 2026-11-13 14:38:13 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 
 <!-- Header lines are maintained by the script, fixed order: Tags → Status → Created → Sealed.
@@ -47,3 +47,4 @@
 - 2026-11-13 14:38:13 · new · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · created
 - 2026-11-13 14:38:20 · claim · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · claimed → doing
 - 2026-11-13 14:38:46 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 认领并写入现状：Tauri 强制 data_directory（manager.rs:1059），主窗配置无该字段；env var 会被覆盖
+- 2026-11-13 15:24:29 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 复现核查：本机数据目录存在且可写、无失败事件；炸点链与启动失败无日志时序落 repro/window.md
