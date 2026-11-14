@@ -1,7 +1,7 @@
 {
   "identity": {"uuid": "1b05e5de-0dea-4133-a205-dd3fca6ae2b6"},
   "tasks": {
-    "20261114-0145-1263-完善打包配置与打包流程": {"category": "建设", "created": "2026-11-14 01:45:52", "creator": "afcfcca0-be4c-4afd-931b-16fdade9d4fd", "creator_name": "simy", "finished": null, "owner": "1b05e5de-0dea-4133-a205-dd3fca6ae2b6", "owner_name": "keetd", "started": "2026-11-14 06:18:41", "status": "doing", "tags": ["打包流程", "依赖版本", "构建脚本"], "title": "完善打包配置与打包流程", "updated": "2026-11-14 06:18:41", "worklog": "worklog/202611/14-0145-1263-完善打包配置与打包流程.md"}
+    "20261114-0145-1263-完善打包配置与打包流程": {"category": "建设", "created": "2026-11-14 01:45:52", "creator": "afcfcca0-be4c-4afd-931b-16fdade9d4fd", "creator_name": "simy", "finished": null, "owner": "1b05e5de-0dea-4133-a205-dd3fca6ae2b6", "owner_name": "keetd", "started": "2026-11-14 06:18:41", "status": "doing", "tags": ["打包流程", "依赖版本", "构建脚本"], "title": "完善打包配置与打包流程", "updated": "2026-11-14 06:37:22", "worklog": "worklog/202611/14-0145-1263-完善打包配置与打包流程.md"}
   },
   "version": "20261022000000"
 }
