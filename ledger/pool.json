@@ -1,6 +1,5 @@
 {
   "tasks": {
-    "20261114-0947-afe0-便签卡片菜单与外壳清理": {"category": "体验优化", "created": "2026-11-14 09:47:18", "creator": "afcfcca0-be4c-4afd-931b-16fdade9d4fd", "creator_name": "simy", "finished": null, "owner": null, "owner_name": null, "started": null, "status": "open", "tags": ["便签", "托盘", "编辑器", "输入法"], "title": "便签卡片菜单与外壳清理", "updated": "2026-11-14 09:47:18", "worklog": "worklog/202611/14-0947-afe0-便签卡片菜单与外壳清理.md"}
   },
   "version": "20261022000000"
 }
