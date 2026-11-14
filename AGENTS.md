@@ -10,7 +10,7 @@
 
 - **技术栈**：Tauri v1（Rust 后端）+ React 19（前端）+ TypeScript + Tailwind v4 + shadcn + Tiptap 3
 - **架构**：六边形分层（ports/infra/app）；JSON 文件持久化；无数据库
-- **命令契约**：55 个 Tauri 命令，四方同步（`generate_handler!` ↔ `#[tauri::command]` ↔ `api.ts` ↔ `ARCHITECTURE.md 附录 §2`）
+- **命令契约**：64 个 Tauri 命令，四方同步（`generate_handler!` ↔ `#[tauri::command]` ↔ `api.ts` ↔ `ARCHITECTURE.md 附录 §2`）
 - **分支策略**：仅 master 分支（v2 已于 2026-11-08 归档删除）
 - **当前版本**：2.2.0
 
@@ -41,11 +41,14 @@ npm run tauri build                  # 自动先构建前端，产出 MSI/NSIS
 # Rust 单测（时间契约 / 迁移规则 / 存储编排）
 cd src-tauri && cargo test && cd ..
 
-# 命令四方对账（55 命令）
+# 命令四方对账（64 命令）
 node --test test/command-parity.test.mjs
 
 # Markdown 渲染保真
 node --test src-react/test/md-fidelity.test.mjs
+
+# Markdown 保存 round-trip 保真（#10：二次保存幂等、文本不丢、表格对齐/图片保留）
+node src-react/test/md-roundtrip.test.mjs
 
 # 前端类型检查
 cd src-react && npx tsc -b && cd ..
@@ -72,7 +75,7 @@ Kettd/
 │   └── test/               # 前端门禁
 ├── src-tauri/              # Rust 后端
 │   ├── src/
-│   │   ├── commands.rs     # 55 个 Tauri 命令
+│   │   ├── commands.rs     # 64 个 Tauri 命令
 │   │   ├── store.rs        # JSON 持久化 + 备份轮转
 │   │   ├── models.rs       # 领域模型 + 校验
 │   │   ├── scheduler.rs    # 提醒调度
@@ -86,7 +89,7 @@ Kettd/
 
 **关键接口**：
 - **命令契约真相源**：`docs/ARCHITECTURE.md` 附录（原 V2-API）
-- **前端桥接**：`src-react/src/lib/api.ts`（55 命令类型化封装）
+- **前端桥接**：`src-react/src/lib/api.ts`（64 命令类型化封装）
 - **内核单源**：`src-react/src/kernel/`（时间/选择器/事件总线/捕获语法，禁止第二份实现）
 
 ---
@@ -176,11 +179,12 @@ Kettd/
 提交前必须通过：
 
 - [ ] `cargo check`（0 error；warning 为存量死代码，不新增）
-- [ ] `cargo test`（89 项全绿）
+- [ ] `cargo test`（100 项全绿）
 - [ ] `cd src-react && npx tsc -b`（0 error）
 - [ ] `cd src-react && npm run build`（vite build 成功）
-- [ ] `node --test test/command-parity.test.mjs`（55 命令四方对账通过）
+- [ ] `node --test test/command-parity.test.mjs`（64 命令四方对账通过）
 - [ ] `node --test src-react/test/md-fidelity.test.mjs`（Markdown 渲染保真）
+- [ ] `node src-react/test/md-roundtrip.test.mjs`（Markdown 保存 round-trip 幂等，#10 门禁）
 - [ ] 真机冒烟（启动应用，核对关键路径：快速记录 / 今天视图 / 提醒触发 / 便签三态 / 知识库搜索）
 
 **文档类交付**：额外通过人工审核（内容准确性 / 表述清晰度）。
