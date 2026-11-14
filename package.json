@@ -1,13 +1,21 @@
 {
-  "name": "Kettd",
+  "name": "kettd",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.0.2-rc.1",
+  "description": "Kettd —— 离线优先的 Windows 桌面待办工具",
   "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
   "scripts": {
     "tauri": "tauri",
-    "build:front": "cd src-react && npm run build"
+    "dev": "npm run build:front && tauri dev",
+    "build:front": "npm --prefix src-react run build",
+    "build:app": "tauri build",
+    "check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1",
+    "release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release.ps1"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^1.0.5"
+    "@tauri-apps/cli": "^1.6.3"
   }
 }

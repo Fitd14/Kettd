@@ -34,3 +34,11 @@ dist-ssr
 # 本地环境配置（模板 .env.example 提交）
 .env
 !.env.example
+
+# 打包产物（scripts/release.ps1 归档到 artifacts/v<版本>/）
+/artifacts/
+
+# 本地工具与缓存
+.npm-cache/
+.zcode/
+*.tsbuildinfo

@@ -1,205 +1,173 @@
-# AGENTS.md — Kettd AI 辅助开发规范
+# AGENTS.md — Kettd 代理协作规范
 
-本文件为 AI 代理（Cursor / Claude Code / Qoder 等）参与 Kettd 开发时的必读规范。人类开发者同样适用。
+本文件写给参与 Kettd 开发的 AI 代理（Cursor / Claude Code / Qoder / DSH 等），人类开发者同样适用。
 
----
-
-## 1. 项目概览
-
-**Kettd** 是一款离线优先的 Windows 桌面个人待办工具，核心循环：**记 → 排 → 醒 → 汇**。
-
-- **技术栈**：Tauri v1（Rust 后端）+ React 19（前端）+ TypeScript + Tailwind v4 + shadcn + Tiptap 3
-- **架构**：六边形分层（ports/infra/app）；JSON 文件持久化；无数据库
-- **命令契约**：64 个 Tauri 命令，四方同步（`generate_handler!` ↔ `#[tauri::command]` ↔ `api.ts` ↔ `ARCHITECTURE.md 附录 §2`）
-- **分支策略**：仅 master 分支（v2 已于 2026-11-08 归档删除）
-- **当前版本**：2.2.0
+**只写两件事：必须遵守什么（红线），以及怎么自证做对了（验证协议）。**
+项目介绍、技术架构、命令清单、测试与门禁、目录结构一律在 [README.md](README.md)，本文件不再复述。
 
 ---
 
-## 2. 常用命令
+## 1. 阅读顺序与效力
 
-### 构建与开发
+1. 先读 [README.md](README.md)：项目是什么、怎么构建、怎么发版（事实层）。
+2. 再读本文件：哪些事不许做、交付前要跑什么（规则层）。
+3. 改命令前读 `docs/ARCHITECTURE.md` 附录 §2（契约层）。
 
-```bash
-# 安装依赖
-npm install                          # 根目录：Tauri CLI
-cd src-react && npm install && cd .. # 前端依赖
-
-# 开发模式（前端需先构建）
-npm run build:front                  # 构建前端到 src-react/dist
-npm run tauri dev                    # 启动桌面应用（devPath 指向 dist）
-
-# 发布打包
-npm run tauri build                  # 自动先构建前端，产出 MSI/NSIS
-```
-
-**注意**：`beforeDevCommand` 为空，dev 模式需手动 `build:front`；前端改动后需重跑构建。
-
-### 测试与门禁
-
-```bash
-# Rust 单测（时间契约 / 迁移规则 / 存储编排）
-cd src-tauri && cargo test && cd ..
-
-# 命令四方对账（64 命令）
-node --test test/command-parity.test.mjs
-
-# Markdown 渲染保真
-node --test src-react/test/md-fidelity.test.mjs
-
-# Markdown 保存 round-trip 保真（#10：二次保存幂等、文本不丢、表格对齐/图片保留）
-node src-react/test/md-roundtrip.test.mjs
-
-# 前端类型检查
-cd src-react && npx tsc -b && cd ..
-```
-
-**门禁纪律**：新增/删除命令必须四方同步，parity 门禁当场拦截不一致。
+**效力顺序**：用户当前指令 > 本文件 > README。若本文件与代码 / 门禁冲突，以门禁实际结果为准，并在回复里指出冲突，不要自行脑补。
 
 ---
 
-## 3. 目录与接口
+## 2. 硬约束（违反即返工）
 
-```
-Kettd/
-├── src-react/              # React 前端
-│   ├── src/
-│   │   ├── views/          # 六视图（今天/收件箱/计划/回顾/知识库/设置）
-│   │   ├── components/     # 共享组件 + kb 组件
-│   │   ├── capture/        # 快速记录窗
-│   │   ├── sticky/         # 便签窗
-│   │   ├── todo/           # 待办悬浮窗
-│   │   ├── rendering/      # Markdown / Tiptap 渲染层
-│   │   ├── kernel/         # 共享 JS 内核（时间/选择器/事件总线/捕获语法）
-│   │   └── lib/            # api.ts 类型化桥接
-│   └── test/               # 前端门禁
-├── src-tauri/              # Rust 后端
-│   ├── src/
-│   │   ├── commands.rs     # 64 个 Tauri 命令
-│   │   ├── store.rs        # JSON 持久化 + 备份轮转
-│   │   ├── models.rs       # 领域模型 + 校验
-│   │   ├── scheduler.rs    # 提醒调度
-│   │   ├── runtime.rs      # 窗口 / 托盘 / 热键
-│   │   ├── kb.rs           # 知识库搜索打分
-│   │   ├── ports/ infra/ app/  # 六边形分层
-│   │   └── telemetry.rs    # 本地度量
-├── test/                   # 命令四方对账门禁
-└── docs/                   # requirements / capability / design / adr / ARCHITECTURE（含命令契约）
-```
+### 2.1 时间
 
-**关键接口**：
-- **命令契约真相源**：`docs/ARCHITECTURE.md` 附录（原 V2-API）
-- **前端桥接**：`src-react/src/lib/api.ts`（64 命令类型化封装）
-- **内核单源**：`src-react/src/kernel/`（时间/选择器/事件总线/捕获语法，禁止第二份实现）
+- 全链路本地语义字符串：`YYYY-MM-DDTHH:mm` / `YYYY-MM-DD` / `HH:MM`。
+- **禁止 UTC 换算**：后端只用 `models.rs` 的 `DateTimeLocal`；`toISOString` / `Utc` / `naive_utc` 混入即 bug。
+- 带秒自动归零走 `normalize_datetime`；`plannedDate` 只取前 10 位日期。
 
----
+### 2.2 前端
 
-## 4. 开发规范
+- **内核单源**：三处「今天」语义必须同一 selector（`src-react/src/kernel/selectors.js`），禁止第二份口径。
+- **事件总线**：跨窗通信只走 `kernel/event-bus.js`，不得引入全局状态库或第二套事件实现。
+- **Token 类**：颜色一律 `hsl(var(--xxx))`，禁止硬编码色值。
+- **桥接惰性取**：`__TAURI__` 注入可能晚于模块求值，`src-react/src/lib/api.ts` 的 `tauriBridge()` 每次惰性取，不缓存全局引用。
 
-### 4.1 时间处理
+### 2.3 后端
 
-- **全链路本地语义字符串**：`YYYY-MM-DDTHH:mm` / `YYYY-MM-DD` / `HH:MM`
-- **禁止 UTC 换算**：`models.rs` `DateTimeLocal` 类型；`toISOString` / `Utc` / `naive_utc` 混入视为 bug
-- **带秒归零**：`normalize_datetime` 自动处理
-- **plannedDate 仅取前 10 位日期**
+- **锁纪律**：网络 / 通知 / 热键等外部调用必须在锁外，避免阻塞主线程。
+- **原子写**：一切持久化走 `StoreBackend`（`infra/fs_store.rs` `write_data_at`，tmp + rename）；新增持久文件必须实现该 trait。
+- **写前轮转**：写 `data.json` 前必须轮转 5 份备份，**不可跳过**。
+- **损坏通道**：主数据损坏进恢复页；`runtime.json` 静默重建；知识库静默空库——**绝不渲染假空态**。
+- **错误文案**：用户可见消息一律中文短句，不含路径与堆栈。
+- **数据目录红线**：默认 `%APPDATA%\todo-list`，`KETTD_DATA_DIR` 可覆盖；测试 / 脚本 / 冒烟一律指临时目录，禁止写生产数据。
 
-### 4.2 前端规范
+### 2.4 命令契约四方同步
 
-- **Token 类**：颜色一律用 `hsl(var(--xxx))`，禁止硬编码
-- **内核单源**：三处「今天」语义必须同一 selector（`kernel/selectors.js`），禁止第二份口径
-- **事件总线**：`kernel/event-bus.js`（E14 唯一实现），跨窗通信走事件不走全局状态
-- **桥接惰性取**：`__TAURI__` 注入可能晚于模块求值，`lib/api.ts` `tauriBridge()` 每次惰性取
+新增或删除命令时，以下四处必须同时改，缺一处 parity 门禁当场失败：
 
-### 4.3 后端规范
-
-- **锁纪律**：网络/通知调用**必须在锁外**，避免阻塞主线程
-- **错误消息**：用户可见文案一律中文短句，不含路径与堆栈
-- **原子写**：`fs_store.rs` `write_data_at`（tmp+rename）；新增持久文件必须走 `StoreBackend` trait
-- **写前轮转**：`data.json` 写前轮转 5 份备份，**不可跳过**
-- **损坏通道**：主数据进恢复页；runtime 静默重建；KB 静默空库——**绝不渲染假空态**
-- **环境变量**：`main()` 第一行 `infra::env::load()` 加载 .env（exe 同目录 > 项目根，不覆盖系统变量）；`KETTD_DATA_DIR` 覆盖存储根，口径集中在 `fs_store::resolve_data_dir`
-
-### 4.4 命令契约四方同步
-
-新增/删除命令时，以下四处必须同步：
 1. `src-tauri/src/main.rs` `generate_handler![]` 注册
 2. `src-tauri/src/commands.rs` `#[tauri::command]` 定义
 3. `src-react/src/lib/api.ts` 类型化封装
 4. `docs/ARCHITECTURE.md` 附录 §2 表格 + §10 计数断言
 
-**parity 门禁**：`test/command-parity.test.mjs` 当场拦截不一致。
+### 2.5 便签与窗口
 
-### 4.5 便签与窗口
+- **kbRef 顶层参数**：`create_sticky` 的 `kbRef` 必须是 invoke 顶层参数；嵌进 `args` 里 Tauri 匹配不到，恒为 `None`。
+- **content 始终序列化**：含空串；`skip_serializing_if` 吞空串会让前端 `.split` 抛 TypeError，整树卸载黑屏。
+- **建窗必须 async**：WebView2 同步建窗偶发无限挂起，窗口创建命令走 async + helper 线程。
 
-- **kbRef 顶层参数**：`create_sticky` 的 `kbRef` 必须是 invoke 顶层参数（嵌在 `args` 里 Tauri 匹配不到 → 恒 None）
-- **content 始终序列化**：含空串；曾因 `skip_serializing_if` 吞空串导致前端 `.split` 抛 TypeError 整树卸载黑屏
-- **建窗必须 async**：WebView2 同步建窗偶发无限挂起；窗口创建命令走 async + helper 线程
+### 2.6 知识库
 
-### 4.6 知识库
+- **AI 混合检索已废弃**（2026-11-07）：`ai/` 模块整体删除；不要重新引入 embedding / hybrid / secrets，搜索保持纯本地。
+- **打分只改一处**：标题 +2 / 标签 +1 / 正文 +1，大小写不敏感，只改 `kb.rs`。
+- **知识便签同步**：`store-changed` 事件触发重拉；焦点在本窗时跳过，防覆盖。
 
-- **AI 混合检索已废弃**（2026-11-07）：ai/ 模块整体删除，命令 59→55；**不要重新引入 AI 栈**；搜索保持纯本地
-- **搜索打分**：标题 +2 / 标签 +1 / 正文 +1，大小写不敏感；只改 `kb.rs` 一处
-- **知识便签同步**：`store-changed` 事件触发重拉；焦点在本窗时跳过防覆盖
+### 2.7 版本与依赖
+
+- **版本单一来源**：只走 `scripts/version.mjs`（`get` / `check` / `set`），维护四处清单；`src-tauri/Cargo.lock` 里 `name = "kettd"` 的版本不归脚本管，改完手工同步。
+- **依赖冻结线**：Tauri 停 v1（不升 v2）；TypeScript 停 6.x（不升 7）；`window-vibrancy` 锁 `0.4`；`@types/dompurify` / `markdown-it-highlightjs` / `@radix-ui/react-slot` 已移除，禁止回加。细节见 [README §依赖维护](README.md#依赖维护)。
+- **预发布版本不许手打 MSI**：WiX 只收纯数字预发布标识；`release.ps1` 会自动剔除 msi 并记进 `droppedTargets`，不要绕过脚本手工 `tauri build`。
+- **安装包不可复现**：同一源码两次构建 sha256 不同，`build-manifest.json` 只对当次产物负责，不得跨次比对。
 
 ---
 
-## 5. 重点关注事项（历史陷阱）
+## 3. 历史陷阱
 
-| 陷阱 | 说明 | 出处 |
+| 陷阱 | 结论 | 落点 |
 | --- | --- | --- |
-| WebView2 建窗挂起 | 同步建窗偶发无限挂起；必须 async + helper 线程 | `runtime.rs` 注释 |
-| kbRef 嵌套参数 | 嵌在 `args` 里 Tauri 匹配不到 → 恒 None | `commands.rs` 注释 |
-| content 空串吞掉 | `skip_serializing_if` 导致前端 `.split` 抛 TypeError 整树卸载 | `store.rs` 迁移注释 |
-| 桥接惰性取 | `__TAURI__` 注入晚于模块求值；缓存全局引用会 undefined | `api.ts` `tauriBridge()` |
-| beforeDevCommand 空 | dev 模式需手动 `build:front`；前端改动后需重跑构建 | `tauri.conf.json` |
-| WiX zh-CN | 打包必须 `wix.language=zh-CN`，否则 LGHT0311 | `tauri.conf.json` |
-| os error 32 | bundle 阶段 Defender 瞬时锁；重试即可 | 构建日志 |
-| parity 门禁 | 新增命令必须四方同步；门禁当场拦截 | `test/command-parity.test.mjs` |
-| 假空态 | 数据损坏时绝不渲染「你还没有任务」；进恢复页 | `store.rs` 加载逻辑 |
-| 三处「今天」同源 | 侧栏/悬浮窗/统计必须同一 selector | `kernel/selectors.js` 注释 |
-| AI 栈已废弃 | 不要重新引入 embedding/hybrid/secrets | 2026-11-07 提交 |
-| 用户数据目录 | 默认 `%APPDATA%\todo-list`，`KETTD_DATA_DIR` 可覆盖；测试/脚本禁止写入生产目录 | `fs_store.rs` `default_dir()` |
-| 时间零 UTC | 全链路本地语义字符串；`toISOString` / `Utc` 混入视为 bug | `models.rs` 注释 |
-| 写前轮转不可跳过 | `data.json` 写前必须轮转 5 份备份 | `store.rs` `save()` |
-| 损坏通道分流 | 主数据恢复页；runtime 静默重建；KB 静默空库 | `store.rs` `load()` |
+| WebView2 建窗挂起 | 必须 async + helper 线程 | `runtime.rs` 注释 |
+| kbRef 嵌在 args | Tauri 匹配不到，恒 None | `commands.rs` 注释 |
+| content 空串被吞 | 前端 `.split` 抛 TypeError，整树卸载 | `store.rs` 迁移注释 |
+| 桥接缓存全局 | `__TAURI__` 注入晚，引用会 undefined | `api.ts` `tauriBridge()` |
+| parity 门禁 | 命令必须四方同步，漏改当场红 | `test/command-parity.test.mjs` |
+| 假空态 | 数据损坏进恢复页，不显示「你还没有任务」 | `store.rs` 加载逻辑 |
+| 三处「今天」分叉 | 侧栏 / 悬浮窗 / 统计必须同一 selector | `kernel/selectors.js` |
+| AI 栈已废弃 | 不回引 embedding / hybrid / secrets | 2026-11-07 提交 |
+| 时间混入 UTC | 全链路本地语义字符串 | `models.rs` 注释 |
+| 跳过写前轮转 | `data.json` 写前必须轮转 5 份 | `store.rs` `save()` |
+| 损坏通道混用 | 主数据恢复页 / runtime 重建 / KB 空库 | `store.rs` `load()` |
+| 预发布打 MSI | `0.0.2-rc.1` 必失败，脚本自动只出 NSIS | `scripts/release.ps1` |
+| `.ps1` 编码 | PS 5.1 读无 BOM 中文乱码；`Tee-Object` 写 UTF-16 毁日志 | `scripts/*.ps1` |
+| 文档职责回流 | 命令 / 目录树 / 架构写回 AGENTS 会被 docs 门禁拦下 | `test/docs.test.mjs` |
+
+构建类故障（`os error 32`、`LGHT0311`、前端不重建导致 dev 看旧界面、安装包哈希变化）属操作问题，处理办法统一见 [README §常见构建故障](README.md#常见构建故障)。
 
 ---
 
-## 6. 分支与提交
+## 4. 验证协议：对话结果如何验证
 
-- **分支策略**：仅 master 分支（v2 已于 2026-11-08 归档删除）
-- **推送链路**：`git push origin master`（E 盘 Git + GCM 凭据；Clash 全局模式）
-- **文档审核门禁**：文档类交付（功能文档 / AGENTS.md / README 等）**先提供内容待人工审核，批准前不 commit/push**；代码任务不受此门禁
-- **提交信息风格**：中文，conventional-commit 格式（`feat(kb):` / `fix(test):` / `chore:` / `refactor(kb):`）
+### 4.1 断言纪律
+
+- **没跑过就不能说「已修复 / 已完成 / 全绿」**。结论必须附命令与真实输出，不接受「应该没问题」。
+- 失败照贴：贴报错原文与退出码，不美化、不省略。
+- 部分完成就写清楚边界：`已完成 X / 未验证 Y（原因）/ 阻塞 Z`。
+- 只验证了子集时，明确说「本次只跑了 X，未跑 Y」，不要用局部证据冒充整体通过。
+
+### 4.2 分层证据
+
+按改动面选**最小充分集**，逐层往上加：
+
+| 层 | 手段 | 证明什么 | 何时必需 |
+| --- | --- | --- | --- |
+| L0 静态 | `cargo check` · `npx tsc -b` · `npm run lint` | 能编译、无类型/语法错误 | 任何代码改动 |
+| L1 单测 | `cargo test`（103 项）· parity · packaging · md-fidelity | 契约与行为没被破坏 | 改 Rust / 命令 / 渲染 / 配置 |
+| L2 构建 | `npm run build`（vite）· `cargo build --release` | 可打包 | 改依赖、构建配置、入口 |
+| L3 产物 | `npm run release` + 核对 `artifacts/v<版本>/` | 安装包可交付 | 改打包脚本、版本、tauri.conf |
+| L4 真机 | 启动应用冒烟 5 条关键路径 | 用户路径可用 | 改 UI / 交互 / 窗口 / 提醒 |
+
+**L4 冒烟五条**：快速记录（热键呼出 → 回车入库）· 今天视图（列表与侧栏计数一致）· 提醒触发（到点弹通知）· 便签三态（展开 ⇄ 缩小 ⇄ 关闭）· 知识库搜索（键入即出结果）。
+
+### 4.3 一键门禁与 SKIP
+
+默认跑 `npm run check`（12 项，日志 `logs/check-<时间戳>.log`）。汇报证据时写清条数与结果，例如：
+
+```
+npm run check → 12 项：11 OK + 1 SKIP（Markdown round-trip：缺 jsdom），0 FAIL
+```
+
+- **SKIP ≠ 通过**：必须在交付说明里列名并说明原因，不得算进「全绿」。
+- 门禁失败先修再谈交付；确实无法本地复现的（如真机类），写明未验证原因与风险。
+
+### 4.4 UI / 交互改动
+
+必须有真机操作或截图证据；「代码看着对」「构建通过」都不算验证过界面。
+
+### 4.5 交付报告模板
+
+固定五段，缺段视为没交付完：
+
+1. **改动摘要**：改了哪些文件、为什么改（一句话一条）。
+2. **验证证据**：跑了什么命令、真实结果（条数 / 通过 / 失败原文）。
+3. **未验证项与原因**：SKIP 项、未跑的真机路径、环境限制。
+4. **影响面与回滚**：谁会受影响、出问题怎么退（改回哪个文件 / 重跑哪条命令）。
+5. **遗留 TODO**：本次没做但该做的事，写清下一步入口。
+
+### 4.6 台账与文档门禁
+
+- 跨轮任务在 `ledger/` 登记，worklog 记录「目的 / 过程 / 结论」，结案前更新状态。
+- **文档类交付**（README / AGENTS / 功能文档）先给内容待人工审核，**批准前不 commit、不 push**；代码任务不受此门禁。
 
 ---
 
-## 7. 验证清单
+## 5. 分支与提交
 
-提交前必须通过：
-
-- [ ] `cargo check`（0 error；warning 为存量死代码，不新增）
-- [ ] `cargo test`（100 项全绿）
-- [ ] `cd src-react && npx tsc -b`（0 error）
-- [ ] `cd src-react && npm run build`（vite build 成功）
-- [ ] `node --test test/command-parity.test.mjs`（64 命令四方对账通过）
-- [ ] `node --test src-react/test/md-fidelity.test.mjs`（Markdown 渲染保真）
-- [ ] `node src-react/test/md-roundtrip.test.mjs`（Markdown 保存 round-trip 幂等，#10 门禁）
-- [ ] 真机冒烟（启动应用，核对关键路径：快速记录 / 今天视图 / 提醒触发 / 便签三态 / 知识库搜索）
-
-**文档类交付**：额外通过人工审核（内容准确性 / 表述清晰度）。
+- **分支策略**：仅 master 分支（v2 已于 2026-11-08 归档删除）。
+- **推送链路**：`git push origin master`（E 盘 Git + GCM 凭据；Clash 全局模式）。
+- **提交信息**：中文 conventional-commit，`feat(kb):` / `fix(test):` / `chore:` / `refactor(kb):` 这一族。
+- 提交前确认 `npm run check` 的真实结果，不提交带 FAIL 的树；只提交本次相关文件，不夹带无关改动。
 
 ---
 
-## 8. 相关文档
+## 6. 文档索引
 
-- `README.md`：快速上手、使用说明、开发环境
-- `docs/capability/`：10 个功能模块的设计/开发指南/现状
-- `docs/ARCHITECTURE.md`：架构设计 + 命令契约（附录）
-- `docs/adr/`：历史决策档案（0001–0007，已落地）
-- `docs/requirements/总体需求.md`：产品需求文档（理想态，部分未实现）
-- `docs/design/`：历史设计参考（v1 时代调研与方案）
+| 文档 | 内容 |
+| --- | --- |
+| [README.md](README.md) | 功能、使用、操作、技术架构、开发、测试与门禁、发布打包、依赖维护 |
+| `docs/ARCHITECTURE.md` | 架构设计与命令契约（附录 §2 为真相源） |
+| `docs/capability/` | 10 个功能模块的设计 / 开发指南 / 现状 |
+| `docs/adr/` | 历史决策档案 0001–0007 |
+| `docs/requirements/总体需求.md` | 产品需求（理想态，部分未实现） |
 
 ---
 
-**最后更新**：2026-11-08 · 基于 v2 分支 01819eb
+**最后更新**：2026-11-14 · 版本 0.0.2-rc.1

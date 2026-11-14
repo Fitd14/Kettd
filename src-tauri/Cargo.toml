@@ -1,27 +1,37 @@
 [package]
 name = "kettd"
-version = "2.2.0"
+version = "0.0.2-rc.1"
 description = "待办列表 - 一款简洁高效的待办列表应用"
 authors = ["lamb"]
 license = ""
 repository = ""
 edition = "2021"
-rust-version = "1.57"
+# MSRV 取依赖树里最高者的下限：tauri 1.8 / dirs 6 均要求 1.70+
+rust-version = "1.70"
 
 [build-dependencies]
-tauri-build = { version = "1.0.0", features = [] }
+tauri-build = { version = "1.5", features = [] }
 
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "1.0.0", features = [ "api-all", "system-tray" ] }
-dirs = "4.0"
+tauri = { version = "1.8", features = [ "api-all", "system-tray" ] }
+dirs = "6.0"
 dotenvy = "0.15"
 chrono = { version = "0.4", features = [ "clock", "std" ] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
+# 锁 0.4.x：0.5 起 apply_blur 入参改为 Color 结构体（破坏性），升级需同步改 runtime.rs，暂不追
 window-vibrancy = "0.4"
 
 [features]
 default = [ "custom-protocol" ]
 custom-protocol = [ "tauri/custom-protocol" ]
+
+# 发布产物：体积优先。安装包体积直接决定分发体验，LTO + 单 codegen unit + strip 可省 20% 左右；
+# 代价是 release 链接变慢（增量构建不受影响）。
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
