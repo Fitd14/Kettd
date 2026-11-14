@@ -2586,10 +2586,39 @@ mod tests {
     assert!(store.kb.is_empty(), "解析失败绝不覆盖当前知识库");
   }
 
+  /// 测试用 scratch 目录：先试系统 temp，建不出来（受限令牌 / 杀软瞬时拦截 /
+  /// TEMP 指向受保护目录）再退到 `<crate>/target/test-tmp`，每个候选重试三次仍败才 panic。
+  /// 只给必须落真实文件系统的测试用，其余测试一律走 InMemoryBackend。
+  fn scratch_dir(tag: &str) -> std::path::PathBuf {
+    let name = format!("kettd-{tag}-{}", new_id("t"));
+    let candidates = [
+      std::env::temp_dir().join(&name),
+      std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("target")
+        .join("test-tmp")
+        .join(&name),
+    ];
+    let mut failure = None;
+    for candidate in candidates {
+      for attempt in 0..3 {
+        match std::fs::create_dir_all(&candidate) {
+          Ok(()) => return candidate,
+          Err(err) => {
+            failure = Some((candidate.clone(), err));
+            if attempt < 2 {
+              std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+          }
+        }
+      }
+    }
+    let (path, err) = failure.expect("候选目录不为空");
+    panic!("测试临时目录建不出来：{}（{err}）", path.display());
+  }
+
   #[test]
   fn fs_backend_persists_folders_and_rotates_notes_files() {
-    let dir = std::env::temp_dir().join(format!("kettd-kb-test-{}", new_id("t")));
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch_dir("kb-test");
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
       let mut store = Store::with_backend(
         Box::new(FsBackend::new(dir.clone())),
