@@ -62,10 +62,60 @@ fn enforce_single_instance() {
   }
 }
 
+/// 启动期的严重错误必须可见：release 没有控制台，dev 的控制台也可能被管道吞掉。
+/// 除 stderr 外弹一个中文短句对话框，避免用户只看到「双击没反应」。
+#[cfg(windows)]
+fn show_startup_error(message: &str) {
+  #[link(name = "user32")]
+  extern "system" {
+    fn MessageBoxW(hwnd: *mut u8, text: *const u16, caption: *const u16, utype: u32) -> i32;
+  }
+  const MB_OK_ICON_ERROR: u32 = 0x10;
+  eprintln!("{message}");
+  let text: Vec<u16> = format!("{message}\0").encode_utf16().collect();
+  let caption: Vec<u16> = "Kettd\0".encode_utf16().collect();
+  unsafe {
+    MessageBoxW(
+      std::ptr::null_mut(),
+      text.as_ptr(),
+      caption.as_ptr(),
+      MB_OK_ICON_ERROR,
+    );
+  }
+}
+
+#[cfg(not(windows))]
+fn show_startup_error(message: &str) {
+  eprintln!("{message}");
+}
+
+/// setup 的错误类型是 `Box<dyn Error>`，而建窗错误是中文 `String`：包一层 io::Error 才能上抛。
+fn boot_error(message: String) -> Box<dyn std::error::Error> {
+  Box::new(std::io::Error::new(std::io::ErrorKind::Other, message))
+}
+
 fn main() {
   runtime::mark_main_thread();
   #[cfg(windows)]
   enforce_single_instance();
+  // WebView2 用户数据目录必须在建窗前定下来：默认目录不可写会让 build() 直接失败，
+  // 而那时既没有窗口也没有埋点，用户只能看到一条 panic（fix-known-defects 7.1）
+  let webview2_dir = match runtime::resolve_webview2_dir() {
+    Ok(dir) => dir,
+    Err(message) => {
+      show_startup_error(&message);
+      std::process::exit(1);
+    }
+  };
+  let fallback = webview2_dir != store::data_dir().join("webview2");
+  runtime::set_webview2_dir(webview2_dir.clone());
+  // 埋点提前到建窗之前：建窗失败也要能在 events.jsonl 里留下证据
+  telemetry::init(store::data_dir());
+  let dir_text = webview2_dir.to_string_lossy().to_string();
+  telemetry::record_str(
+    "webview2_dir",
+    &[("dir", dir_text.as_str()), ("fallback", if fallback { "yes" } else { "no" })],
+  );
   let mut boot = store::Store::load();
   // 启动即清理过期软删（回收站 30 天承诺）
   let purged = boot.purge_expired(models::TRASH_RETENTION_DAYS);
@@ -75,7 +125,7 @@ fn main() {
   // 待办悬浮窗托盘勾选初始态（manage 移交 boot 前读走，todo-float）
   let todo_visible = boot.runtime.todo_float_visible;
 
-  let app = tauri::Builder::default()
+  let builder = tauri::Builder::default()
     // 状态必须在窗口创建前注册：便签窗（note:*）与 capture 窗随 build() 立即加载页面并 invoke，
     // 而 setup 在窗口创建后才执行，在 setup 里 manage 会撞上启动竞态直接 panic
     .manage(Mutex::new(boot))
@@ -128,6 +178,12 @@ fn main() {
       commands::update_kb_item,
       commands::delete_kb_item,
       commands::search_kb,
+      commands::list_folders,
+      commands::create_folder,
+      commands::rename_folder,
+      commands::delete_folder,
+      commands::list_kb_backups,
+      commands::restore_kb_backup,
       commands::clear_migration_report,
       commands::export_weekly,
       commands::reorder_tasks,
@@ -136,12 +192,23 @@ fn main() {
       commands::create_sticky,
       commands::list_stickies,
       commands::update_sticky,
+      commands::open_sticky,
       commands::delete_sticky,
       commands::sticky_self,
+      commands::set_todo_float_mini,
     ])
     .system_tray(runtime::build_tray(todo_visible))
     .setup(|app| {
+      // 主窗与快速记录条改为代码建窗：tauri.conf.json 的 WindowConfig 没有 dataDirectory
+      // 字段，只有代码建窗能显式指定 WebView2 用户数据目录（默认目录不可写时 build() 会失败）。
+      // 与 Tauri 自建 conf 窗口同阶段（事件循环尚未开始），不触发「事件循环内同步建窗挂起」。
       let handle = app.handle().clone();
+      if app.get_window(runtime::MAIN_LABEL).is_none() {
+        runtime::create_main_window(&*app).map_err(boot_error)?;
+      }
+      if app.get_window(runtime::CAPTURE_LABEL).is_none() {
+        runtime::create_capture_window(&*app).map_err(boot_error)?;
+      }
       let state = app.state::<Mutex<store::Store>>();
       // 主窗自定义标题栏（方案B）：decorations 已关，圆角与最大化态由这里接管
       if let Some(main_window) = app.get_window(runtime::MAIN_LABEL) {
@@ -164,8 +231,7 @@ fn main() {
           )
         }
       };
-      // 本地度量埋点：起后台写线程，开关随设置，记一次 app_launch（纯本机、不出网）
-      telemetry::init(store::data_dir());
+      // 本地度量：写线程已在 main() 建窗之前启动（建窗失败也要留证据），这里只同步开关
       telemetry::set_enabled(
         state
           .lock()
@@ -183,6 +249,15 @@ fn main() {
           "sticky_count": sticky_count
         }),
       );
+      // WebView2 默认右键菜单（#3）：主窗与配置即建的快速记录条在 setup 前已创建，
+      // 这里统一关闭；动态 note:*/todo 窗在建窗成功后各自附加（见 runtime.rs 各 builder）。
+      // attach 失败只记埋点，不影响窗口生命周期。
+      if let Some(main_window) = app.get_window(runtime::MAIN_LABEL) {
+        runtime::disable_default_context_menu(&main_window);
+      }
+      if let Some(capture_window) = app.get_window(runtime::CAPTURE_LABEL) {
+        runtime::disable_default_context_menu(&capture_window);
+      }
       // 三个全局热键：窗口全部就绪后注册一次；失败重试 3 次（失败时前端可仍用主窗输入框）
       let hotkey_app = handle.clone();
       std::thread::spawn(move || {
@@ -251,7 +326,9 @@ fn main() {
             )
           })
           .unwrap_or_default();
-        for note in &stickies {
+        // 只恢复可见便签（fix-known-defects 4.1：隐藏 = 用户主动关窗，重启不弹；
+        // 升级首启的旧数据全为默认可见，所以 6 张旧便签仍会恢复，不强制隐藏）
+        for note in stickies.iter().filter(|note| note.visible) {
           let pos = note_pos.get(&note.id).copied();
           let _ = runtime::open_note_window(&handle, &note.id, note.mini, pos);
         }
@@ -288,23 +365,34 @@ fn main() {
           let app_handle = event.window().app_handle().clone();
           let _ = runtime::hide_todo_float(&app_handle);
         }
-        // 便签窗关闭 = 销毁（sticky-separation：关闭即消失，含 Alt+F4）；
-        // 数据与窗口一起回收，堵住「Alt+F4 只关窗、数据残留」的旧漏洞
-        tauri::WindowEvent::CloseRequested { api: _, .. } if label.starts_with("note:") => {
+        // 便签窗关闭（✕/Alt+F4）= 隐藏（fix-known-defects 4.1/4.3）：只置 visible=false
+        // 并藏窗，不删数据、不清 note_pos；可从便签列表 open_sticky 重新打开。
+        tauri::WindowEvent::CloseRequested { api, .. } if label.starts_with("note:") => {
+          api.prevent_close();
+          let id = label.strip_prefix("note:").unwrap_or(&label).to_string();
+          let mut changed = false;
           if let Some(state) = event.window().try_state::<Mutex<store::Store>>() {
             if let Ok(mut guard) = state.lock() {
-              let id = label.strip_prefix("note:").unwrap_or(&label).to_string();
-              if guard.delete_sticky(&id).is_ok() {
+              if let Some(note) = guard.find_sticky_mut(&id) {
+                if note.visible {
+                  note.visible = false;
+                  note.updated_at = crate::models::now_text();
+                  changed = true;
+                }
+              }
+              if changed {
                 let _ = guard.save();
-                let _ = guard.save_runtime_only();
-                drop(guard);
-                let _ = event
-                  .window()
-                  .emit_all("store-changed", crate::models::StoreEvent::changed("stickies"));
               }
             }
           }
-          crate::telemetry::record_str("sticky_delete", &[("via", "alt_f4")]);
+          let _ = event.window().hide();
+          if changed {
+            let _ = event.window().emit_all(
+              "store-changed",
+              crate::models::StoreEvent::changed("stickies"),
+            );
+          }
+          crate::telemetry::record_str("sticky_hide", &[("via", "alt_f4")]);
         }
         // 快速记录条失焦即收起（PRD 6.1 的边缘态）；收起前记忆位置
         tauri::WindowEvent::Focused(false) if label == runtime::CAPTURE_LABEL => {
@@ -317,9 +405,24 @@ fn main() {
         }
         _ => {}
       }
-    })
-    .build(tauri::generate_context!())
-    .expect("待办列表启动失败，请检查数据目录权限后重试");
+    });
 
-  app.run(|_app_handle, _event| {});
+  let app = match builder.build(tauri::generate_context!()) {
+    Ok(app) => app,
+    Err(error) => {
+      // 不 panic：release 无控制台，panic 等于静默退出
+      eprintln!("启动失败（build）：{error:?}");
+      telemetry::record_str("startup_error", &[("stage", "build"), ("err", &format!("{error}"))]);
+      show_startup_error("待办列表启动失败，请稍后重试；若反复出现请检查磁盘空间与数据目录权限。");
+      std::process::exit(1);
+    }
+  };
+
+  app.run(|app_handle, event| {
+    // 退出前显式释放 WebView2 控制器：默认退出流程直接 process::exit，
+    // 不做窗口销毁，msedgewebview2.exe 可能残留（fix-known-defects 7.4 / #16）
+    if let tauri::RunEvent::ExitRequested { .. } = event {
+      runtime::close_all_webviews(app_handle);
+    }
+  });
 }

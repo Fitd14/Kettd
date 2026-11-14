@@ -431,6 +431,38 @@ details.overdue[open] summary::before {
   font-size: 11px;
   color: hsl(var(--muted-foreground));
 }
+/* 视图图标（#13）：lucide，仅靠图标时 title 提供悬浮提示 */
+.side-item .side-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+/* 收起/展开按钮吸底 */
+.side-toggle {
+  margin-top: auto;
+  opacity: 0.8;
+}
+.side-toggle:hover {
+  opacity: 1;
+}
+/* 折叠态（#13）：窄轨 56px 仅图标，展开恢复 168px；状态存 localStorage('shell.sideCollapsed') */
+.shell-side.is-collapsed {
+  width: 56px;
+}
+.shell-side.is-collapsed .brand {
+  font-size: 13px;
+  text-align: center;
+  padding: 6px 0 var(--sp-3);
+}
+.shell-side.is-collapsed .side-item {
+  justify-content: center;
+  gap: 0;
+  padding: 6px 0;
+}
+.shell-side.is-collapsed .side-item .label,
+.shell-side.is-collapsed .side-item .count {
+  display: none;
+}
 .shell-main {
   flex: 1;
   min-width: 0;
@@ -450,6 +482,15 @@ details.overdue[open] summary::before {
   .side-item .label,
   .side-item .count {
     display: none;
+  }
+  /* 自动收窄与手动折叠等价，按钮此时无意义 → 隐藏，避免无视觉变化的空点击 */
+  .side-toggle {
+    display: none;
+  }
+  .shell-side .side-item {
+    justify-content: center;
+    gap: 0;
+    padding: 6px 0;
   }
 }
 

@@ -11,6 +11,16 @@ use crate::models::KbItem;
 
 pub const NOTES_FILE_MAX_ITEMS: usize = 5_000;
 
+/// 正文归一：只裁掉首尾空行（换行符），**保留行尾空格与缩进**。
+///
+/// Markdown 的语义依赖它们：空列表项序列化为 `"- "` / `"1. "`（行尾一个空格），
+/// 用 `trim()` 会变成 `"-"` / `"1."`，重开条目时被解析成普通段落，列表凭空消失。
+fn normalize_body_md(value: &str) -> String {
+  value
+    .trim_matches(|c| c == '\n' || c == '\r')
+    .to_string()
+}
+
 /// 新建条目：标题非空；时间戳由调用方注入（app 层纪律同 ADR-0003）
 pub fn create(
   items: &mut Vec<KbItem>,
@@ -30,10 +40,11 @@ pub fn create(
   let item = KbItem {
     id,
     title: title.to_string(),
-    body_md: body_md.trim().to_string(),
+    body_md: normalize_body_md(body_md),
     tags: normalized_tags(tags),
     created_at: stamp.to_string(),
     updated_at: stamp.to_string(),
+    folder_id: None,
   };
   items.push(item.clone());
   Ok(item)
@@ -61,7 +72,7 @@ pub fn update(
     item.title = trimmed.to_string();
   }
   if let Some(value) = body_md {
-    item.body_md = value.trim().to_string();
+    item.body_md = normalize_body_md(value);
   }
   if let Some(value) = tags {
     item.tags = normalized_tags(value);
@@ -136,6 +147,7 @@ mod tests {
       tags: tags.iter().map(|t| t.to_string()).collect(),
       created_at: updated.to_string(),
       updated_at: updated.to_string(),
+      folder_id: None,
     }
   }
 
@@ -146,6 +158,17 @@ mod tests {
     let made = create(&mut items, "k1".into(), " Rust 教程 ", "  body  ", vec!["rust".to_string(), " rust ".to_string(), String::new(), "笔记".to_string()], "t1").unwrap();
     assert_eq!(made.title, "Rust 教程");
     assert_eq!(made.tags, vec!["rust", "笔记"], "去空白/去重/去空项");
+  }
+
+  #[test]
+  fn body_md_keeps_trailing_space_for_empty_list_items() {
+    let mut items = Vec::new();
+    let made = create(&mut items, "k1".into(), "清单", "- ", vec![], "t1").unwrap();
+    assert_eq!(made.body_md, "- ", "空列表项的行尾空格必须保留（否则重开被解析成段落）");
+    let updated = update(&mut items, "k1", None, Some("1. \n"), None, "t2").unwrap();
+    assert_eq!(updated.body_md, "1. ", "只裁首尾换行，行尾空格保留");
+    let blank = update(&mut items, "k1", None, Some("\n\n"), None, "t3").unwrap();
+    assert_eq!(blank.body_md, "", "纯空行归一为空串");
   }
 
   #[test]

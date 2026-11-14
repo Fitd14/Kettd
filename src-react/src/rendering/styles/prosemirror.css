@@ -49,6 +49,47 @@
 
 .kb-tool-sep { width: 1px; height: 16px; background: hsl(var(--muted-foreground) / 0.2); margin: 0 6px; }
 
+/* 标题级别下拉（正文 / H1–H4）：与 .kb-editor-tool 同高、同为无边框浅底 */
+.kb-editor-heading {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 14px 0 6px;
+  border-radius: 4px;
+  color: var(--muted-foreground, hsl(var(--muted-foreground)));
+}
+.kb-editor-heading:hover { background: var(--muted, hsl(var(--muted))); color: hsl(var(--foreground)); }
+.kb-editor-heading.on { background: hsl(var(--primary) / 0.1); color: hsl(var(--foreground)); }
+.kb-editor-heading-select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.78em;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.kb-editor-heading-select:focus-visible { outline: 1px solid hsl(var(--muted-foreground) / 0.4); outline-offset: 1px; }
+.kb-editor-heading::after {
+  content: "";
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  margin-top: -1px;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-top: 4px solid currentColor;
+  opacity: .65;
+  pointer-events: none;
+}
+
 /* 表格网格选择器（Typora Ctrl+T 同款交互） */
 .kb-editor-gridwrap { position: relative; }
 .kb-grid-picker {
@@ -82,6 +123,12 @@
 .kb-detail .kb-editor-content h2 { font-size: 1.2em; margin: 1.3em 0 .45em; }
 .kb-detail .kb-editor-content h3 { font-size: 1.05em; margin: 1.1em 0 .4em; }
 .kb-detail .kb-editor-content p { margin: .65em 0; }
+
+/* H4–H6（工具栏「标题」下拉新增）：kb-detail 与便签窄窗编辑态共用，
+   字号/间距延续上面的层级阶梯，浅底稿纸风格不额外加粗。 */
+.kb-editor-content h4 { font-size: 1em; margin: 1em 0 .35em; letter-spacing: .2px; }
+.kb-editor-content h5 { font-size: .93em; margin: .9em 0 .3em; }
+.kb-editor-content h6 { font-size: .88em; margin: .85em 0 .25em; letter-spacing: .3px; color: var(--text-secondary, hsl(var(--muted-foreground))); }
 
 /* 真机反馈：contenteditable 默认 focus 黑框刺眼 → 全状态去 outline */
 .kb-editor-content:focus,
@@ -191,6 +238,21 @@
   gap: 0.5em;
 }
 
+/* 有序 / 无序列表：Tailwind preflight 会把 ul/ol 的 marker 清掉，这里按层级显式恢复，
+   否则通过 / 菜单或工具栏插入的列表看起来和普通段落一样（"像没创建"）。 */
+.kb-editor-content ul:not([data-type="taskList"]),
+.kb-editor-content ol {
+  padding-left: 1.4em;
+  margin: .4em 0;
+}
+.kb-editor-content ul:not([data-type="taskList"]) { list-style: disc; }
+.kb-editor-content ul:not([data-type="taskList"]) ul { list-style: circle; }
+.kb-editor-content ol { list-style: decimal; }
+.kb-editor-content ol ol { list-style: lower-alpha; }
+.kb-editor-content li { margin: .15em 0; }
+.kb-editor-content li > p { margin: .2em 0; }
+.kb-editor-content li::marker { color: var(--ink-3, #A59089); }
+
 /* ─── 阅读态 MD 渲染 ─────────────────────────────────────────────────── */
 
 .kb-md-render {
@@ -201,7 +263,9 @@
 .kb-md-render h1,
 .kb-md-render h2,
 .kb-md-render h3,
-.kb-md-render h4 {
+.kb-md-render h4,
+.kb-md-render h5,
+.kb-md-render h6 {
   margin-top: 1.2em;
   margin-bottom: 0.4em;
   line-height: 1.3;
@@ -210,6 +274,9 @@
 .kb-md-render h1 { font-size: 1.5em; }
 .kb-md-render h2 { font-size: 1.3em; }
 .kb-md-render h3 { font-size: 1.15em; }
+.kb-md-render h4 { font-size: 1.05em; }
+.kb-md-render h5 { font-size: .98em; }
+.kb-md-render h6 { font-size: .92em; color: var(--text-secondary, hsl(var(--muted-foreground))); }
 
 .kb-md-render ul,
 .kb-md-render ol {
@@ -276,10 +343,13 @@
 /* ─── slash 命令面板 ─────────────────────────────────────────────────── */
 
 .kb-slash {
-  z-index: 40;
+  position: fixed;
+  z-index: 60;
   width: 230px;
   border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / .25));
-  border-radius: 4px; overflow: hidden;
+  border-radius: 4px;
+  overflow-y: auto;             /* 视口空间不足时内部滚动，而不是被直接裁掉 */
+  overscroll-behavior: contain;
   background: var(--paper, hsl(var(--card)));
   box-shadow: 0 10px 34px -12px rgba(40,40,30,.3);
   font-family: "Noto Sans SC", system-ui, sans-serif;
@@ -315,4 +385,277 @@
 }
 .kb-bubble-table button.danger { color: #F9EDEA; }
 .kb-bubble-table button.danger:hover { background: rgba(192,87,79,.55); }
+.kb-bubble-table button:disabled { opacity: .35; cursor: not-allowed; }
 .kb-bubble-sep { width: 1px; height: 14px; background: rgba(255,255,255,.25); margin: auto 4px; }
+
+/* ─── 居中链接弹窗（知识库详情与便签窗共用，portal 挂到 body）─────────── */
+
+.kb-link-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;              /* 高于选区气泡 / 表格气泡 / slash 面板(60) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: hsl(var(--foreground) / 0.18);
+}
+
+.kb-link-dialog {
+  width: min(92vw, 420px);   /* 便签窄窗下随视口收窄 */
+  max-width: 100%;
+  padding: 14px 16px 12px;
+  border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / 0.25));
+  border-radius: 6px;
+  background: var(--paper, hsl(var(--card)));
+  box-shadow: 0 18px 48px -18px rgba(40, 40, 30, 0.45);
+  font-family: "Noto Sans SC", system-ui, sans-serif;
+}
+
+.kb-link-dialog-title {
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .4px;
+  color: hsl(var(--foreground));
+}
+
+.kb-link-dialog-field { display: block; }
+
+.kb-link-dialog-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+.kb-link-dialog-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / 0.3));
+  border-radius: 4px;
+  background: var(--paper, hsl(var(--card)));
+  color: hsl(var(--foreground));
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.kb-link-dialog-input:focus {
+  border-color: hsl(var(--primary) / 0.55);
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.12);
+}
+.kb-link-dialog-input:disabled { opacity: .55; cursor: not-allowed; }
+
+.kb-link-dialog-hint {
+  min-height: 16px;
+  margin-top: 6px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: hsl(var(--muted-foreground));
+}
+.kb-link-dialog-hint.on-error { color: var(--seal, hsl(var(--primary))); }
+
+.kb-link-dialog-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.kb-link-dialog-spacer { flex: 1 1 auto; }
+
+.kb-link-dialog-btn {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / 0.25));
+  border-radius: 4px;
+  background: transparent;
+  color: hsl(var(--foreground));
+  font-family: inherit;
+  font-size: 11.5px;
+  line-height: 1;
+  cursor: pointer;
+}
+.kb-link-dialog-btn:hover { background: var(--muted, hsl(var(--muted))); }
+.kb-link-dialog-btn:focus-visible { outline: 1px solid hsl(var(--muted-foreground) / 0.4); outline-offset: 1px; }
+.kb-link-dialog-btn:disabled { opacity: .45; cursor: not-allowed; }
+.kb-link-dialog-btn.kb-link-dialog-primary {
+  border-color: hsl(var(--primary) / 0.35);
+  background: hsl(var(--primary) / 0.12);
+}
+.kb-link-dialog-btn.kb-link-dialog-primary:hover { background: hsl(var(--primary) / 0.2); }
+
+/* ─── 条目内查找栏（Ctrl+F，缺陷 #6）────────────────────────────────
+   查找栏是编辑器 flex 列中的 sticky 子项：滚动条目时始终吸顶可见，
+   又排在工具栏之后不遮挡工具栏；z-index 80 低于链接弹窗（100）。
+   配色优先取便签纸 token（--sticky-*），知识库详情里回落到 --paper/--ink-*。 */
+
+.kb-find {
+  position: sticky;
+  top: 0;
+  align-self: flex-end;
+  z-index: 80;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: calc(100% - 8px);
+  margin: 0 4px 6px 0;
+  padding: 2px 4px;
+  border: 1px solid var(--line-warm, hsl(var(--border)));
+  border-radius: 6px;
+  background: var(--sticky-paper, var(--paper, hsl(var(--card))));
+  color: var(--sticky-ink, var(--ink-1, hsl(var(--foreground))));
+  box-shadow: 0 6px 18px -10px hsl(var(--foreground) / 0.35);
+  font-family: "Noto Sans SC", system-ui, sans-serif;
+}
+
+.kb-find-ico {
+  flex: none;
+  color: var(--sticky-muted, var(--ink-3, hsl(var(--muted-foreground))));
+}
+
+.kb-find-input {
+  flex: 0 1 150px;
+  min-width: 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  line-height: 20px;
+  outline: none;
+}
+.kb-find-input::placeholder {
+  color: var(--sticky-muted, var(--ink-3, hsl(var(--muted-foreground))));
+  opacity: .75;
+}
+
+.kb-find-count {
+  flex: none;
+  min-width: 46px;
+  text-align: center;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--sticky-muted, var(--ink-3, hsl(var(--muted-foreground))));
+}
+
+.kb-find-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.kb-find-btn:hover:not(:disabled) { background: color-mix(in srgb, currentColor 12%, transparent); }
+.kb-find-btn:focus-visible { outline: 1px solid hsl(var(--primary) / 0.55); outline-offset: 1px; }
+.kb-find-btn:disabled { opacity: .3; cursor: default; }
+
+/* 查找命中高亮：只用 Decoration 加 class / 背景，不改文档内容。
+   全部命中浅底；当前项加深并加描边，扫描长文时更醒目。 */
+.kb-editor-content .kb-find-hit {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--sticky-seal, var(--seal, hsl(var(--primary)))) 16%, transparent);
+}
+.kb-editor-content .kb-find-hit-current {
+  background: color-mix(in srgb, var(--sticky-seal, var(--seal, hsl(var(--primary)))) 42%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sticky-seal, var(--seal, hsl(var(--primary)))) 55%, transparent);
+}
+
+/* ─── 字数计数（便签窗 WYSIWYG 正文，maxChars）──────────────────────
+   编辑器 flex 列底部的小字：右下对齐、等宽数字；不抢焦点、不挡点击。
+   配色优先便签纸 token（--sticky-*），知识库等容器回落到 --ink-3；
+   超限用全局危险色 token --destructive（index.css 中的 HSL 三元组）。 */
+
+.kb-editor-count {
+  flex: none;
+  align-self: flex-end;
+  box-sizing: border-box;
+  max-width: 100%;
+  /* 便签窗 .kb-editor 有确定高度（height:100%）：margin-top:auto 把计数压到容器底；
+     KB 等高度由内容撑开的场景，auto 退化为 0，计数紧跟正文之后，不会多出空白。 */
+  margin: auto 2px 0 0;
+  padding: 0 2px;
+  font-family: "Noto Sans SC", system-ui, sans-serif;
+  font-size: 10.5px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  color: var(--sticky-muted, var(--ink-3, hsl(var(--muted-foreground))));
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+}
+
+.kb-editor-count.is-over {
+  color: hsl(var(--destructive));
+  font-weight: 600;
+}
+
+/* ─── 正文图片节点（缺陷 #15：粘贴截图写入 data URL 的 image 节点）────────
+   行内原子节点；限宽避免撑破纸面，圆角与阅读态 .kb-md-render img 保持一致。
+   选中态沿用 .ProseMirror-selectednode 的描边口径（--primary 全局 token），
+   这里只补图片自己的圆角与外扩，便于点选/拖动时看清边界。 */
+
+.kb-editor-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.kb-editor-content img.ProseMirror-selectednode {
+  border-radius: 4px;
+  outline: 2px solid hsl(var(--primary) / 0.6);
+  outline-offset: 2px;
+}
+
+/* ─── 粘贴图片提示条（缺陷 #15：超限/解码失败时的轻提示）────────────────
+   由 paste-image.ts 动态创建在 view.dom.parentElement 内，2.6 秒后自动移除。
+   定位用 fixed：不改 .kb-editor 既有布局（.kb-editor 未设 position），
+   知识库详情页与便签窗两种容器都能稳定贴在视口底部居中。
+   配色全部走 index.css 的 HSL 三元组 token（--foreground / --background / --border）。 */
+
+.kb-editor-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 90;
+  max-width: min(90vw, 420px);
+  padding: 6px 14px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--foreground) / 0.92);
+  color: hsl(var(--background));
+  font-family: "Noto Sans SC", system-ui, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: center;
+  box-shadow: 0 8px 24px -10px hsl(var(--foreground) / 0.35);
+  pointer-events: none;
+  user-select: none;
+  animation: kb-editor-toast-in 160ms ease-out;
+}
+
+@keyframes kb-editor-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}

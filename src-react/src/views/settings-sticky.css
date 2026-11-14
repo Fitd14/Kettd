@@ -1,0 +1,40 @@
+/* 设置页 · 便签 CRUD 区（批次 3：关闭 = 隐藏，列表含隐藏项）
+   只补列表布局与徽标配色；按钮/徽标/文字沿用 app.css 既有类（.btn / .badge / .tiny）。 */
+
+.sticky-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sticky-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* 标题可收缩；超长省略，按钮不被挤掉 */
+.sticky-row-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: hsl(var(--foreground));
+}
+
+/* 隐藏项标题淡化，与「当前打开」区分 */
+.sticky-row-title.is-hidden {
+  color: hsl(var(--muted-foreground));
+}
+
+/* 已隐藏徽标：琥珀提示色（pri-med token，暗色跟随主题） */
+.sticky-row .badge.sticky-badge-hidden {
+  color: hsl(var(--pri-med));
+  border-color: hsl(var(--pri-med) / 0.45);
+}

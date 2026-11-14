@@ -1,7 +1,7 @@
 //! 存储后端端口（ADR-0002）。`data_dir()` 硬编码 `%APPDATA%` 曾让核心逻辑离线不可测；
 //! 现在 IO 细节全部收进实现，`Store` 只面对字节串与备份语义。
 
-use crate::models::BackupInfo;
+use crate::models::{BackupInfo, KbBackupInfo};
 
 /// data.json 的物理读写端口。**只搬字节，不做任何 JSON/领域解析** ——
 /// 解析与校验是 Store（存储安全层）的职责，端口保持哑。
@@ -58,11 +58,27 @@ pub trait StoreBackend: Send {
 
   /// 原子写 notes.json
   fn write_notes(&self, json: &str) -> Result<(), String>;
+
+  /// 覆盖写前轮转知识库备份（notes.json.bak-4→5 … bak-1→2，当前→bak-1）。
+  /// 与 `rotate_backups` 对称；写 notes.json 前必须调用（D8）。
+  fn rotate_notes_backups(&self) -> Result<(), String>;
+
+  /// 知识库恢复页列表：notes.json.bak-1..N 的时间 / 大小 / 条目数 / 可读性
+  fn list_kb_backups(&self) -> Vec<KbBackupInfo>;
+
+  /// 读第 slot 份知识库备份原文（恢复用）
+  fn read_notes_backup(&self, slot: u32) -> Result<String, String>;
+
+  /// 读 folders.json（知识库文件夹，D6）；None = 不存在（视为空表，零迁移）
+  fn read_folders(&self) -> Result<Option<String>, String>;
+
+  /// 原子写 folders.json
+  fn write_folders(&self, json: &str) -> Result<(), String>;
 }
 
 #[cfg(test)]
 pub mod test_double {
-  use super::{BackupInfo, StoreBackend};
+  use super::{BackupInfo, KbBackupInfo, StoreBackend};
   use std::cell::RefCell;
 
   /// 内存后端：一个 `RefCell<String>` 就是整个"磁盘"。
@@ -72,6 +88,8 @@ pub mod test_double {
     pub archive: RefCell<Option<String>>,
     pub runtime: RefCell<Option<String>>,
     pub notes: RefCell<Option<String>>,
+    pub notes_backups: RefCell<Vec<String>>,
+    pub folders: RefCell<Option<String>>,
     pub pre_split: RefCell<Option<String>>,
     pub backups: RefCell<Vec<String>>,
     pub fail_writes: RefCell<bool>,
@@ -87,6 +105,8 @@ pub mod test_double {
         archive: RefCell::new(None),
         runtime: RefCell::new(None),
         notes: RefCell::new(None),
+        notes_backups: RefCell::new(Vec::new()),
+        folders: RefCell::new(None),
         pre_split: RefCell::new(None),
         backups: RefCell::new(Vec::new()),
         fail_writes: RefCell::new(false),
@@ -269,6 +289,67 @@ pub mod test_double {
         return Err("没有写入权限".to_string());
       }
       *self.notes.borrow_mut() = Some(json.to_string());
+      Ok(())
+    }
+
+    fn rotate_notes_backups(&self) -> Result<(), String> {
+      self.note("rotate_notes_backups");
+      if *self.fail_writes.borrow() {
+        return Err("备份轮转失败".to_string());
+      }
+      let mut slots = self.notes_backups.borrow_mut();
+      let current = self.notes.borrow().clone();
+      if let Some(previous) = current {
+        slots.insert(0, previous);
+      }
+      slots.truncate(5);
+      Ok(())
+    }
+
+    fn list_kb_backups(&self) -> Vec<KbBackupInfo> {
+      self
+        .notes_backups
+        .borrow()
+        .iter()
+        .enumerate()
+        .map(|(index, json)| {
+          let parsed = serde_json::from_str::<Vec<serde_json::Value>>(json);
+          KbBackupInfo {
+            slot: (index + 1).to_string(),
+            name: format!("notes.json.bak-{}", index + 1),
+            created_at: "测试时间".to_string(),
+            size_kb: (json.len() as u64 + 1023) / 1024,
+            note_count: parsed.as_ref().map(|v| v.len() as u32).unwrap_or(0),
+            readable: parsed.is_ok(),
+            error: parsed
+              .err()
+              .map(|_| "备份内容无法解析".to_string()),
+          }
+        })
+        .collect()
+    }
+
+    fn read_notes_backup(&self, slot: u32) -> Result<String, String> {
+      if slot == 0 {
+        return Err("备份编号从 1 开始".to_string());
+      }
+      let slots = self.notes_backups.borrow();
+      slots
+        .get(slot as usize - 1)
+        .cloned()
+        .ok_or_else(|| format!("备份 bak-{} 不存在", slot))
+    }
+
+    fn read_folders(&self) -> Result<Option<String>, String> {
+      Ok(self.folders.borrow().clone())
+    }
+
+    fn write_folders(&self, json: &str) -> Result<(), String> {
+      self.note("write_folders");
+      if *self.fail_writes.borrow() {
+        return Err("没有写入权限".to_string());
+      }
+      *self.folders.borrow_mut() = Some(json.to_string());
       Ok(())
     }
   }

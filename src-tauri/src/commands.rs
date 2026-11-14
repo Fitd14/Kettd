@@ -3,10 +3,10 @@
 use crate::export;
 use crate::models::{
   clocks_of, new_id, normalize_datetime, now_text,
-  Bootstrap, CATEGORIES, DataHealthV2, DEFAULT_HOTKEY, KbItem, KbPayload,
+  Bootstrap, CATEGORIES, DataHealthV2, DEFAULT_HOTKEY, KbBackupInfo, KbFolder, KbItem, KbPayload,
   HotkeyStatus, MigrationReport, Note, NotePayload, PRIORITIES, REMINDER_CAP_DEFAULT, Reminder, ReminderPayload,
-  RestoreResult, Settings, SettingsPayload, Source, StickyNote, StoreEvent, Subtask, Task, TaskPayload,
-  TRASH_RETENTION_DAYS, today,
+  RestoreKbResult, RestoreResult, Settings, SettingsPayload, Source, StickyNote, StoreEvent, Subtask, Task,
+  TaskPayload, TRASH_RETENTION_DAYS, today,
 };
 use crate::runtime;
 use crate::store::{Store, Undoable};
@@ -49,6 +49,7 @@ pub fn get_bootstrap(state: State<'_, Shared>) -> Result<Bootstrap, String> {
     health: store.health_view(),
     migration: store.runtime.migration.clone(),
     version: env!("CARGO_PKG_VERSION").to_string(),
+    todo_float_mini: store.runtime.todo_float_mini,
   })
 }
 
@@ -537,7 +538,10 @@ pub fn sticky_self(
   })
 }
 
-/// 更新便签：内容（≤500 字）/ 形态（缩小悬浮条 ↔ 展开纸片，联动窗口 set_size）。
+/// 更新便签：内容（≤500 字）/ 形态（缩小悬浮条 ↔ 展开纸片，联动窗口 set_size）/
+/// 可见性（fix-known-defects 4.2–4.4）。
+/// `visible = Some(false)` = 关闭窗（✕ 同款）：只置 false + 落盘 + 藏窗，不删数据、不清位置；
+/// `visible = Some(true)` = 重新打开：与 open_sticky 同款上限逻辑（可见合计 ≥5 拒绝）。
 #[tauri::command]
 pub fn update_sticky(
   app: AppHandle,
@@ -545,9 +549,24 @@ pub fn update_sticky(
   id: String,
   content: Option<String>,
   mini: Option<bool>,
+  visible: Option<bool>,
 ) -> Result<StickyNote, String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
+  let was_visible = store
+    .find_sticky(&id)
+    .map(|note| note.visible)
+    .ok_or_else(|| "找不到这张便签".to_string())?;
+  if visible == Some(true) && !was_visible {
+    // 重新打开：可见合计上限（隐藏项不计；升级首启的 6 张旧数据不强制隐藏，
+    // 但已达 5 张可见时不允许再把隐藏项开回来）
+    if crate::models::visible_sticky_count(&store.data.stickies) >= crate::models::STICKY_CAP {
+      return Err(format!(
+        "便签最多同时打开 {} 张，请先关闭一张",
+        crate::models::STICKY_CAP
+      ));
+    }
+  }
   {
     let note = store
       .find_sticky_mut(&id)
@@ -562,21 +581,61 @@ pub fn update_sticky(
     if let Some(m) = mini {
       note.mini = m;
     }
+    if let Some(v) = visible {
+      note.visible = v;
+    }
     note.updated_at = now_text();
   }
-  let note = store.find_sticky(&id).ok_or_else(|| "找不到这张便签".to_string())?;
+  let stored_pos = store.runtime.note_pos.get(&id).copied();
+  let note = store
+    .find_sticky(&id)
+    .ok_or_else(|| "找不到这张便签".to_string())?;
   store.save()?;
   // 窗口操作前放锁（v2.2 死锁修复的铁律）
   drop(store);
-  if let Some(m) = mini {
+
+  if visible == Some(true) {
+    // 打开同款逻辑：先确保窗口存在并显示；建窗失败回滚 visible=false
+    if let Err(error) = runtime::open_note_window(&app, &id, note.mini, stored_pos) {
+      if let Ok(mut store) = state.lock() {
+        if let Some(note) = store.find_sticky_mut(&id) {
+          note.visible = false;
+        }
+        let _ = store.save();
+      }
+      return Err(error);
+    }
+    if let Some(window) = app.get_window(&runtime::note_label(&id)) {
+      let _ = window.show();
+      let _ = window.set_focus();
+    }
+    // 同一次调用里既重开又改形态：窗口可能已存在，补一次 set_size
+    if let Some(m) = mini {
+      runtime::apply_note_shape(&app, &id, m)?;
+    }
+  } else if !note.visible {
+    // 关闭即隐藏：窗口只 hide，不销毁、不删数据、不清 note_pos
+    runtime::hide_note_window(&app, &id);
+    if was_visible {
+      crate::telemetry::record_str("sticky_hide", &[]);
+    }
+  } else if let Some(m) = mini {
     runtime::apply_note_shape(&app, &id, m)?;
   }
   emit(&app, StoreEvent::changed("stickies"));
   Ok(note)
 }
 
-/// 关闭即销毁（sticky-separation）：便签数据与窗口一并回收，无确认无撤销；
-/// 误关靠写前轮转备份兜底。设置页清单管理是另一处删除入口（那边有两步确认）。
+/// 重新打开一张便签（fix-known-defects 4.4，设置页便签列表入口）。
+/// 已可见：确保窗口显示并聚焦；已隐藏：校验可见合计上限 → visible=true 落盘 → 建窗，
+/// 建窗失败回滚 visible=false。async：WebView2 建窗可能挂起，不能占事件循环线程。
+#[tauri::command]
+pub async fn open_sticky(app: AppHandle, id: String) -> Result<StickyNote, String> {
+  runtime::open_note(&app, &id)
+}
+
+/// 显式删除（sticky-separation）：便签数据、窗口与位置记录一并回收，无撤销；
+/// 误删靠写前轮转备份兜底。普通关闭（✕/Alt+F4）已改为隐藏，不再走这里。
 #[tauri::command]
 pub fn delete_sticky(app: AppHandle, state: State<'_, Shared>, id: String) -> Result<(), String> {
   let mut store = lock(&state);
@@ -762,6 +821,17 @@ pub fn hide_todo_float(app: AppHandle) -> Result<(), String> {
   runtime::hide_todo_float(&app)
 }
 
+/// 待办悬浮窗最小化（fix-known-defects 4.7）：写 runtime.json 后切窗尺寸
+/// （最小化 380×40 / 完整 380×456）。sync：只 set_size，不建窗。
+#[tauri::command]
+pub fn set_todo_float_mini(
+  app: AppHandle,
+  _state: State<'_, Shared>,
+  mini: bool,
+) -> Result<(), String> {
+  runtime::set_todo_float_mini(&app, mini)
+}
+
 #[tauri::command]
 pub fn open_data_folder() -> Result<(), String> {
   runtime::open_in_folder(&crate::store::data_dir())
@@ -808,6 +878,7 @@ pub fn clear_migration_report(
 #[tauri::command]
 pub fn get_kb_items(state: State<'_, Shared>) -> Result<Vec<KbItem>, String> {
   let store = lock(&state);
+  store.ensure_kb_ok()?;
   Ok(store.kb.clone())
 }
 
@@ -819,6 +890,9 @@ pub fn add_kb_item(
 ) -> Result<KbItem, String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
+  store.ensure_kb_ok()?;
+  // 先校验 folderId（失败时内存没有半截新建条目）
+  let folder = store.folder_target(args.folder_id.as_deref())?;
   let item = crate::kb::create(
     &mut store.kb,
     new_id("k"),
@@ -827,6 +901,7 @@ pub fn add_kb_item(
     args.tags.unwrap_or_default(),
     &now_text(),
   )?;
+  let item = store.set_kb_item_folder(&item.id, folder)?;
   store.save_notes()?;
   drop(store);
   emit(&app, StoreEvent::changed("kb"));
@@ -842,6 +917,13 @@ pub fn update_kb_item(
 ) -> Result<KbItem, String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
+  store.ensure_kb_ok()?;
+  // None = 不改；先校验目标文件夹，避免 kb::update 已改内存后才发现 folderId 非法
+  let folder = if patch.folder_id.is_some() {
+    Some(store.folder_target(patch.folder_id.as_deref())?)
+  } else {
+    None
+  };
   let item = crate::kb::update(
     &mut store.kb,
     &id,
@@ -850,6 +932,10 @@ pub fn update_kb_item(
     patch.tags,
     &now_text(),
   )?;
+  let item = match folder {
+    Some(folder) => store.set_kb_item_folder(&id, folder)?,
+    None => item,
+  };
   store.save_notes()?;
   drop(store);
   emit(&app, StoreEvent::changed("kb"));
@@ -865,6 +951,7 @@ pub fn delete_kb_item(
 ) -> Result<(), String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
+  store.ensure_kb_ok()?;
   crate::kb::delete(&mut store.kb, &id)?;
   store.save_notes()?;
   emit(&app, StoreEvent::changed("kb"));
@@ -878,12 +965,94 @@ pub fn search_kb(
   query: Option<String>,
 ) -> Result<Vec<KbItem>, String> {
   let store = lock(&state);
+  store.ensure_kb_ok()?;
   let ids = crate::kb::search(&store.kb, query.as_deref().unwrap_or(""));
   Ok(ids
     .iter()
     .filter_map(|id| store.kb.iter().find(|item| &item.id == id))
     .cloned()
     .collect())
+}
+
+// ---------------------------------------------------------------- 知识库文件夹（D6）/ notes 备份恢复（D8）
+
+/// 文件夹全量（前端按 parentId 组树；顺序按后端先后，前端可再用 order 排序）
+#[tauri::command]
+pub fn list_folders(state: State<'_, Shared>) -> Result<Vec<KbFolder>, String> {
+  let store = lock(&state);
+  store.ensure_kb_ok()?;
+  Ok(store.list_folders())
+}
+
+#[tauri::command]
+pub fn create_folder(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  name: String,
+  parent_id: Option<String>,
+) -> Result<KbFolder, String> {
+  let mut store = lock(&state);
+  store.ensure_writable()?;
+  store.ensure_kb_ok()?;
+  let folder = store.create_folder(&name, parent_id.as_deref())?;
+  store.save_folders()?;
+  drop(store);
+  emit(&app, StoreEvent::changed("kb"));
+  Ok(folder)
+}
+
+#[tauri::command]
+pub fn rename_folder(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  id: String,
+  name: String,
+) -> Result<KbFolder, String> {
+  let mut store = lock(&state);
+  store.ensure_writable()?;
+  store.ensure_kb_ok()?;
+  let folder = store.rename_folder(&id, &name)?;
+  store.save_folders()?;
+  drop(store);
+  emit(&app, StoreEvent::changed("kb"));
+  Ok(folder)
+}
+
+#[tauri::command]
+pub fn delete_folder(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  id: String,
+) -> Result<(), String> {
+  let mut store = lock(&state);
+  store.ensure_writable()?;
+  store.ensure_kb_ok()?;
+  store.delete_folder(&id)?;
+  store.save_folders()?;
+  drop(store);
+  emit(&app, StoreEvent::changed("kb"));
+  Ok(())
+}
+
+/// notes.json.bak-1..5 备份列表（读取不做损坏封锁：恢复页必须能列出来）
+#[tauri::command]
+pub fn list_kb_backups(state: State<'_, Shared>) -> Result<Vec<KbBackupInfo>, String> {
+  let store = lock(&state);
+  Ok(store.list_kb_backups())
+}
+
+/// 从 notes 备份恢复；成功后返回恢复的条目数
+#[tauri::command]
+pub fn restore_kb_backup(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  slot: String,
+) -> Result<RestoreKbResult, String> {
+  let mut store = lock(&state);
+  let restored = store.restore_kb_backup(&slot)?;
+  drop(store);
+  emit(&app, StoreEvent::changed("kb"));
+  Ok(RestoreKbResult { restored })
 }
 
 /// 调试入口（不进 UI）：回滚 schema 拆分，重启后生效

@@ -1,0 +1,77 @@
+/* 设置页 · 备份与恢复区（fix-known-defects 批次 4：#7 文件备份与恢复 UI）
+   只补备份列表布局与不可读配色；按钮/徽标/文字沿用 app.css 既有类（.btn / .badge / .tiny）。
+   颜色一律走 hsl(var(--xxx)) token，暗色主题自动跟随。 */
+
+.backup-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+
+.backup-rows {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+
+.backup-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* 左侧 slot + 元信息可收缩；右侧徽标/错误/按钮不被挤掉 */
+.backup-row-main {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.backup-slot {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.backup-meta,
+.backup-err {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backup-meta {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+/* 不可读备份的错误文案：危险色小字，截断展示，全文走 title */
+.backup-err {
+  flex: 0 1 auto;
+  max-width: 180px;
+  font-size: 10px;
+  color: hsl(var(--destructive));
+}
+
+/* 不可读徽标：危险色（token 随主题走） */
+.backup-row .badge.backup-badge-bad {
+  color: hsl(var(--destructive));
+  border-color: hsl(var(--destructive) / 0.45);
+}
+
+/* 列表容器是 span（沿用设置页 set-row 的既有结构），把局部提示类改为块级，
+   避免行内排版挤在一行；作用域限定在 .backup-list 内，不影响其他视图。 */
+.backup-list > .inline-err,
+.backup-list > .inline-note,
+.backup-list > .tiny {
+  display: block;
+  margin-top: 0;
+}

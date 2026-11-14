@@ -57,14 +57,30 @@
   overflow: hidden;
 }
 
+/* 折叠态：窄轨（96px，落在 72–110px 区间）保留条目标题，不再 width:0 + display:none（#13） */
 .kb-layout.is-collapsed {
-  grid-template-columns: 0 1fr;
-  gap: 0;
+  grid-template-columns: 96px 1fr;
+  gap: 0.5rem;
 }
 
-.kb-layout.is-collapsed .kb-list {
-  display: none;
+.kb-layout.is-collapsed .kb-item-row {
+  padding: 0.5rem 0.4rem;
+  /* 窄轨仅剩单行标题（约 36px）：占位高度随折叠态收窄，避免滚动条按展开行高估算 */
+  contain-intrinsic-size: 2.25rem;
+  contain-intrinsic-size: auto 2.25rem;
+}
+
+.kb-layout.is-collapsed .kb-item-row .item-title {
+  font-size: 0.85em;
+  /* 窄轨内标题单行省略（#13）；展开态恢复原本的换行显示 */
   overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 折叠态隐藏条目标签与日期等非标题内容，只留标题省略号 */
+.kb-layout.is-collapsed .kb-item-row .item-meta {
+  display: none;
 }
 
 /* 折叠切换钮：详情面板左缘竖条 */
@@ -93,31 +109,30 @@
   background: var(--muted, hsl(var(--muted)));
 }
 
-/* 折叠后左缘的展开入口 */
-.kb-list-float-open {
-  align-self: flex-start;
-  margin-left: 1.5rem;
-  padding: 0.25rem 0.6rem;
-  border: 1px dashed var(--border, hsl(var(--muted-foreground) / 0.3));
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted-foreground, hsl(var(--muted-foreground)));
-  cursor: pointer;
-  font-size: 0.8em;
-}
-
-.kb-list-float-open:hover {
-  color: hsl(var(--foreground));
-  background: var(--muted, hsl(var(--muted)));
-}
-
 /* ─── 左清单 ───────────────────────────────────────────────────────────── */
 
 .kb-list {
-  overflow-y: auto;
+  /* 左列表列：文件夹树 + 条目列表两段；滚动交给内层 .kb-item-list（#4） */
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.3rem;
+}
+
+/* 加载中轻提示：绝对定位不占位，不清空/顶掉旧列表（#1 保存闪烁） */
+.kb-loading-hint {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.4rem;
+  z-index: 2;
+  padding: 0.05rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.72em;
+  color: var(--muted-foreground, hsl(var(--muted-foreground)));
+  background: hsl(var(--background) / 0.85);
+  pointer-events: none;
 }
 
 .kb-item-row {
@@ -134,6 +149,12 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  /* #2 列表性能（≤5000 条）：屏幕外行跳过布局/绘制，降低首屏布局与滚动成本。
+     两行退化写法：旧 WebView2（Chromium <117 不认 auto 关键字）保留定长占位，
+     新内核用 auto 记住真实渲染高度，减少滚动条抖动。 */
+  content-visibility: auto;
+  contain-intrinsic-size: 3.75rem; /* 展开态单行条目约 60px */
+  contain-intrinsic-size: auto 3.75rem;
 }
 
 .kb-item-row:hover {
@@ -350,4 +371,442 @@
   font-size: 0.8em;
   color: var(--muted-foreground, hsl(var(--muted-foreground)));
   flex-shrink: 0;
+}
+
+/* ─── #4 文件夹树（左栏）──────────────────────────────────────────────── */
+
+.kb-folder-tree {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: 0;
+  max-height: 46%;
+  overflow-y: auto;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid hsl(var(--muted-foreground) / 0.14);
+}
+
+.kb-folder-tree-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.15rem 0.2rem;
+  background: hsl(var(--background));
+}
+
+.kb-folder-tree-title {
+  flex: 1;
+  font-size: 0.72em;
+  letter-spacing: 0.06em;
+  color: hsl(var(--muted-foreground));
+}
+
+.kb-folder-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+}
+
+.kb-folder-add:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted));
+}
+
+.kb-folder-fixed,
+.kb-folder-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.kb-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: hsl(var(--foreground));
+  font: inherit;
+  font-size: 0.82em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kb-folder-fixed .kb-folder-row {
+  flex: none;
+  width: 100%;
+}
+
+.kb-folder-row:hover {
+  background: hsl(var(--muted-foreground) / 0.07);
+}
+
+.kb-folder-row.is-active {
+  background: hsl(var(--secondary));
+  color: hsl(var(--foreground));
+}
+
+.kb-folder-row.is-active .kb-folder-name {
+  font-weight: 500;
+}
+
+.kb-folder-row-wrap {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+  padding-right: 2px;
+  border-radius: 5px;
+}
+
+.kb-folder-row-wrap:hover {
+  background: hsl(var(--muted-foreground) / 0.07);
+}
+
+.kb-folder-row-wrap.is-active,
+.kb-folder-row-wrap.is-active:hover {
+  background: hsl(var(--secondary));
+}
+
+.kb-folder-row-wrap.is-confirming,
+.kb-folder-row-wrap.is-confirming:hover {
+  background: hsl(var(--destructive) / 0.07);
+}
+
+.kb-folder-row-wrap .kb-folder-row {
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+}
+
+.kb-folder-row-wrap .kb-folder-row:hover {
+  background: transparent;
+}
+
+.kb-folder-caret {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+}
+
+.kb-folder-caret:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted-foreground) / 0.1);
+}
+
+.kb-folder-caret.is-empty {
+  visibility: hidden;
+}
+
+.kb-folder-ico {
+  flex: none;
+  color: hsl(var(--muted-foreground));
+}
+
+.kb-folder-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.kb-folder-count {
+  flex: none;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground));
+}
+
+.kb-folder-actions {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.kb-folder-row-wrap:hover .kb-folder-actions,
+.kb-folder-row-wrap:focus-within .kb-folder-actions,
+.kb-folder-row-wrap.is-confirming .kb-folder-actions {
+  opacity: 1;
+}
+
+.kb-folder-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 20px;
+  padding: 0 3px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  font: inherit;
+  font-size: 0.72em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.kb-folder-action:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.kb-folder-action.is-danger {
+  color: hsl(var(--destructive));
+}
+
+.kb-folder-action.is-danger:hover {
+  background: hsl(var(--destructive) / 0.08);
+  color: hsl(var(--destructive));
+}
+
+.kb-folder-empty {
+  padding: 2px 6px;
+  font-size: 0.75em;
+  color: hsl(var(--muted-foreground));
+}
+
+.kb-folder-error {
+  margin: 2px 0 3px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 0.75em;
+  line-height: 1.45;
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.07);
+}
+
+/* 折叠态（96px 窄轨）：隐藏文件夹树，只保留条目窄条，布局不撑坏 */
+.kb-layout.is-collapsed .kb-folder-tree {
+  display: none;
+}
+
+/* ─── 条目列表（独立滚动区）────────────────────────────────────────────── */
+
+.kb-item-list {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* ─── #4 损坏 / 加载失败错误横幅（绝不渲染假空态）──────────────────────── */
+
+.kb-error-banner {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0.15rem 0.1rem 0.35rem;
+  padding: 0.5rem 0.55rem;
+  border: 1px solid hsl(var(--destructive) / 0.35);
+  border-radius: 6px;
+  background: hsl(var(--destructive) / 0.07);
+  color: hsl(var(--destructive));
+  font-size: 0.8em;
+  line-height: 1.45;
+}
+
+.kb-error-ico {
+  flex: none;
+  margin-top: 1px;
+}
+
+.kb-error-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.kb-error-retry {
+  flex: none;
+  align-self: center;
+  padding: 1px 7px;
+  border: 1px solid hsl(var(--destructive) / 0.4);
+  border-radius: 4px;
+  background: transparent;
+  color: hsl(var(--destructive));
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.kb-error-retry:hover {
+  background: hsl(var(--destructive) / 0.08);
+}
+
+/* ─── #14 打开数据目录按钮 ─────────────────────────────────────────────── */
+
+.kb-open-dir-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+/* ─── #4 详情「所属文件夹」下拉（沿用详情面板纸面变量，深色主题下同样可读）── */
+
+.kb-folder-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.kb-folder-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.kb-folder-select {
+  min-width: 120px;
+  max-width: 260px;
+  padding: 2px 6px;
+  border: 1px solid var(--line-warm);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink-1);
+  font: inherit;
+  font-size: 11.5px;
+  outline: none;
+  cursor: pointer;
+}
+
+.kb-folder-select:hover {
+  border-color: var(--ink-3);
+}
+
+.kb-folder-select:focus {
+  border-color: var(--seal);
+}
+
+.kb-folder-select:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.kb-folder-saving {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.kb-folder-field-err {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--seal);
+}
+
+/* ─── #4 新建 / 重命名文件夹弹窗（居中；交互同 LinkDialog）────────────── */
+
+.kb-folder-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: hsl(var(--foreground) / 0.18);
+}
+
+.kb-folder-dialog {
+  width: min(92vw, 380px);
+  max-width: 100%;
+  padding: 14px 16px 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  box-shadow: 0 18px 48px -18px hsl(var(--foreground) / 0.45);
+}
+
+.kb-folder-dialog-title {
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.kb-folder-dialog-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+.kb-folder-dialog-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid hsl(var(--input));
+  border-radius: 4px;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.kb-folder-dialog-input:focus {
+  border-color: hsl(var(--primary) / 0.6);
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.12);
+}
+
+.kb-folder-dialog-input:disabled {
+  opacity: 0.55;
+}
+
+.kb-folder-dialog-error {
+  min-height: 16px;
+  margin-top: 6px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: hsl(var(--destructive));
+}
+
+.kb-folder-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
 }

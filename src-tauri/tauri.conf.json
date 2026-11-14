@@ -65,39 +65,6 @@
     "updater": {
       "active": false
     },
-    "windows": [
-      {
-        "label": "main",
-        "title": "Kettd",
-        "width": 1100,
-        "height": 720,
-        "minWidth": 1024,
-        "minHeight": 640,
-        "resizable": true,
-        "fullscreen": false,
-        "decorations": false,
-        "visible": false,
-        "center": true,
-        "url": "index.html"
-      },
-      {
-        "label": "capture",
-        "title": "快速记录",
-        "width": 560,
-        "height": 46,
-        "resizable": false,
-        "maximizable": false,
-        "minimizable": false,
-        "closable": false,
-        "fullscreen": false,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "visible": false,
-        "center": true,
-        "url": "capture.html"
-      }
-    ]
+    "windows": []
   }
 }

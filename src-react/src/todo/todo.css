@@ -5,3 +5,71 @@
   text-decoration: line-through;
   text-decoration-color: color-mix(in srgb, var(--sticky-ink) 35%, transparent);
 }
+
+/* ─── 待办悬浮窗 · 迷你条（380×40，对应 TodoFloatWindow 迷你态）──────────
+   与 sticky.css 的 .sticky-note.is-mini 同视觉：40px 单行 =
+   拖动抓手 + 摘要 + 展开（文字钮）/隐藏（图标钮）。
+   注意：todo 窗 bundle 只加载 index.css + sticky/sticky.css + todo/todo.css，
+   本区块必须放在 todo.css 才生效（放 app.css 只有主窗加载，待办窗不生效）。 */
+.todo-mini {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 40px;
+  min-height: 0;
+  padding: 0 6px;
+  border-radius: 10px;
+  color: hsl(var(--foreground));
+}
+
+.todo-mini-text {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  line-height: 30px;
+  padding: 0 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  text-align: left;
+  color: hsl(var(--muted-foreground));
+  background: transparent;
+  border: 0;
+}
+
+.todo-mini-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: hsl(var(--muted-foreground));
+  background: transparent;
+  cursor: pointer;
+}
+
+.todo-mini-btn:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--foreground) / 0.08);
+}
+
+/* 迷你条拖动抓手（与 .sticky-mini-grip 对齐） */
+.todo-mini .sticky-mini-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 28px;
+  color: hsl(var(--muted-foreground));
+  cursor: grab;
+}
+
+.todo-mini .sticky-mini-grip:active {
+  cursor: grabbing;
+}

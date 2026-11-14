@@ -3,7 +3,7 @@
 - **状态**：当前架构（ADR-0001…0007 决策已全部落地）
 - **初版**：2026-09-05 · 最后更新：2026-11-08
 - **决策档案**：`adr/`（历史决策记录，含背景与备选方案）
-- **命令契约**：本文附录（55 命令，四方对账门禁）
+- **命令契约**：本文附录（63 命令，四方对账门禁）
 - **需求规格**：`requirements/总体需求.md`
 
 > 本文描述系统当前架构与不变红线。§1 现状审计为初版时的历史快照（vanilla 前端已退役、端口已引入），仅供溯源；§2 起为当前设计。
@@ -251,7 +251,7 @@ ADR-001 的 M0–M5 是**前端**视角。后端解耦不依赖它，但双轨�
   - 提醒循环时刻 `HH:MM`，兼容 v1 多时刻 `HH:MM/HH:MM`
   - 解析失败的旧值：置 `null` 并写入迁移报告（不猜测、不伪造）
 - 数据目录沿用 v1：`%APPDATA%/todo-list`（`data.json`）。
-- 写盘 = 读 → 内存改 → 序列化 `data.json.tmp` → `fs::rename` 原子替换；**每次覆盖写前**把当时的 `data.json` 轮转为 `data.json.bak-1`，旧档顺移，保留 5 份（`bak-1..bak-5`）。
+- 写盘 = 读 → 内存改 → 序列化 `data.json.tmp` → `fs::rename` 原子替换；**每次覆盖写前**把当时的 `data.json` 轮转为 `data.json.bak-1`，旧档顺移，保留 5 份（`bak-1..bak-5`）。知识库同理：`notes.json` 每次覆盖写前轮转 5 份（`notes.json.bak-1..bak-5`）；`notes.json` / `folders.json` 也走 `StoreBackend` 原子写。
 - 未从 corrupt 状态成功恢复前，**所有写命令一律返回 Err**（`数据文件已损坏，请先从备份恢复后再操作`），杜绝 v1 的「静默空库」。
 - `deletedAt` 非空 = 回收站；读取默认过滤，`get_tasks{includeDeleted:true}` 才带出。
 
@@ -362,6 +362,25 @@ interface Bootstrap {
 }
 
 interface RestoreResult { restored: number; health: DataHealthV2 }
+
+interface KbFolder {
+  id: string
+  name: string                     // trim 后非空，≤40 字
+  parentId: string | null          // null = 根文件夹
+  order: number                    // 同级升序；创建时 = 同级 max+1
+}
+
+interface KbBackupInfo {
+  slot: string                     // "1".."5"（对应 notes.json.bak-<slot>）
+  name: string                     // notes.json.bak-1
+  createdAt: string
+  sizeKb: number
+  noteCount: number
+  readable: boolean
+  error?: string                   // readable=false 时的中文原因
+}
+
+interface RestoreKbResult { restored: number }
 ```
 
 `AppData`（落盘结构，前端不必直接读，但备份文件就是这个形状）：
@@ -396,6 +415,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `set_settings` | `patch: Partial<Settings>` | `Settings` | 部分字段 MERGE；改任一热键（`captureHotkey`/`mainHotkey`/`stickyHotkey`/`todoHotkey`）会真实重绑热键，任一失败整次回滚（四槽位事务）并 Err「快捷键被占用，请用备用入口」；`todoFloatPinned` 即时同步悬浮窗 always_on_top；`stickyPaper` 校验四预设 |
 | `open_main_window` | — | `void` | 显示主窗并请求焦点 |
 | `hide_todo_float` | — | `void` | 隐藏待办悬浮窗（✕ 同款）：只藏窗，显隐状态落 runtime.json，重启恢复 |
+| `set_todo_float_mini` | `mini: bool` | `void` | 待办悬浮窗最小化：`true` → 380×40 单行条；`false` → 380×456 完整面板。持久化到 `runtime.json`，重启按此恢复；窗口不存在时只落盘不改窗 |
 | `open_data_folder` | — | `void` | 在文件管理器里打开 `%APPDATA%/todo-list`；失败 Err「打不开这个位置，请手动前往」 |
 | `register_capture_hotkey` | `combo` | `Settings` | 例 `Alt+Shift+A`；注册失败 → Err「快捷键被占用，请用备用入口」（保持旧值） |
 | `register_main_hotkey` | `combo` | `Settings` | 打开主界面全局热键；`combo` 空串 = 解绑（`mainHotkey` → `null`）；与其他槽位互斥、失败保持旧值 |
@@ -408,11 +428,17 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `export_weekly` | `week?: string`, `format?: 'md' \| 'csv'`, `dir?: string` | `string`（完整路径） | `week` = `current`（默认）/ `last` / `YYYY-Www`；文件名含 ISO 周（如 `周汇总-2026-W36.md`）；二次导出不覆盖（自动 `-2`/`-3`）；目标不可写 → Err「这个位置写不了，换个位置」 |
 | `get_backups` | — | `BackupInfo[]` | 含不可读备份（`readable:false` + 中文 error） |
 | `restore_backup` | `slot`（`"1".."5"`，也吃 `data.json.bak-3` 这种整名） | `RestoreResult` | 成功即解除 corrupt 封锁；损坏原件已留存为 `data.corrupt.*`，`data.v1.json` 永不删 |
-| `get_kb_items` | — | `KbItem[]` | 全量条目（frame H1b） |
-| `add_kb_item` | `args: { title, bodyMd?, tags? }` | `KbItem` | 标题非空；tags 去空白去重 |
-| `update_kb_item` | `id`, `patch: KbPayload` | `KbItem` | 未给字段不动；`updatedAt` 刷新 |
+| `get_kb_items` | — | `KbItem[]` | 全量条目（frame H1b）；条目含 `folderId`（`null` = 未分类）；知识库损坏时 Err「知识库数据损坏，可在设置 → 备份与恢复中恢复」 |
+| `add_kb_item` | `args: { title, bodyMd?, tags?, folderId? }` | `KbItem` | 标题非空；tags 去空白去重；`folderId` 非空时必须是已存在的文件夹（`""` = 未分类） |
+| `update_kb_item` | `id`, `patch: KbPayload` | `KbItem` | 未给字段不动；`updatedAt` 刷新；`folderId` 三态：缺省 = 不改、`""` = 移到未分类、id = 归入该文件夹（须存在，否则 Err「文件夹不存在」） |
 | `delete_kb_item` | `id` | `void` | 任务侧 kbRefs 会悬空，前端展示「已失效」 |
-| `search_kb` | `query?` | `KbItem[]` | 内存扫：title×2/tag×1.5/body×1 相关度排序；空查询=全量按更新时间倒序 |
+| `search_kb` | `query?` | `KbItem[]` | 内存扫：title×2/tag×1.5/body×1 相关度排序；空查询=全量按更新时间倒序；知识库损坏时 Err（错误态不渲染假空结果） |
+| `list_folders` | — | `KbFolder[]` | 扁平列表（`parentId` = null 为根，`order` 同级升序）；损坏时同知识库错误文案 |
+| `create_folder` | `name`, `parentId?` | `KbFolder` | 名称 trim 后非空且 ≤40 字；父必须存在，否则 Err「文件夹不存在」；`order` = 同级 max+1 |
+| `rename_folder` | `id`, `name` | `KbFolder` | 名称校验同创建；不存在 Err「文件夹不存在」 |
+| `delete_folder` | `id` | `void` | 仅空文件夹可删（无条目 `folderId` 引用、无子文件夹），否则 Err「文件夹非空，请先移走其中的条目或子文件夹」；不存在 Err「文件夹不存在」 |
+| `list_kb_backups` | — | `KbBackupInfo[]` | 读 `notes.json.bak-1..5`；含不可读项（`readable:false` + 中文 error）；知识库损坏时恢复页也可用 |
+| `restore_kb_backup` | `slot`（`"1".."5"`） | `RestoreKbResult` | 备份 JSON 解析成功才恢复；恢复前把当前 `notes.json` 轮转进 `bak-1`；成功解除知识库损坏态 |
 | `rollback_schema_split` | — | `String` | **调试入口，不进 UI**（ADR-0005）：把 `data.pre-split.json` 复制回 `data.json` 并删 `runtime.json`，重启生效。回滚窗口期内新增提醒的 fired 键会丢 → 后果仅是可能重复响一次 |
 | `get_data_health` | — | `DataHealthV2` | 损坏恢复页数据源 |
 | `get_hotkey_status` | — | `HotkeyStatus` | 四个全局热键的**实际注册**快照 `{capture, main, sticky, todo}`（未绑上/已解绑为 `null`）；设置页与 `settings.*Hotkey` 比对，不一致即标「未生效」（qa-1）。运行期状态，不落盘 |
@@ -420,10 +446,11 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | `reorder_tasks` | `idsInOrder: string[]` | `usize`（实际移动条数） | 同列表手动排序（便签规格 §12.2）：按传入顺序整表落 `sort_order`（v3/M3）；`sortOrder` 缺省 = 未手动排过，展示按 `createdAt` 兜底 |
 | `clear_events` | — | `void` | 清空本地统计（planned-settings B.5★）：重置 `events.jsonl` 为空并记一条 `events_cleared`；写线程在途一批（≤64 条）可随后落盘，属可接受残留 |
 | `track_event` | `name: string`, `props?: string`（JSON 文本） | `void` | 通用前端埋点通道（metric 蓝图：weekly_open 等 UI 侧事件）；仅落本机 `events.jsonl` 绝不出网；name ≤48 字符非空，props 需为合法 JSON |
-| `create_sticky` | `kbRef?` | `StickyNote` | 新建便签（Phase 2 分池）：`kbRef` 缺省=自由便签（≤500 字，上限 6 张）；`kbRef`=知识便签——KB 条目的桌面视口（正文存 KB 不落便签，上限 4 张），Err「知识便签已达上限（4张）」。窗口按 ADR-0007 动态创建（label `note:<id>`），常驻置顶；位置从最近一张便签窗级联 +32px；记 `sticky_create`。与全局热键「新建便签」共用 `runtime::create_note`（热键恒建自由便签） |
-| `list_stickies` | — | `StickyNote[]` | 便签清单；设置页清单数据源。`content` **始终序列化**（含空串）——曾因 skip_serializing_if 吞空串导致前端 `content` undefined、设置页渲染 `.split` 抛 TypeError 整树卸载黑屏（真机复盘 2026-09-09），前端类型契约 `content: string` 必填 |
-| `update_sticky` | `id`, `content?`, `mini?` | `StickyNote` | 内容（≤500 字）/ 形态（`mini:true` → 窗口 380×40 置顶悬浮文本条；`mini:false` → 380×456 纸片并聚焦）；形态持久化，重启按原样恢复 |
-| `delete_sticky` | `id` | `void` | 关闭即销毁（一次性工具语义）：便签数据、窗口与 `note_pos` 记录一并回收，无确认无撤销，误关靠写前轮转备份兜底；记 `sticky_delete`。便签窗的 Alt+F4 走同一语义（`CloseRequested` 分支） |
+| `create_sticky` | `kbRef?` | `StickyNote` | 新建便签（自由/知识同池）：`kbRef` 缺省=自由便签（≤500 字）；`kbRef`=知识便签——KB 条目的桌面视口（正文存 KB 不落便签）。可见便签合计上限 5（自由+知识同池，隐藏不计），达上限 Err「便签最多同时打开 5 张，请先关闭一张」。窗口按 ADR-0007 动态创建（label `note:<id>`），常驻置顶；位置从最近一张便签窗级联 +32px；记 `sticky_create`。与全局热键「新建便签」共用 `runtime::create_note`（热键恒建自由便签） |
+| `list_stickies` | — | `StickyNote[]` | 便签清单（含已隐藏项，`visible` 区分；`visible=true` 时该字段被 serde 省略、不落盘更不迁移，前端判可见必须 `visible !== false`）；设置页清单数据源。`content` **始终序列化**（含空串）——曾因 skip_serializing_if 吞空串导致前端 `content` undefined、设置页渲染 `.split` 抛 TypeError 整树卸载黑屏（真机复盘 2026-09-09），前端类型契约 `content: string` 必填 |
+| `update_sticky` | `id`, `content?`, `mini?`, `visible?` | `StickyNote` | 内容（≤500 字）/ 形态（`mini:true` → 窗口 380×40 置顶悬浮文本条；`mini:false` → 380×456 纸片并聚焦）/ 可见性。`visible:false` = 关闭即隐藏：只置 false 并藏窗，数据与 `note_pos` 保留（记 `sticky_hide`）；`visible:true` = 重新打开，受「可见合计 5」约束，建窗失败回滚 `visible=false`。形态持久化，重启按原样恢复 |
+| `open_sticky` | `id` | `StickyNote` | 重新打开已隐藏便签（async）：已可见则唤起并聚焦；隐藏则校验可见合计 ≤5 → 置 `visible=true` 落盘 → 建窗，建窗失败回滚 `visible=false`；Err「找不到这张便签」/ 上限文案同 `create_sticky` |
+| `delete_sticky` | `id` | `void` | **显式删除**（设置页两步确认）：便签数据、窗口与 `note_pos` 记录一并回收，无确认无撤销，误删靠写前轮转备份兜底；记 `sticky_delete`。普通关闭（✕ / Alt+F4）已改为隐藏，不再删数据 |
 | `sticky_self` | — | `{ id, content, mini, kbRef? }` | 便签窗启动自述：label（`note:<id>`）→ 身份与形态；`kbRef` 非空 = 知识便签（视口指向 KB 条目，skip_if_none） |
 | `get_form_hints` | — | `{ categories, priorities, sources, repeat, defaultHotkey, defaultCap, retentionDays, today }` | 表单常量，避免前端硬编码 |
 
@@ -465,13 +492,14 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 ## 5. 托盘与窗口（配置侧）
 
 - `tauri.conf.json`：`productName: "待办列表"`；两窗 `main`(1100×720, min 1024×640, visible:false, **decorations:false** —— 自定义标题栏，见下) / `capture`(560×46 首帧值——挂载后由 `capture_resize` 按内容校正, decorations:false, transparent:true, alwaysOnTop:true, skipTaskbar:true, visible:false)；`allowlist` 沿用 v1 的 `api-all`。
-  - **float 窗已退役**（sticky-separation，多便签规格 H1b 落地）：所有便签都是动态 `note:<id>` 窗（`runtime::note_builder` 建，380×456 展开 / 380×40 缩小悬浮条，常驻置顶），启动按 store 遍历恢复。
+  - **float 窗已退役**（sticky-separation，多便签规格 H1b 落地）：所有便签都是动态 `note:<id>` 窗（`runtime::note_builder` 建，380×456 展开 / 380×40 缩小悬浮条，常驻置顶），启动只恢复 `visible=true` 的便签（关闭=隐藏的窗口不再抢桌面；升级首启旧数据缺 `visible` 字段按默认 true 处理，已有 6 张旧便签仍照常恢复，不强制隐藏，仅挡新建与重开）。
   - main 窗取向为「**标题栏归前端令牌管**」（方案B）：原生栏颜色只跟系统走、喂不进应用暖黑令牌（暗色下「系统黑 ≠ 应用暖黑」色差的根因），故 `decorations:false`，栏由 React `title-bar` 组件绘制（`.titlebar`，拖动/双击最大化走 `data-tauri-drag-region`，─ □ ⧉ × 走 `__TAURI__.window.appWindow`，均经 `api.ts` 惰性取桥）。窗口框架侧由 `runtime::watch_main_window_frame` 接管：还原态 DWM 圆角（`DWMWCP_ROUND`）、最大化态收直角（`DWMWCP_DONOTROUND`，最大化还圆角会在屏幕四角露缺口）。已知取舍：Win11 hover 最大化钮的贴齐布局菜单随原生栏一起消失（tauri v1 无 WCO）；无边框窗边缘缩放由 tao 命中测试承担，手感需真机验证。
   - capture 窗取向为「**窗口即硫酸纸条**」：透明窗 + OS 磨砂材质（`apply_blur` 暖纸 tint）+ DWM 圆角，CSS 只画反光描边与厚度（`--vellum-*` 令牌）。
   - 该窗实际由 `runtime::create_capture_window` 用 `WindowBuilder` 创建，`tauri.conf.json` 的声明必须与 `inner_size` 手工对齐（宽度另有 `runtime::CAPTURE_W` 常量供 `capture_resize` 共用）；`center_capture` 已改为读窗口实际 `outer_size` 居中，不再重复写死尺寸常量。
 - 托盘在代码里创建，`id = "main"`（v1 的 `tauri.systemTray` 配置项只吃 `iconPath`，没有 `id` 字段，v1 运行时的托盘菜单必须由代码构建）。
 - 托盘菜单（术语表：便签 / 提醒 / 周汇总；sticky-separation 后不再有「悬浮面板」与置顶勾选）：
   `打开主界面` · `快速记录`（等同 `open_capture_overlay`，前端也可监听 `capture-opened`）· 分隔 · `新建便签`（热键同款入口） / `显示全部便签` / `隐藏全部便签` · 分隔 · `管理提醒` / `本周汇总导出` / `打开数据文件夹` · 分隔 · `退出`。
+  - 便签托盘两项的语义：`显示全部便签` 只把 `visible=true` 的便签窗口恢复出来（不擅自把用户隐藏的便签改可见）；`隐藏全部便签` 把全部便签置 `visible=false` 并藏窗，数据与 `note_pos` 保留，之后可从设置页清单逐张 `open_sticky` 重开。
 
 ## 6. 错误文案表（前端可直接展示）
 
@@ -487,6 +515,8 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | 找不到对象 | 找不到这条待办，可能已经被删除 / 找不到这条提醒，可能已经被删除 / 找不到这个子任务 / 找不到这条备注 |
 | 撤销失效 | 没有可撤销的删除了 |
 | 空输入 | 标题不能为空 / 子任务名不能为空 / 备注内容不能为空 |
+| 便签数量超限 | 便签最多同时打开 5 张，请先关闭一张 |
+| 便签不存在 | 找不到这张便签 |
 
 ## 7. v1 → v2 迁移（首次加载懒迁移）
 
@@ -549,7 +579,7 @@ interface RestoreResult { restored: number; health: DataHealthV2 }
 | 项 | 手段 | 结果 |
 | --- | --- | --- |
 | 类型检查与链接 | `cargo check` / `cargo build`（debug） | **0 error**；7 条 `dead_code` warning（`models.rs:21/187/243/385/573/748`、`store.rs:688`） |
-| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **55 ↔ 55 ↔ 55**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + 方案B `capture_resize` + sticky-separation 4 项 + todo-float `register_todo_hotkey` / `hide_todo_float`；Phase 3 AI 4 命令于 2026-11-07 随混合检索放弃整体摘除） |
+| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **63 ↔ 63 ↔ 63**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + 方案B `capture_resize` + sticky-separation 4 项 + todo-float `register_todo_hotkey` / `hide_todo_float` + fix-known-defects 迭代 `open_sticky` / `set_todo_float_mini`（便签关闭改隐藏·可见合计上限 5·待办最小化）+ 批次4 知识库文件夹 `list_folders` / `create_folder` / `rename_folder` / `delete_folder` + 知识库备份 `list_kb_backups` / `restore_kb_backup`；Phase 3 AI 4 命令于 2026-11-07 随混合检索放弃整体摘除） |
 | 存储安全自查 | 人工 | 无 `unwrap_or_default()` 式空库回退；无 `toISOString`/`Utc`/`naive_utc` 混入；`tauri.conf.json` JSON 合法 |
 | 提醒编辑器逻辑 | `node test/rem-editor.test.mjs`（从 `index.html` 抽真实函数源码断言，17 项） | 全绿：多时刻 round-trip 四形态、模式收敛、渲染契约、aria-label、文案不含手输格式 |
 | 时间契约 + v1 迁移十规则 | `cargo test`（**30 项** = `models` 14 时间契约 + `store` 16 迁移规则，纯内存 fixture，不碰数据目录） | 全绿。过程逼出 `parse_clock` 两处加固：带秒输入归零（否则永不命中整分 tick = 到点不响）、接受裸 `HH:MM:SS` 与单位数小时 |

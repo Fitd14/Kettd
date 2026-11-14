@@ -1,7 +1,7 @@
 //! 文件系统后端：data.json 的真实 IO（从 store.rs 的原语收编而来）。
 //! 写协议保持不变：tmp + rename 原子替换，覆盖前轮转 5 份备份（PRD 6.6）。
 
-use crate::models::BackupInfo;
+use crate::models::{BackupInfo, KbBackupInfo};
 use crate::ports::store_backend::StoreBackend;
 use chrono::{DateTime, Local};
 use std::fs;
@@ -13,6 +13,7 @@ pub const ARCHIVE_FILE: &str = "data.v1.json";
 pub const RUNTIME_FILE: &str = "runtime.json";
 pub const PRE_SPLIT_FILE: &str = "data.pre-split.json";
 pub const NOTES_FILE: &str = "notes.json";
+pub const FOLDERS_FILE: &str = "folders.json";
 
 /// v1 同款目录：Windows 下 `dirs::data_dir()` == `%APPDATA%`
 pub fn default_dir() -> PathBuf {
@@ -55,6 +56,15 @@ impl FsBackend {
 
   fn backup_path(&self, slot: usize) -> PathBuf {
     self.dir.join(format!("{}.bak-{}", DATA_FILE, slot))
+  }
+
+  /// 知识库备份：notes.json.bak-1..5（与 data.json 同一套轮转语义，D8）
+  fn notes_backup_path(&self, slot: usize) -> PathBuf {
+    self.dir.join(format!("{}.bak-{}", NOTES_FILE, slot))
+  }
+
+  fn folders_path(&self) -> PathBuf {
+    self.dir.join(FOLDERS_FILE)
   }
 
   fn runtime_path(&self) -> PathBuf {
@@ -287,6 +297,104 @@ impl StoreBackend for FsBackend {
 
   fn write_notes(&self, json: &str) -> Result<(), String> {
     let target = self.notes_path();
+    self.write_data_at(&target, json)
+  }
+
+  fn rotate_notes_backups(&self) -> Result<(), String> {
+    // bak-4 → bak-5 … bak-1 → bak-2，最后当前 notes.json → bak-1（与 rotate_backups 对称；
+    // Windows 上 rename 不覆盖已存在目标，必须先删）
+    for slot in (1..BACKUP_SLOTS).rev() {
+      let from = self.notes_backup_path(slot);
+      let to = self.notes_backup_path(slot + 1);
+      if from.exists() {
+        if to.exists() {
+          let _ = fs::remove_file(&to);
+        }
+        if let Err(error) = fs::rename(&from, &to) {
+          return Err(file_error("备份轮转失败，本次没有保存", &error));
+        }
+      }
+    }
+    let current = self.notes_path();
+    if current.exists() {
+      let first = self.notes_backup_path(1);
+      if first.exists() {
+        let _ = fs::remove_file(&first);
+      }
+      if let Err(error) = fs::copy(&current, &first) {
+        return Err(file_error("备份轮转失败，本次没有保存", &error));
+      }
+    }
+    Ok(())
+  }
+
+  fn list_kb_backups(&self) -> Vec<KbBackupInfo> {
+    let mut out: Vec<KbBackupInfo> = Vec::new();
+    for slot in 1..=BACKUP_SLOTS {
+      let path = self.notes_backup_path(slot);
+      if !path.exists() {
+        continue;
+      }
+      let meta = fs::metadata(&path).ok();
+      let created_at = meta
+        .as_ref()
+        .and_then(|value| value.modified().ok())
+        .map(|time| {
+          let local: DateTime<Local> = time.into();
+          local.format("%Y-%m-%dT%H:%M").to_string()
+        })
+        .unwrap_or_else(|| "未知时间".to_string());
+      let size_kb = meta.map(|value| (value.len() + 1023) / 1024).unwrap_or(0);
+      let parsed = Self::read_text(&path).and_then(|text| {
+        serde_json::from_str::<serde_json::Value>(&text).map_err(|_| "备份内容无法解析".to_string())
+      });
+      match parsed {
+        Ok(raw) => {
+          let note_count = raw
+            .as_array()
+            .map(|items| items.len() as u32)
+            .unwrap_or(0);
+          out.push(KbBackupInfo {
+            slot: slot.to_string(),
+            name: format!("{}.bak-{}", NOTES_FILE, slot),
+            created_at,
+            size_kb,
+            note_count,
+            readable: true,
+            error: None,
+          });
+        }
+        Err(error) => out.push(KbBackupInfo {
+          slot: slot.to_string(),
+          name: format!("{}.bak-{}", NOTES_FILE, slot),
+          created_at,
+          size_kb,
+          note_count: 0,
+          readable: false,
+          error: Some(error),
+        }),
+      }
+    }
+    out
+  }
+
+  fn read_notes_backup(&self, slot: u32) -> Result<String, String> {
+    if slot == 0 || slot as usize > BACKUP_SLOTS {
+      return Err(format!("备份编号 {} 不在 1..={} 内", slot, BACKUP_SLOTS));
+    }
+    Self::read_text(&self.notes_backup_path(slot as usize))
+  }
+
+  fn read_folders(&self) -> Result<Option<String>, String> {
+    let path = self.folders_path();
+    if !path.exists() {
+      return Ok(None);
+    }
+    Self::read_text(&path).map(Some)
+  }
+
+  fn write_folders(&self, json: &str) -> Result<(), String> {
+    let target = self.folders_path();
     self.write_data_at(&target, json)
   }
 }

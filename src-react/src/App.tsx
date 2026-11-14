@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  BookOpen,
+  CalendarDays,
+  Inbox,
+  PanelLeftClose,
+  PanelLeftOpen,
+  RotateCcw,
+  Settings,
+  Sun,
+  type LucideIcon,
+} from 'lucide-react'
+import {
   applyTheme,
   getBootstrap,
   onEvent,
@@ -19,13 +30,13 @@ import { SettingsView } from '@/views/SettingsView'
 import './styles/app.css'
 
 const ROUTES = [
-  { hash: '#/today', label: '今天' },
-  { hash: '#/inbox', label: '收件箱' },
-  { hash: '#/planned', label: '计划' },
-  { hash: '#/review', label: '回顾' },
-  { hash: '#/kb', label: '知识库' },
-  { hash: '#/settings', label: '设置' },
-] as const
+  { hash: '#/today', label: '今天', icon: Sun },
+  { hash: '#/inbox', label: '收件箱', icon: Inbox },
+  { hash: '#/planned', label: '计划', icon: CalendarDays },
+  { hash: '#/review', label: '回顾', icon: RotateCcw },
+  { hash: '#/kb', label: '知识库', icon: BookOpen },
+  { hash: '#/settings', label: '设置', icon: Settings },
+] as const satisfies ReadonlyArray<{ hash: string; label: string; icon: LucideIcon }>
 
 type Route = (typeof ROUTES)[number]['hash']
 
@@ -43,7 +54,18 @@ export default function App() {
   const [route, setRoute] = useState<Route>(routeFromHash)
   const [boot, setBoot] = useState<Bootstrap | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // 主侧栏折叠（#13）：localStorage 持久化，重启保持
+  const [sideCollapsed, setSideCollapsed] = useState(
+    () => localStorage.getItem('shell.sideCollapsed') === '1',
+  )
   const undo = useUndoToast()
+
+  const toggleSide = useCallback(() => {
+    setSideCollapsed((prev) => {
+      localStorage.setItem('shell.sideCollapsed', prev ? '0' : '1')
+      return !prev
+    })
+  }, [])
 
   const refresh = useCallback(async () => {
     const r = await getBootstrap()
@@ -96,19 +118,38 @@ export default function App() {
     <div className="app-frame">
       <TitleBar />
       <div className="shell">
-        <nav className="shell-side" aria-label="视图">
-          <div className="brand">Kettd</div>
-          {ROUTES.map((r) => (
-            <button
-              key={r.hash}
-              className={`side-item${route === r.hash ? ' on' : ''}`}
-              title={r.label}
-              onClick={() => { window.location.hash = r.hash; setRoute(r.hash) }}
-            >
-              <span className="label">{r.label}</span>
-              {counts[r.hash] ? <span className="count">{counts[r.hash]}</span> : null}
-            </button>
-          ))}
+        <nav
+          className={`shell-side${sideCollapsed ? ' is-collapsed' : ''}`}
+          aria-label="视图"
+        >
+          <div className="brand" title="Kettd">{sideCollapsed ? 'K' : 'Kettd'}</div>
+          {ROUTES.map((r) => {
+            const Icon = r.icon
+            return (
+              <button
+                key={r.hash}
+                className={`side-item${route === r.hash ? ' on' : ''}`}
+                title={r.label}
+                onClick={() => { window.location.hash = r.hash; setRoute(r.hash) }}
+              >
+                <Icon className="side-icon" size={16} aria-hidden="true" />
+                <span className="label">{r.label}</span>
+                {counts[r.hash] ? <span className="count">{counts[r.hash]}</span> : null}
+              </button>
+            )
+          })}
+          <button
+            className="side-item side-toggle"
+            onClick={toggleSide}
+            title={sideCollapsed ? '展开侧栏' : '收起侧栏'}
+            aria-label={sideCollapsed ? '展开侧栏' : '收起侧栏'}
+            aria-expanded={!sideCollapsed}
+          >
+            {sideCollapsed
+              ? <PanelLeftOpen className="side-icon" size={16} aria-hidden="true" />
+              : <PanelLeftClose className="side-icon" size={16} aria-hidden="true" />}
+            <span className="label">{sideCollapsed ? '展开' : '收起'}</span>
+          </button>
         </nav>
         <main className="shell-main">
           {error && (

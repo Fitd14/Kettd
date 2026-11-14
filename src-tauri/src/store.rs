@@ -11,7 +11,8 @@ use crate::infra::fs_store::{default_dir, FsBackend, ARCHIVE_FILE};
 use crate::models::{
   carry_days, clocks_of, fmt_day, fmt_dt, new_id, normalize_date_text, normalize_datetime, now_text, today,
   patch_datetime, patch_text, parse_wall, to_local, AppData, BackupInfo, CATEGORIES,
-  DataHealthV2, KbItem, MigrationIssue, MigrationReport, Note, PRIORITIES, Reminder, ReminderPayload,
+  DataHealthV2, KbBackupInfo, KbFolder, KbItem, MigrationIssue, MigrationReport, Note, PRIORITIES, Reminder,
+  ReminderPayload,
   RuntimeState,
   Repeat, Settings, SettingsPayload, Source, STICKY_PAPERS, Subtask, Task, TaskPayload,
   TRASH_RETENTION_DAYS,
@@ -26,6 +27,13 @@ pub use crate::infra::fs_store::BACKUP_SLOTS;
 pub const HEALTH_OK: &str = "ok";
 pub const HEALTH_CORRUPT: &str = "corrupt";
 pub const HEALTH_WRITE_FAILED: &str = "writeFailed";
+
+/// 知识库损坏时的可恢复错误文案（D8）：notes.json / folders.json 解析失败不再静默空库，
+/// 前端据此引导「设置 → 备份与恢复」，绝不渲染假空态。
+pub const KB_CORRUPT_MESSAGE: &str = "知识库数据损坏，可在设置 → 备份与恢复中恢复";
+
+/// 文件夹名称长度上限（按字符数，中文算 1 个）
+const FOLDER_NAME_MAX_CHARS: usize = 40;
 
 /// v1 同款目录：Windows 下 `dirs::data_dir()` == `%APPDATA%`。
 /// 只给"打开数据文件夹 / 导出目录 / 埋点落盘"这类**知道路径**的场景用；
@@ -605,6 +613,11 @@ pub struct Store {
   pub runtime: RuntimeState,
   /// 知识条目（notes.json，frame H1b）：与 data.json 物理隔离
   pub kb: Vec<KbItem>,
+  /// 知识库文件夹（folders.json，D6）：条目只持 folderId 引用，零迁移
+  pub folders: Vec<KbFolder>,
+  /// 知识库损坏错误态（D8）：None = 正常；Some(文案) = notes/folders 读或解析失败。
+  /// 不走 data.json 的 corrupt 通道（KB 可整体降级），但读取命令必须 Err 而非空库。
+  kb_error: Option<String>,
   pub health: String,
   pub corrupt_file: Option<String>,
   pub last_error: Option<String>,
@@ -620,6 +633,8 @@ impl Store {
       data: AppData::default(),
       runtime: RuntimeState::default(),
       kb: Vec::new(),
+      folders: Vec::new(),
+      kb_error: None,
       health: HEALTH_OK.to_string(),
       corrupt_file: None,
       last_error: None,
@@ -657,7 +672,11 @@ impl Store {
         // 上次迁移中途失败：从永久留档的 v1 原件重来
         let raw = store.backend.read_archive().and_then(|text| parse_value(&text));
         return match raw {
-          Ok(value) => store.from_v1(&value, true),
+          Ok(value) => {
+            let mut migrated = store.from_v1(&value, true);
+            migrated.load_kb();
+            migrated
+          }
           Err(error) => {
             store.health = HEALTH_CORRUPT.to_string();
             store.last_error = Some(error);
@@ -670,6 +689,8 @@ impl Store {
         store.last_error = Some(error);
         store.health = HEALTH_WRITE_FAILED.to_string();
       }
+      // 残留的 notes.json / folders.json 仍要加载（否则下一次 KB 写入会覆盖历史条目）
+      store.load_kb();
       return store;
     }
     let raw_text = match store
@@ -695,7 +716,9 @@ impl Store {
       }
     };
     if looks_like_v1(&raw) {
-      return store.from_v1(&raw, false);
+      let mut migrated = store.from_v1(&raw, false);
+      migrated.load_kb();
+      return migrated;
     }
 
     // 已存在的 runtime.json：读失败 → 静默重建（Option::None 通道），绝不传染 data.json
@@ -752,15 +775,8 @@ impl Store {
             store.health = HEALTH_WRITE_FAILED.to_string();
           }
         }
-        // 知识库：缺失/损坏 → 静默空库（KB 可整体降级，绝不传染用户数据）
-        store.kb = store
-          .backend
-          .read_notes()
-          .ok()
-          .flatten()
-          .and_then(|text| parse_value(&text).ok())
-          .and_then(|value| serde_json::from_value::<Vec<KbItem>>(value).ok())
-          .unwrap_or_default();
+        // 知识库：缺失/空文件 → 空库；读失败或 JSON 损坏 → 可恢复错误态（D8，绝不静默空库）
+        store.load_kb();
         store
       }
       Err(error) => {
@@ -772,6 +788,57 @@ impl Store {
         ));
         store
       }
+    }
+  }
+
+  /// 知识库加载（D8）：notes.json / folders.json 任一读失败或解析失败 → 置 kb_error，
+  /// 两个集合都清空（不展示半截数据），读取命令转「可恢复」错误；缺失 / 空文件 = 空库。
+  fn load_kb(&mut self) {
+    self.kb = Vec::new();
+    self.folders = Vec::new();
+    self.kb_error = None;
+    let notes_ok = self.reload_kb_items();
+    let folders_ok = self.reload_folders();
+    if !notes_ok || !folders_ok {
+      self.kb = Vec::new();
+      self.folders = Vec::new();
+      self.kb_error = Some(KB_CORRUPT_MESSAGE.to_string());
+    }
+  }
+
+  /// 读 notes.json 进内存；true = 正常（含文件缺失 / 空文件）
+  fn reload_kb_items(&mut self) -> bool {
+    match self.backend.read_notes() {
+      Ok(None) => true,
+      Ok(Some(text)) if text.trim().is_empty() => true,
+      Ok(Some(text)) => match parse_value(&text).and_then(|value| {
+        serde_json::from_value::<Vec<KbItem>>(value).map_err(|error| error.to_string())
+      }) {
+        Ok(items) => {
+          self.kb = items;
+          true
+        }
+        Err(_) => false,
+      },
+      Err(_) => false,
+    }
+  }
+
+  /// 读 folders.json 进内存；true = 正常（含文件缺失 / 空文件，视为空表，零迁移）
+  fn reload_folders(&mut self) -> bool {
+    match self.backend.read_folders() {
+      Ok(None) => true,
+      Ok(Some(text)) if text.trim().is_empty() => true,
+      Ok(Some(text)) => match parse_value(&text).and_then(|value| {
+        serde_json::from_value::<Vec<KbFolder>>(value).map_err(|error| error.to_string())
+      }) {
+        Ok(folders) => {
+          self.folders = folders;
+          true
+        }
+        Err(_) => false,
+      },
+      Err(_) => false,
     }
   }
 
@@ -847,6 +914,14 @@ impl Store {
       return Err(write_error(self.last_error.as_deref()));
     }
     Ok(())
+  }
+
+  /// 知识库不可用时拒绝读写（D8）：返回可恢复文案，绝不静默按空库继续。
+  pub fn ensure_kb_ok(&self) -> Result<(), String> {
+    match &self.kb_error {
+      Some(text) => Err(text.clone()),
+      None => Ok(()),
+    }
   }
 
   pub fn tasks(&self, include_deleted: bool) -> Vec<Task> {
@@ -961,17 +1036,28 @@ impl Store {
   }
 
   /// 只写运行态：窗口位置这类不改用户数据的高频写（runtime.json 不轮转）
-  /// 只写知识库（notes.json，原子写；v1 不轮转，H2 成熟化）
-  pub fn save_notes(&mut self) -> Result<(), String> {
-    self.ensure_writable()?;
-    let json = serde_json::to_string_pretty(&self.kb)
-      .map_err(|error| format!("知识条目序列化失败：{}", brief(&error.to_string())))?;
-    self.backend.write_notes(&json)
-  }
-
   pub fn save_runtime_only(&mut self) -> Result<(), String> {
     let runtime_json = self.serialized_runtime()?;
     self.backend.write_runtime(&runtime_json)
+  }
+
+  /// 只写知识库（notes.json，原子写；写前轮转 5 份备份，D8）
+  pub fn save_notes(&mut self) -> Result<(), String> {
+    self.ensure_writable()?;
+    self.ensure_kb_ok()?;
+    let json = serde_json::to_string_pretty(&self.kb)
+      .map_err(|error| format!("知识条目序列化失败：{}", brief(&error.to_string())))?;
+    self.backend.rotate_notes_backups()?;
+    self.backend.write_notes(&json)
+  }
+
+  /// 只写文件夹（folders.json，原子写；条目量小，不需要轮转）
+  pub fn save_folders(&mut self) -> Result<(), String> {
+    self.ensure_writable()?;
+    self.ensure_kb_ok()?;
+    let json = serde_json::to_string_pretty(&self.folders)
+      .map_err(|error| format!("文件夹序列化失败：{}", brief(&error.to_string())))?;
+    self.backend.write_folders(&json)
   }
 
   fn serialized_runtime(&self) -> Result<String, String> {
@@ -1024,6 +1110,163 @@ impl Store {
     // 损坏原件早已另存为 data.corrupt.*，这里覆盖写但不轮转
     self.write_in_place()?;
     Ok(self.tasks(true).into_iter().filter(|task| !task.in_trash()).count())
+  }
+
+  // ---------------------------------------------- 知识库：文件夹（D6）+ notes 备份恢复（D8）
+
+  pub fn list_folders(&self) -> Vec<KbFolder> {
+    self.folders.clone()
+  }
+
+  pub fn folder_exists(&self, id: &str) -> bool {
+    self.folders.iter().any(|folder| folder.id == id)
+  }
+
+  /// 三态 folderId 解析（KbPayload 语义）：None = 不改（返回 None 由调用方判）；
+  /// Some("") = 移到未分类；Some(id) = 校验存在后归到该文件夹。
+  pub fn folder_target(&self, raw: Option<&str>) -> Result<Option<String>, String> {
+    match raw {
+      None => Ok(None),
+      Some(text) if text.trim().is_empty() => Ok(None),
+      Some(id) => {
+        if self.folder_exists(id) {
+          Ok(Some(id.to_string()))
+        } else {
+          Err("文件夹不存在".to_string())
+        }
+      }
+    }
+  }
+
+  /// 给条目设置文件夹（三态校验由调用方先做；返回更新后的条目）
+  pub fn set_kb_item_folder(
+    &mut self,
+    id: &str,
+    folder_id: Option<String>,
+  ) -> Result<KbItem, String> {
+    let item = self
+      .kb
+      .iter_mut()
+      .find(|item| item.id == id)
+      .ok_or_else(|| "找不到这条资料，可能已经被删除".to_string())?;
+    item.folder_id = folder_id;
+    Ok(item.clone())
+  }
+
+  fn folder_name(name: &str) -> Result<String, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+      return Err("文件夹名称不能为空".to_string());
+    }
+    if trimmed.chars().count() > FOLDER_NAME_MAX_CHARS {
+      return Err("文件夹名称最多 40 个字".to_string());
+    }
+    Ok(trimmed.to_string())
+  }
+
+  pub fn create_folder(
+    &mut self,
+    name: &str,
+    parent_id: Option<&str>,
+  ) -> Result<KbFolder, String> {
+    let name = Self::folder_name(name)?;
+    // 空串父级按「根」处理（前端清空下拉框时会传 ""）
+    let parent = parent_id.filter(|id| !id.trim().is_empty());
+    if let Some(id) = parent {
+      if !self.folder_exists(id) {
+        return Err("文件夹不存在".to_string());
+      }
+    }
+    let order = self
+      .folders
+      .iter()
+      .filter(|folder| folder.parent_id.as_deref() == parent)
+      .map(|folder| folder.order)
+      .max()
+      .unwrap_or(-1)
+      + 1;
+    let folder = KbFolder {
+      id: new_id("f"),
+      name,
+      parent_id: parent.map(|id| id.to_string()),
+      order,
+    };
+    self.folders.push(folder.clone());
+    Ok(folder)
+  }
+
+  pub fn rename_folder(&mut self, id: &str, name: &str) -> Result<KbFolder, String> {
+    let name = Self::folder_name(name)?;
+    let folder = self
+      .folders
+      .iter_mut()
+      .find(|folder| folder.id == id)
+      .ok_or_else(|| "文件夹不存在".to_string())?;
+    folder.name = name;
+    Ok(folder.clone())
+  }
+
+  /// 删除空文件夹：仍有条目引用或有子文件夹时拒绝（D6 删空语义）
+  pub fn delete_folder(&mut self, id: &str) -> Result<(), String> {
+    if !self.folder_exists(id) {
+      return Err("文件夹不存在".to_string());
+    }
+    let has_children = self
+      .folders
+      .iter()
+      .any(|folder| folder.parent_id.as_deref() == Some(id));
+    let has_items = self
+      .kb
+      .iter()
+      .any(|item| item.folder_id.as_deref() == Some(id));
+    if has_children || has_items {
+      return Err("文件夹非空，请先移走其中的条目或子文件夹".to_string());
+    }
+    self.folders.retain(|folder| folder.id != id);
+    Ok(())
+  }
+
+  /// notes.json.bak-1..5 列表（恢复页）
+  pub fn list_kb_backups(&self) -> Vec<KbBackupInfo> {
+    self.backend.list_kb_backups()
+  }
+
+  /// 从第 slot 份 notes 备份恢复：先轮转当前 notes.json（留档刚恢复前的状态）再原子写。
+  /// 解析成功才动盘，失败返回可换一个备份的中文短句。
+  pub fn restore_kb_backup(&mut self, slot: &str) -> Result<usize, String> {
+    let digits: String = slot
+      .trim()
+      .chars()
+      .filter(|ch| ch.is_ascii_digit())
+      .collect();
+    let number: usize = digits
+      .parse()
+      .map_err(|_| "请指定 1 到 5 之间的备份编号".to_string())?;
+    if number == 0 || number > BACKUP_SLOTS {
+      return Err("备份只有 1 到 5 号，请重新选择".to_string());
+    }
+    let text = self
+      .backend
+      .read_notes_backup(number as u32)
+      .map_err(|_| "这个备份也读不了，换一个试试".to_string())?;
+    let restored = parse_value(&text)
+      .and_then(|value| {
+        serde_json::from_value::<Vec<KbItem>>(value).map_err(|error| error.to_string())
+      })
+      .map_err(|_| "这个备份无法还原成可用的知识库".to_string())?;
+    let json = serde_json::to_string_pretty(&restored)
+      .map_err(|error| format!("知识条目序列化失败：{}", brief(&error.to_string())))?;
+    self.backend.rotate_notes_backups()?;
+    self.backend.write_notes(&json)?;
+    let count = restored.len();
+    self.kb = restored;
+    self.kb_error = None;
+    // folders.json 独立于 notes：若它仍损坏，保持错误态（绝不静默空文件夹）
+    if !self.reload_folders() {
+      self.folders = Vec::new();
+      self.kb_error = Some(KB_CORRUPT_MESSAGE.to_string());
+    }
+    Ok(count)
   }
 
   /// 前端读过迁移报告后清掉，避免每次启动重复弹提示
@@ -1627,6 +1870,7 @@ pub fn task_key(id: &str, stamp: &str) -> String {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::models::KbPayload;
   use crate::ports::clock::test_double::FixedClock;
   use crate::ports::store_backend::test_double::InMemoryBackend;
   use chrono::TimeZone;
@@ -2093,6 +2337,297 @@ mod tests {
       vec![reminder_key("r-1", "2026-09-01T09:00")],
       "彻底清除后该任务的 fired 键必须回收"
     );
+  }
+
+  // ---- 批次 4：知识库文件夹（D6）+ notes.json 轮转恢复（D8） ----
+
+  fn kb_item(id: &str) -> KbItem {
+    KbItem {
+      id: id.to_string(),
+      title: id.to_string(),
+      ..Default::default()
+    }
+  }
+
+  /// 一份可正常加载的 v2 data.json（知识库测试只关心 notes/folders）
+  fn app_data_json() -> String {
+    serde_json::to_string(&json!({
+      "tasks": [],
+      "reminders": [],
+      "settings": { "theme": "float" }
+    }))
+    .unwrap()
+  }
+
+  fn fixed_clock() -> FixedClock {
+    FixedClock::at(Local.with_ymd_and_hms(2026, 9, 5, 9, 0, 0).unwrap())
+  }
+
+  #[test]
+  fn folder_crud_validates_names_parents_and_emptiness() {
+    let mut store = mem_store();
+    assert_eq!(
+      store.create_folder("   ", None).unwrap_err(),
+      "文件夹名称不能为空"
+    );
+    assert_eq!(
+      store.create_folder(&"字".repeat(41), None).unwrap_err(),
+      "文件夹名称最多 40 个字"
+    );
+    let root = store.create_folder(" 工作 ", None).unwrap();
+    assert_eq!(root.name, "工作", "名称 trim 后保存");
+    assert_eq!(root.parent_id, None);
+    assert_eq!(root.order, 0, "根目录首个 order = 0");
+    assert!(root.id.starts_with('f'), "id 沿用 new_id 生成风格");
+    assert_eq!(
+      store.create_folder(&"字".repeat(40), None).unwrap().order,
+      1,
+      "同级 order = max+1（40 字名合法）"
+    );
+    let second = store.create_folder("学习", None).unwrap();
+    assert_eq!(second.order, 2);
+    let via_empty_parent = store.create_folder("空父级当根", Some("")).unwrap();
+    assert_eq!(via_empty_parent.parent_id, None, "空串父级按根处理");
+    let child = store.create_folder("周报", Some(&root.id)).unwrap();
+    assert_eq!(child.parent_id.as_deref(), Some(root.id.as_str()));
+    assert_eq!(child.order, 0, "子级 order 独立从 0 开始");
+    assert_eq!(
+      store.create_folder("子项", Some("missing")).unwrap_err(),
+      "文件夹不存在"
+    );
+    let child2 = store.create_folder("子项2", Some(&second.id)).unwrap();
+    assert_eq!(child2.order, 0);
+
+    let renamed = store.rename_folder(&root.id, "  工作区 ").unwrap();
+    assert_eq!(renamed.name, "工作区");
+    assert_eq!(
+      store.rename_folder("missing", "x").unwrap_err(),
+      "文件夹不存在"
+    );
+    assert!(store.rename_folder(&root.id, "  ").is_err());
+
+    // 有子文件夹 → 拒绝删除
+    assert_eq!(
+      store.delete_folder(&root.id).unwrap_err(),
+      "文件夹非空，请先移走其中的条目或子文件夹"
+    );
+    // 有条目引用 → 拒绝删除
+    store.kb.push(kb_item("k1"));
+    store
+      .set_kb_item_folder("k1", Some(second.id.clone()))
+      .unwrap();
+    assert_eq!(
+      store.delete_folder(&second.id).unwrap_err(),
+      "文件夹非空，请先移走其中的条目或子文件夹"
+    );
+    // 移到未分类后，空文件夹可删
+    store.set_kb_item_folder("k1", None).unwrap();
+    store.delete_folder(&child2.id).unwrap();
+    store.delete_folder(&second.id).unwrap();
+    assert!(!store.folder_exists(&second.id));
+    assert_eq!(store.delete_folder("missing").unwrap_err(), "文件夹不存在");
+    // 删空子文件夹后父文件夹也可删
+    assert!(store.delete_folder(&child.id).is_ok());
+    assert!(store.delete_folder(&root.id).is_ok());
+  }
+
+  #[test]
+  fn kb_payload_folder_id_is_trivalent() {
+    let untouched: KbPayload = serde_json::from_value(json!({ "title": "t" })).unwrap();
+    assert_eq!(untouched.folder_id, None, "缺省 folderId = 不改文件夹");
+    let cleared: KbPayload = serde_json::from_value(json!({ "folderId": "" })).unwrap();
+    assert_eq!(cleared.folder_id.as_deref(), Some(""), "空串 = 移到未分类");
+    let moved: KbPayload = serde_json::from_value(json!({ "folderId": "f1" })).unwrap();
+    assert_eq!(moved.folder_id.as_deref(), Some("f1"));
+
+    let mut store = mem_store();
+    store.kb.push(kb_item("k1"));
+    let folder = store.create_folder("工作", None).unwrap();
+    assert_eq!(store.folder_target(None).unwrap(), None);
+    assert_eq!(
+      store.folder_target(Some("")).unwrap(),
+      None,
+      "Some(\"\") → 未分类（存 None）"
+    );
+    let target = store.folder_target(Some(&folder.id)).unwrap();
+    assert_eq!(target, Some(folder.id.clone()));
+    let item = store.set_kb_item_folder("k1", target).unwrap();
+    assert_eq!(item.folder_id.as_deref(), Some(folder.id.as_str()));
+    assert_eq!(
+      store.folder_target(Some("missing")).unwrap_err(),
+      "文件夹不存在"
+    );
+    assert_eq!(
+      store.set_kb_item_folder("missing", None).unwrap_err(),
+      "找不到这条资料，可能已经被删除"
+    );
+  }
+
+  #[test]
+  fn old_notes_without_folder_id_load_as_unclassified() {
+    let notes = json!([{
+      "id": "k1",
+      "title": "旧条目",
+      "bodyMd": "",
+      "tags": [],
+      "createdAt": "2026-09-01T09:00",
+      "updatedAt": "2026-09-01T09:00"
+    }]);
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some(serde_json::to_string(&notes).unwrap());
+    let store = Store::load_with(Box::new(backend), Box::new(fixed_clock()));
+    assert_eq!(store.kb.len(), 1, "旧 notes.json（无 folderId）仍能加载");
+    assert_eq!(store.kb[0].folder_id, None, "缺字段 → None（未分类）");
+    assert!(store.ensure_kb_ok().is_ok(), "旧数据不是损坏");
+    // 写回必须显式 null：前端靠 folderId === null 判未分类，不能省略字段
+    let value = serde_json::to_value(&store.kb[0]).unwrap();
+    assert!(
+      matches!(value.get("folderId"), Some(serde_json::Value::Null)),
+      "None 必须序列化为 folderId: null：{value}"
+    );
+  }
+
+  #[test]
+  fn corrupt_notes_or_folders_surface_recoverable_error_not_empty_library() {
+    // notes.json 坏
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some("{ 坏掉的 JSON".to_string());
+    let store = Store::load_with(Box::new(backend), Box::new(fixed_clock()));
+    assert_eq!(
+      store.ensure_kb_ok().unwrap_err(),
+      KB_CORRUPT_MESSAGE,
+      "损坏时必须返回可恢复文案（前端引导去备份恢复页）"
+    );
+    assert!(store.kb.is_empty());
+    assert_eq!(store.health, HEALTH_OK, "知识库损坏不走 data.json 的 corrupt 通道");
+
+    // folders.json 坏同样进知识库错误态
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.folders.borrow_mut() = Some("不是数组".to_string());
+    let store = Store::load_with(Box::new(backend), Box::new(fixed_clock()));
+    assert_eq!(store.ensure_kb_ok().unwrap_err(), KB_CORRUPT_MESSAGE);
+
+    // 空文件 / 文件不存在 = 空库，不算损坏
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some("   ".to_string());
+    *backend.folders.borrow_mut() = Some(String::new());
+    let store = Store::load_with(Box::new(backend), Box::new(fixed_clock()));
+    assert!(store.ensure_kb_ok().is_ok(), "空文件不是损坏");
+    assert!(store.kb.is_empty() && store.folders.is_empty());
+
+    // 损坏时写入必须被拒绝（save_notes 防御：不允许把空库覆盖回去）
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some("{ 坏".to_string());
+    let mut store = Store::load_with(Box::new(backend), Box::new(fixed_clock()));
+    store.kb = vec![kb_item("k1")];
+    assert_eq!(store.save_notes().unwrap_err(), KB_CORRUPT_MESSAGE);
+  }
+
+  #[test]
+  fn notes_rotation_and_kb_backup_restore_via_inmemory() {
+    let mut store = mem_store();
+    store.kb = vec![kb_item("k-a")];
+    store.save_notes().unwrap();
+    store.kb = vec![kb_item("k-b")];
+    store.save_notes().unwrap();
+    store.kb = vec![kb_item("k-c")];
+    store.save_notes().unwrap();
+    let backups = store.list_kb_backups();
+    assert_eq!(backups.len(), 2, "三次写入留下两份历史（bak-1/bak-2）");
+    assert_eq!(backups[0].slot, "1");
+    assert_eq!(backups[0].name, "notes.json.bak-1");
+    assert_eq!(backups[0].note_count, 1);
+    assert!(backups[0].readable);
+    // slot 2 = 再上一次写入（k-a）
+    assert_eq!(store.restore_kb_backup("2").unwrap(), 1);
+    assert_eq!(store.kb[0].id, "k-a");
+    assert!(store.ensure_kb_ok().is_ok(), "恢复成功解除错误态");
+    let backups = store.list_kb_backups();
+    assert_eq!(backups.len(), 3, "恢复前先把当前 notes.json 轮转进 bak-1");
+    assert_eq!(backups[0].note_count, 1);
+    assert_eq!(
+      store.restore_kb_backup("0").unwrap_err(),
+      "备份只有 1 到 5 号，请重新选择"
+    );
+    assert_eq!(
+      store.restore_kb_backup("9").unwrap_err(),
+      "备份只有 1 到 5 号，请重新选择"
+    );
+    assert!(store.restore_kb_backup("abc").is_err(), "非法编号不落盘");
+  }
+
+  #[test]
+  fn kb_restore_rejects_unreadable_or_malformed_backup() {
+    // 没有备份
+    let mut store = Store::with_backend(
+      Box::new(InMemoryBackend::new()),
+      Box::new(fixed_clock()),
+    );
+    assert_eq!(
+      store.restore_kb_backup("1").unwrap_err(),
+      "这个备份也读不了，换一个试试"
+    );
+    // 备份存在但不是合法知识库数组
+    let backend = InMemoryBackend::new();
+    backend
+      .notes_backups
+      .borrow_mut()
+      .push("{ 坏掉的备份".to_string());
+    let mut store = Store::with_backend(Box::new(backend), Box::new(fixed_clock()));
+    assert_eq!(
+      store.restore_kb_backup("1").unwrap_err(),
+      "这个备份无法还原成可用的知识库"
+    );
+    assert!(store.kb.is_empty(), "解析失败绝不覆盖当前知识库");
+  }
+
+  #[test]
+  fn fs_backend_persists_folders_and_rotates_notes_files() {
+    let dir = std::env::temp_dir().join(format!("kettd-kb-test-{}", new_id("t")));
+    std::fs::create_dir_all(&dir).unwrap();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+      let mut store = Store::with_backend(
+        Box::new(FsBackend::new(dir.clone())),
+        Box::new(fixed_clock()),
+      );
+      let folder = store.create_folder("工作", None).unwrap();
+      store.save_folders().unwrap();
+      let raw = std::fs::read_to_string(dir.join("folders.json")).unwrap();
+      let folded: Value = serde_json::from_str(&raw).unwrap();
+      assert!(folded.is_array(), "folders.json 根必须是裸数组");
+      assert_eq!(folded[0]["id"], folder.id);
+      assert_eq!(folded[0]["name"], "工作");
+      assert_eq!(folded[0]["parentId"], Value::Null);
+
+      store.kb = vec![kb_item("k1")];
+      store.save_notes().unwrap();
+      store.kb = vec![kb_item("k2")];
+      store.save_notes().unwrap();
+      store.kb = vec![kb_item("k3")];
+      store.save_notes().unwrap();
+      assert!(dir.join("notes.json.bak-1").exists());
+      assert!(dir.join("notes.json.bak-2").exists());
+      let bak1: Vec<KbItem> =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("notes.json.bak-1")).unwrap())
+          .unwrap();
+      assert_eq!(bak1[0].id, "k2", "bak-1 = 上一次写入");
+      let restored = store.restore_kb_backup("2").unwrap();
+      assert_eq!(restored, 1);
+      let current: Vec<KbItem> =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("notes.json")).unwrap()).unwrap();
+      assert_eq!(current[0].id, "k1");
+      let backups = store.list_kb_backups();
+      assert!(backups.iter().all(|item| item.readable));
+    }));
+    let _ = std::fs::remove_dir_all(&dir);
+    if let Err(panic) = result {
+      std::panic::resume_unwind(panic);
+    }
   }
 }
 

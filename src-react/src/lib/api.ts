@@ -102,14 +102,26 @@ export interface KbItem {
   title: string
   bodyMd: string
   tags: string[]
+  /** 所属文件夹 id；null = 未分类（旧数据无该字段按 null 处理） */
+  folderId: string | null
   createdAt: string
   updatedAt: string
+}
+
+/** 知识库文件夹（folders.json 树；parentId=null 为顶层，order 为同级排序） */
+export interface KbFolder {
+  id: string
+  name: string
+  parentId: string | null
+  order: number
 }
 
 export interface KbPayload {
   title?: string
   bodyMd?: string
   tags?: string[]
+  /** 所属文件夹 id；"" = 移到未分类，缺省 = 不改 */
+  folderId?: string
 }
 
 export interface Dnd {
@@ -170,6 +182,17 @@ export interface BackupInfo {
   error?: string | null
 }
 
+/** 知识库备份（notes.json.bak-N） */
+export interface KbBackupInfo {
+  slot: string
+  name: string
+  createdAt: string
+  sizeKb: number
+  noteCount: number
+  readable: boolean
+  error?: string | null
+}
+
 export interface DataHealthV2 {
   health: string
   backups: BackupInfo[]
@@ -201,6 +224,8 @@ export interface Bootstrap {
   migration?: MigrationReport | null
   /** 应用版本（设置页展示，Cargo.toml 为真相源） */
   version: string
+  /** 待办悬浮窗最小化态（380×40 单行条 / 380×456 完整面板），启动时据此渲染 */
+  todoFloatMini: boolean
 }
 
 export interface HotkeyStatus {
@@ -320,6 +345,12 @@ export interface StickyNoteItem {
   mini: boolean
   /** Phase 2：知识便签视口指针（None = 自由便签） */
   kbRef?: string | null
+  /**
+   * 可见性（关闭 = 隐藏，数据保留）。注意：Rust 侧 visible=true 时省略该字段
+   * （serde skip_serializing_if），所以运行时可能是 undefined；判可见必须用
+   * `visible !== false`，不能写 `!visible`。
+   */
+  visible: boolean
   createdAt: string
   updatedAt: string
 }
@@ -339,14 +370,17 @@ export const createSticky = (args?: { kbRef?: string }) =>
 export const listStickies = () => call<StickyNoteItem[]>('list_stickies')
 export const updateSticky = (
   id: string,
-  patch: { content?: string; mini?: boolean },
+  patch: { content?: string; mini?: boolean; visible?: boolean },
 ) =>
   call<StickyNoteItem>('update_sticky', {
     id,
     content: patch.content ?? null,
     mini: patch.mini ?? null,
+    visible: patch.visible ?? null,
   })
-/** 关闭即销毁（一次性工具语义）：窗口与数据一并回收 */
+/** 重新打开一张已隐藏的便签（受「可见便签合计 ≤5」约束；已可见则唤起窗口） */
+export const openSticky = (id: string) => call<StickyNoteItem>('open_sticky', { id })
+/** 显式删除（设置页两步确认入口）：数据、窗口与位置一并回收；普通关闭请用 updateSticky({ visible: false }) */
 export const deleteSticky = (id: string) => call<void>('delete_sticky', { id })
 /** 便签窗启动时调一次：拿到自己是谁（label → id/内容/形态） */
 export const stickySelf = () => call<StickySelf>('sticky_self')
@@ -360,6 +394,8 @@ export const registerStickyHotkey = (combo: string | null) => call<void>('regist
 export const registerTodoHotkey = (combo: string | null) => call<void>('register_todo_hotkey', { combo })
 /** 隐藏待办悬浮窗（✕ 同款）：只藏窗，显隐状态落盘 */
 export const hideTodoFloat = () => call<void>('hide_todo_float')
+/** 待办悬浮窗最小化（380×40 单行条 ↔ 380×456 完整面板）：持久化到 runtime.json */
+export const setTodoFloatMini = (mini: boolean) => call<void>('set_todo_float_mini', { mini })
 /** 热键实际注册快照（null = 未绑上/已解绑），设置页据此标「未生效」 */
 export const getHotkeyStatus = () => call<HotkeyStatus>('get_hotkey_status')
 export const openCaptureOverlay = () => call<void>('open_capture_overlay')
@@ -389,6 +425,15 @@ export const addKbItem = (args: KbPayload) => call<KbItem>('add_kb_item', { args
 export const updateKbItem = (id: string, patch: KbPayload) => call<KbItem>('update_kb_item', { id, patch })
 export const deleteKbItem = (id: string) => call<void>('delete_kb_item', { id })
 export const searchKb = (query?: string) => call<KbItem[]>('search_kb', { query: query ?? null })
+
+/* 知识库文件夹与备份（fix-known-defects 批次 4）：文件夹树 + notes.json 轮转备份 */
+export const listFolders = () => call<KbFolder[]>('list_folders')
+export const createFolder = (name: string, parentId?: string | null) =>
+  call<KbFolder>('create_folder', { name, parentId: parentId ?? null })
+export const renameFolder = (id: string, name: string) => call<KbFolder>('rename_folder', { id, name })
+export const deleteFolder = (id: string) => call<void>('delete_folder', { id })
+export const listKbBackups = () => call<KbBackupInfo[]>('list_kb_backups')
+export const restoreKbBackup = (slot: string) => call<{ restored: number }>('restore_kb_backup', { slot })
 
 /* ---------------------------------------------------------------- 跨窗导航（E14 localStorage 兜底，原样保留） */
 

@@ -1,8 +1,9 @@
 //! 窗口 / 托盘 / 全局快捷键 / 系统通知（不含业务写库逻辑）
 
 use crate::store::Store;
-use std::path::Path;
-use std::sync::Mutex;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+use std::thread::ThreadId;
 use tauri::{
   AppHandle, CustomMenuItem, GlobalShortcutManager, LogicalSize, Manager, PhysicalPosition,
   Position, SystemTray, SystemTrayMenu, SystemTrayMenuItem, Window, WindowBuilder, WindowEvent,
@@ -13,6 +14,91 @@ pub const MAIN_LABEL: &str = "main";
 pub const TODO_LABEL: &str = "todo";
 pub const CAPTURE_LABEL: &str = "capture";
 pub const TRAY_ID: &str = "main";
+
+/// 本次启动实际使用的 WebView2 用户数据目录。
+/// 由 main 在 `Builder::build()` 之前探测并注入；所有建窗路径共用同一份，
+/// 避免「有的窗口用默认目录、有的用回退目录」把浏览器进程拆成两套。
+static WEBVIEW2_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+/// 启动早期调用一次：注入已探测过的可写目录（幂等，重复调用以首次为准）。
+pub fn set_webview2_dir(dir: PathBuf) {
+  let _ = WEBVIEW2_DIR.set(dir);
+}
+
+/// 给建窗器挂显式 `data_directory`：conf 的 WindowConfig 没有这个字段，
+/// 只有代码建窗能指定，所以主窗/快速记录条都改成 setup 里建（见 main.rs）。
+fn with_webview2_dir(builder: WindowBuilder<'_>) -> WindowBuilder<'_> {
+  match WEBVIEW2_DIR.get() {
+    Some(dir) => builder.data_directory(dir.clone()),
+    None => builder,
+  }
+}
+
+/// 启动早期探测 WebView2 用户数据目录（fix-known-defects 7.1）。
+///
+/// WebView2 创建环境对目录权限极敏感：目录不可写/被占用时
+/// `CreateCoreWebView2EnvironmentWithOptions` 直接失败（0x800700AA / 拒绝访问 / E_UNEXPECTED），
+/// 而失败点在 `Builder::build()` 里、早于 setup 与埋点，用户只能看到一条 panic。
+/// 所以在建窗之前先把目录定下来，按「用户数据目录 → Tauri 旧默认 → 临时目录」降级：
+/// 用户数据目录与 data.json 同盘同权限，是最可能可写、也最便于用户自查的位置。
+pub fn resolve_webview2_dir() -> Result<PathBuf, String> {
+  // 沙箱/受限上下文是这套目录探查唯一真正会让「所有候选都不可写」的场景，
+  // 而 WebView2 在沙箱里另有一道硬墙（浏览器进程走命名管道 IPC，被禁即 E_UNEXPECTED），
+  // 所以先把运行上下文打印出来，别让用户以为是磁盘或权限配置问题。
+  let dsh_shell = std::env::var("DSH_SHELL").ok();
+  let dsh_session = std::env::var("DSH_SESSION_ID").ok();
+  // 目录全不可写有两种可能：进程被沙箱降权，或进程根本不是当前登录用户（例如被提权器/服务拉起）。
+  // 把「谁在跑、可写区域指向哪」一并打出来，免得只凭「不可写」三个字在权限策略里乱翻。
+  eprintln!(
+    "webview2 启动环境：user={:?} userprofile={:?} appdata={:?} temp={} dsh_shell={:?} dsh_session={:?}",
+    std::env::var("USERNAME").ok(),
+    std::env::var("USERPROFILE").ok(),
+    std::env::var("APPDATA").ok(),
+    std::env::temp_dir().display(),
+    dsh_shell,
+    dsh_session
+  );
+
+  let mut candidates: Vec<PathBuf> = Vec::new();
+  // 1) %APPDATA%\todo-list\webview2：与 data.json 同目录，权限随数据目录走
+  candidates.push(crate::store::data_dir().join("webview2"));
+  // 2) Tauri 1.x 的默认位置（%LOCALAPPDATA%\<identifier>），保留给老用户继续复用既有缓存
+  if let Some(local) = dirs::data_local_dir() {
+    candidates.push(local.join("com.todo.list"));
+  }
+  // 3) 最后兜底：临时目录（磁盘满/漫游配置异常时仍能启动，代价是缓存不持久）
+  candidates.push(std::env::temp_dir().join("kettd-webview2"));
+
+  for dir in candidates {
+    match probe_writable(&dir) {
+      Ok(()) => {
+        eprintln!("webview2 候选目录 {} 可写=true", dir.display());
+        return Ok(dir);
+      }
+      // 启动失败时这是唯一能留下线索的地方（此时埋点还没初始化、也没有窗口）：
+      // 必须带上系统错误原文，否则「不可写」三个字分不清是权限、路径还是磁盘。
+      Err(reason) => eprintln!("webview2 候选目录 {} 不可写：{reason}", dir.display()),
+    }
+  }
+
+  if dsh_shell.is_some() || dsh_session.is_some() {
+    return Err(
+      "检测到当前进程跑在 DSH 沙箱里（DSH_SHELL/DSH_SESSION_ID），沙箱禁止 WebView2 所需的命名管道与用户目录写入；请在 DSH 之外的终端（Windows Terminal / VS Code 等）运行 npm run tauri dev"
+        .to_string(),
+    );
+  }
+  Err("找不到可写的 WebView2 数据目录，请检查磁盘空间或权限后重试".to_string())
+}
+
+/// 真写一次再删：只 `create_dir_all` 不够 —— WebView2 会在目录里建 SQLite/本地存储，
+/// 目录存在但文件不可写时同样起不来。失败原因原样带回，供启动日志定位。
+fn probe_writable(dir: &Path) -> Result<(), String> {
+  std::fs::create_dir_all(dir).map_err(|error| format!("建目录失败 {error}"))?;
+  let probe = dir.join(".kettd-write-probe");
+  std::fs::write(&probe, b"ok").map_err(|error| format!("写探针失败 {error}"))?;
+  let _ = std::fs::remove_file(&probe);
+  Ok(())
+}
 
 /// 当前注册成功的全局快捷键（换键时先解绑旧的）
 #[derive(Default)]
@@ -101,8 +187,6 @@ pub fn note_label(id: &str) -> String {
 // 主线程标记：setup（事件循环未启动）里建窗走内联路径才可靠；其余线程一律走
 // 「帮手线程 + 6s 超时」。背景（2026-09-08 真机复盘）：WebView2 层建窗偶发无限挂起，
 // 挂在 sync 命令里 = 事件循环线程被阻塞 = 全应用按钮假死（"点击便签后按钮全失效"根因）。
-use std::sync::OnceLock;
-use std::thread::ThreadId;
 
 static MAIN_THREAD: OnceLock<ThreadId> = OnceLock::new();
 
@@ -122,15 +206,42 @@ pub const NOTE_MINI_SIZE: (f64, f64) = (380.0, 40.0);
 /// 常驻置顶无开关（sticky-separation）；尺寸按缩小态标记二选一。
 fn note_builder<'a>(app: &'a AppHandle, label: &'a str, mini: bool) -> WindowBuilder<'a> {
   let (w, h) = if mini { NOTE_MINI_SIZE } else { NOTE_EXPAND_SIZE };
-  WindowBuilder::new(app, label, WindowUrl::App("float.html".into()))
-    .title("便签")
-    .inner_size(w, h)
-    .resizable(false)
-    .decorations(false)
-    .transparent(true)
-    .always_on_top(true)
-    .skip_taskbar(true)
-    .visible(false)
+  with_webview2_dir(
+    WindowBuilder::new(app, label, WindowUrl::App("float.html".into()))
+      .title("便签")
+      .inner_size(w, h)
+      .resizable(false)
+      .decorations(false)
+      .transparent(true)
+      .always_on_top(true)
+      .skip_taskbar(true)
+      .visible(false),
+  )
+}
+
+/// 主窗：从 tauri.conf.json 移到代码建窗，唯一目的是能传 `data_directory`
+/// （WindowConfig 没有该字段，而 WebView2 默认目录不可写时整个 `build()` 会失败）。
+/// 参数保持 conf 原值：1100×720 / 最小 1024×640 / 无边框 / 启动隐藏（由托盘或热键唤起）。
+///
+/// 必须传 `&App`（setup 里的 `app`）而不是 `AppHandle`：前者走 Runtime 直建，
+/// 后者是 Dispatch 消息、要等事件循环，而 setup 阶段事件循环还没开始 —— 会死锁。
+pub fn create_main_window<M: tauri::Manager<tauri::Wry>>(manager: &M) -> Result<Window, String> {
+  with_webview2_dir(
+    WindowBuilder::new(manager, MAIN_LABEL, WindowUrl::App("index.html".into()))
+      .title("Kettd")
+      .inner_size(1100.0, 720.0)
+      .min_inner_size(1024.0, 640.0)
+      .resizable(true)
+      .decorations(false)
+      .visible(false)
+      .center(),
+  )
+  .build()
+  .map_err(|error| {
+    eprintln!("主窗建窗失败：{error:?}");
+    crate::telemetry::record_str("main_window_error", &[("err", &format!("{error}"))]);
+    "主窗口创建失败，请重启应用；若反复出现请检查数据目录权限".to_string()
+  })
 }
 
 /// 建窗统一超时包装：主线程内联；其余线程经帮手线程带 6s 超时。
@@ -196,9 +307,12 @@ fn log_build_error(event: &str, label: &str, error: &str) -> String {
 /// 便签建窗入口（走统一超时包装，埋点沿用 sticky_window_error）
 fn build_note_window(app: &AppHandle, label: String, mini: bool) -> Result<tauri::Window, String> {
   build_with_timeout(app, label, "sticky_window_error", move |app, label| {
-    note_builder(app, label, mini)
+    let window = note_builder(app, label, mini)
       .build()
-      .map_err(|e| log_build_error("sticky_window_error", label, &format!("{e}")))
+      .map_err(|e| log_build_error("sticky_window_error", label, &format!("{e}")))?;
+    // 建窗成功即关 WebView2 默认右键菜单（#3）；失败只记埋点，不影响便签窗
+    disable_default_context_menu(&window);
+    Ok(window)
   })
 }
 
@@ -235,24 +349,17 @@ pub fn create_note(
   app: &AppHandle,
   kb_ref: Option<String>,
 ) -> Result<crate::models::StickyNote, String> {
-  use crate::models::{StickyNote, StoreEvent, STICKY_CAP, STICKY_KB_CAP};
+  use crate::models::{visible_sticky_count, StickyNote, StoreEvent, STICKY_CAP};
   let Some(state) = app.try_state::<Mutex<Store>>() else {
     return Err("应用还没准备好".to_string());
   };
   let mut guard = state.lock().map_err(|_| "应用状态忙，请重试".to_string())?;
   guard.ensure_writable()?;
 
-  // 分池上限检查
-  if kb_ref.is_some() {
-    let kb_count = guard.data.stickies.iter().filter(|s| s.kb_ref.is_some()).count();
-    if kb_count >= STICKY_KB_CAP {
-      return Err(format!("知识便签已达上限（{}张），请先拆掉不需要的", STICKY_KB_CAP));
-    }
-  } else {
-    let free_count = guard.data.stickies.iter().filter(|s| s.kb_ref.is_none()).count();
-    if free_count >= STICKY_CAP {
-      return Err(format!("自由便签已达上限（{}张），请先关闭一张", STICKY_CAP));
-    }
+  // 可见便签合计上限（fix-known-defects 4.2：分池取消，自由 + 知识合起来算；
+  // 隐藏便签不计入）。升级首启已有 6 张旧数据不强制隐藏，只挡新建/重新打开。
+  if visible_sticky_count(&guard.data.stickies) >= STICKY_CAP {
+    return Err(format!("便签最多同时打开 {} 张，请先关闭一张", STICKY_CAP));
   }
 
   let note = guard.add_sticky(StickyNote {
@@ -304,20 +411,92 @@ pub fn apply_note_shape(app: &AppHandle, id: &str, mini: bool) -> Result<(), Str
   Ok(())
 }
 
+/// 隐藏便签窗（✕ / Alt+F4 / 列表关闭同一语义）：只藏窗，不销毁、不删数据、不清位置。
+/// 窗口不存在视为已隐藏（幂等）。
+pub fn hide_note_window(app: &AppHandle, id: &str) {
+  if let Some(window) = app.get_window(&note_label(id)) {
+    let _ = window.hide();
+  }
+}
+
+/// 重新打开一张已隐藏（或已可见）的便签（fix-known-defects 4.4，open_sticky 命令入口）。
+/// 可见上限只算「可见」便签：隐藏便签重新打开时若已达上限则拒绝，不悄悄挤掉别人。
+/// 建窗失败把 visible 回滚为 false（不留「数据可见但没窗」的幽灵态）。
+/// 返回最新 StickyNote。锁纪律：open_note_window 在锁外调用（其建窗路径不碰 Store 锁，
+/// 但这里仍按铁律 drop 后再建窗，失败回滚时重新加锁）。
+pub fn open_note(app: &AppHandle, id: &str) -> Result<crate::models::StickyNote, String> {
+  use crate::models::{visible_sticky_count, StoreEvent, STICKY_CAP};
+  let Some(state) = app.try_state::<Mutex<Store>>() else {
+    return Err("应用还没准备好".to_string());
+  };
+  let (note, stored_pos, became_visible) = {
+    let mut guard = state.lock().map_err(|_| "应用状态忙，请重试".to_string())?;
+    let current = guard
+      .find_sticky(id)
+      .ok_or_else(|| "找不到这张便签".to_string())?;
+    let became_visible = !current.visible;
+    if became_visible {
+      guard.ensure_writable()?;
+      if visible_sticky_count(&guard.data.stickies) >= STICKY_CAP {
+        return Err(format!("便签最多同时打开 {} 张，请先关闭一张", STICKY_CAP));
+      }
+      if let Some(note) = guard.find_sticky_mut(id) {
+        note.visible = true;
+        note.updated_at = crate::models::now_text();
+      }
+      if let Err(error) = guard.save() {
+        if let Some(note) = guard.find_sticky_mut(id) {
+          note.visible = false;
+        }
+        return Err(error);
+      }
+    }
+    let note = guard
+      .find_sticky(id)
+      .ok_or_else(|| "找不到这张便签".to_string())?;
+    let stored_pos = guard.runtime.note_pos.get(id).copied();
+    (note, stored_pos, became_visible)
+  };
+
+  if let Err(error) = open_note_window(app, &note.id, note.mini, stored_pos) {
+    if became_visible {
+      // 回滚可见标记：窗口没建成，不能让便签停在「可见」状态（否则重启会再试开）
+      if let Ok(mut guard) = state.lock() {
+        if let Some(note) = guard.find_sticky_mut(id) {
+          note.visible = false;
+        }
+        let _ = guard.save();
+      }
+    }
+    return Err(error);
+  }
+  if let Some(window) = app.get_window(&note_label(&note.id)) {
+    let _ = window.show();
+    let _ = window.set_focus();
+  }
+  if became_visible {
+    let _ = app.emit_all("store-changed", StoreEvent::changed("stickies"));
+  }
+  Ok(note)
+}
+
 // ---------------------------------------------------------------- 待办悬浮窗（todo-float）
 
-/// 待办悬浮窗 builder：380×456 纸片（便签纸感家族），置顶按设置（窗内 Pin 可切）。
-/// 在线程内构造：WindowBuilder 非 Send，不能跨线程携带。
-fn todo_builder<'a>(app: &'a AppHandle, pinned: bool) -> WindowBuilder<'a> {
-  WindowBuilder::new(app, TODO_LABEL, WindowUrl::App("todo.html".into()))
-    .title("待办悬浮窗")
-    .inner_size(NOTE_EXPAND_SIZE.0, NOTE_EXPAND_SIZE.1)
-    .resizable(false)
-    .decorations(false)
-    .transparent(true)
-    .always_on_top(pinned)
-    .skip_taskbar(true)
-    .visible(false)
+/// 待办悬浮窗 builder：完整面板 380×456 / 最小化单行条 380×40（便签纸感家族）；
+/// 置顶按设置（窗内 Pin 可切）。在线程内构造：WindowBuilder 非 Send，不能跨线程携带。
+fn todo_builder<'a>(app: &'a AppHandle, pinned: bool, mini: bool) -> WindowBuilder<'a> {
+  let (w, h) = if mini { NOTE_MINI_SIZE } else { NOTE_EXPAND_SIZE };
+  with_webview2_dir(
+    WindowBuilder::new(app, TODO_LABEL, WindowUrl::App("todo.html".into()))
+      .title("待办悬浮窗")
+      .inner_size(w, h)
+      .resizable(false)
+      .decorations(false)
+      .transparent(true)
+      .always_on_top(pinned)
+      .skip_taskbar(true)
+      .visible(false),
+  )
 }
 
 fn todo_pinned_of(app: &AppHandle) -> bool {
@@ -346,18 +525,59 @@ fn todo_float_visible_of(app: &AppHandle) -> bool {
     .unwrap_or(true)
 }
 
-/// 打开（或唤起）待办悬浮窗；置顶跟随设置；位置记忆 note_pos["todo"]
+fn todo_float_mini_of(app: &AppHandle) -> bool {
+  app
+    .try_state::<Mutex<Store>>()
+    .and_then(|s| s.lock().ok().map(|g| g.runtime.todo_float_mini))
+    .unwrap_or(false)
+}
+
+/// 待办窗形态切换（fix-known-defects 4.7）：最小化 = 380×40 单行条；完整 = 380×456。
+pub fn apply_todo_shape(app: &AppHandle, mini: bool) -> Result<(), String> {
+  let window = window_of(app, TODO_LABEL)?;
+  let (w, h) = if mini { NOTE_MINI_SIZE } else { NOTE_EXPAND_SIZE };
+  window
+    .set_size(LogicalSize::new(w, h))
+    .map_err(|_| "待办悬浮窗改尺寸失败".to_string())?;
+  // 只在窗口可见时聚焦：窗口隐藏时 set_focus 无意义，避免把「设置页改形态」变成抢焦点
+  if !mini && window.is_visible().unwrap_or(false) {
+    let _ = window.set_focus();
+  }
+  Ok(())
+}
+
+/// 最小化态持久化：写 runtime.json（不轮转）后再切窗尺寸；窗口未建时只落状态。
+pub fn set_todo_float_mini(app: &AppHandle, mini: bool) -> Result<(), String> {
+  if let Some(state) = app.try_state::<Mutex<Store>>() {
+    if let Ok(mut guard) = state.lock() {
+      if guard.runtime.todo_float_mini != mini {
+        guard.runtime.todo_float_mini = mini;
+        let _ = guard.save_runtime_only();
+      }
+    }
+  }
+  if app.get_window(TODO_LABEL).is_some() {
+    apply_todo_shape(app, mini)?;
+  }
+  Ok(())
+}
+
+/// 打开（或唤起）待办悬浮窗；置顶跟随设置；位置记忆 note_pos["todo"]；
+/// 初始形态按 runtime.todo_float_mini（重启恢复也走这里，天然按最小化态建窗）。
 pub fn open_todo_float(app: &AppHandle) -> Result<(), String> {
   let pinned = todo_pinned_of(app);
+  let mini = todo_float_mini_of(app);
   if app.get_window(TODO_LABEL).is_none() {
     let stored = app
       .try_state::<Mutex<Store>>()
       .and_then(|s| s.lock().ok().and_then(|g| g.runtime.note_pos.get("todo").copied()));
     let window = build_with_timeout(app, TODO_LABEL.to_string(), "todo_window_error", move |app, label| {
-      todo_builder(app, pinned)
+      todo_builder(app, pinned, mini)
         .build()
         .map_err(|e| log_build_error("todo_window_error", label, &format!("{e}")))
     })?;
+    // 建窗成功即关 WebView2 默认右键菜单（#3）；失败只记埋点，不影响待办窗
+    disable_default_context_menu(&window);
     if let Some([x, y]) = stored {
       if capture_pos_on_screen(&window, x, y) {
         let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
@@ -417,23 +637,32 @@ pub fn sanitize_capture_height(height: f64) -> f64 {
   height.clamp(CAPTURE_MIN_H, CAPTURE_MAX_H)
 }
 
-fn create_capture_window(app: &AppHandle) -> Result<Window, String> {
-  // 初始高度只是首帧值：窗口随配置在启动即创建（隐藏），前端挂载后由 capture_resize 按内容校正
-  WindowBuilder::new(app, CAPTURE_LABEL, WindowUrl::App("capture.html".into()))
-    .title("快速记录")
-    .inner_size(CAPTURE_W, 46.0)
-    .resizable(false)
-    .maximizable(false)
-    .minimizable(false)
-    .closable(false)
-    .decorations(false)
-    .transparent(true)
-    .always_on_top(true)
-    .skip_taskbar(true)
-    .visible(false)
-    .center()
-    .build()
-    .map_err(|_| "快速记录条创建失败，请用悬浮面板底部输入框".to_string())
+/// 快速记录条：启动时由 setup 建一次（隐藏），命令路径下作为兜底重建入口。
+pub fn create_capture_window<M: tauri::Manager<tauri::Wry>>(manager: &M) -> Result<Window, String> {
+  // 初始高度只是首帧值：窗口随后由 capture_resize 按内容校正
+  let window = with_webview2_dir(
+    WindowBuilder::new(manager, CAPTURE_LABEL, WindowUrl::App("capture.html".into()))
+      .title("快速记录")
+      .inner_size(CAPTURE_W, 46.0)
+      .resizable(false)
+      .maximizable(false)
+      .minimizable(false)
+      .closable(false)
+      .decorations(false)
+      .transparent(true)
+      .always_on_top(true)
+      .skip_taskbar(true)
+      .visible(false)
+      .center(),
+  )
+  .build()
+  .map_err(|error| {
+    crate::telemetry::record_str("capture_window_error", &[("err", &format!("{error}"))]);
+    "快速记录条创建失败，请用悬浮面板底部输入框".to_string()
+  })?;
+  // 垫底建窗路径同样关 WebView2 默认右键菜单（#3）
+  disable_default_context_menu(&window);
+  Ok(window)
 }
 
 /// 520×72 无边框居中置顶输入条；焦点交给输入框（前端监听 capture-opened）
@@ -626,6 +855,95 @@ pub fn watch_main_window_frame(window: &Window) {
 
 #[cfg(not(target_os = "windows"))]
 fn apply_capture_material(_window: &Window) {}
+
+// ---------------------------------------------------------------- WebView2 右键菜单（#3）
+
+/// 关闭 WebView2 原生右键菜单（含「检查 / Inspect」等默认项；#3）。
+///
+/// wry 建窗时无条件 `SetAreDefaultContextMenusEnabled(true)`（wry-0.24.12
+/// `webview/webview2/mod.rs:246`），`WindowConfig` 没有对应开关，只能建窗成功后经
+/// `with_webview` 拿到 `ICoreWebView2Controller` 再关。只关右键菜单，不碰
+/// `SetAreDevToolsEnabled`：debug 构建的 F12 / Ctrl+Shift+I 仍可开 DevTools
+/// （design D10「dev 构建保留 devtools 热键」）；文本区 Ctrl+C / Ctrl+V 是键盘快捷键，
+/// 不经过右键菜单，不受影响。
+///
+/// `with_webview` 的闭包在事件循环线程执行，COM 接口不跨线程保存。attach 失败
+/// （派发失败 / `CoreWebView2` 尚未就绪）只记埋点，绝不打断建窗与窗口生命周期。
+#[cfg(target_os = "windows")]
+pub fn disable_default_context_menu(window: &Window) {
+  let label = window.label().to_string();
+  let closure_label = label.clone();
+  let attached = window.with_webview(move |webview| {
+    let disabled = unsafe {
+      webview
+        .controller()
+        .CoreWebView2()
+        .and_then(|core| core.Settings())
+        .and_then(|settings| settings.SetAreDefaultContextMenusEnabled(false))
+    };
+    if let Err(error) = disabled {
+      crate::telemetry::record_str(
+        "webview_contextmenu_error",
+        &[
+          ("label", closure_label.as_str()),
+          ("err", &format!("{error}")),
+        ],
+      );
+    }
+  });
+  if let Err(error) = attached {
+    crate::telemetry::record_str(
+      "webview_contextmenu_error",
+      &[("label", label.as_str()), ("err", &format!("{error}"))],
+    );
+  }
+}
+
+/// 非 Windows 平台没有 WebView2 原生右键菜单；保留同名 no-op，四处建窗点无需 cfg 分叉。
+#[cfg(not(target_os = "windows"))]
+pub fn disable_default_context_menu(_window: &Window) {}
+
+// ---------------------------------------------------------------- 退出时释放 WebView2（#16）
+
+/// 退出前逐个关闭所有窗口的 WebView2 控制器（#16 退出残留 msedgewebview2.exe）。
+///
+/// 托盘「退出」走 `app.exit(0)`：tauri 1.8.3 的默认退出流程直接 `cleanup_before_exit()`
+/// 再 `process::exit`（`tauri-1.8.3/src/app.rs:564-568`、`:576-588`），不经过窗口
+/// `Destroyed` 链路，也不释放 `ICoreWebView2Controller`。浏览器进程于是等不到归属窗口
+/// 销毁，主进程退出后 `msedgewebview2.exe` 可能继续残留。
+///
+/// 这里在 `RunEvent::ExitRequested`（默认退出流程开始处）对每个窗口调
+/// `ICoreWebView2Controller::Close()`：它同步关闭 WebView 并触发浏览器进程回收；
+/// 再留一小段时间给浏览器进程退出，避免随后 `process::exit` 抢跑。
+/// `with_webview` 在主线程内联执行（tauri-runtime-wry `send_user_message` 对主线程
+/// 直接 handle，不发事件等回包），所以从 run 回调里调用不会死锁。
+#[cfg(target_os = "windows")]
+pub fn close_all_webviews(app: &AppHandle) {
+  let windows = app.windows();
+  let window_count = windows.len();
+  let mut closed = 0usize;
+  for (_label, window) in windows {
+    let attached = window.with_webview(|webview| unsafe {
+      let _ = webview.controller().Close();
+    });
+    if attached.is_ok() {
+      closed += 1;
+    }
+  }
+  crate::telemetry::record_str(
+    "app_shutdown",
+    &[
+      ("windows", &window_count.to_string()),
+      ("webviews_closed", &closed.to_string()),
+    ],
+  );
+  // WebView2 浏览器进程收尾是异步的；给 300ms 再让主进程退出，避免 Windows 上被强杀
+  std::thread::sleep(std::time::Duration::from_millis(300));
+}
+
+/// 非 Windows 平台没有 WebView2 控制器需要显式关闭。
+#[cfg(not(target_os = "windows"))]
+pub fn close_all_webviews(_app: &AppHandle) {}
 
 /// 供前端「拖拽把手」mousedown 调用，让用户用鼠标移动无边框浮条
 pub fn capture_start_drag(app: &AppHandle) -> Result<(), String> {
@@ -919,12 +1237,27 @@ pub fn sync_tray_todo(app: &AppHandle, visible: bool) {
   }
 }
 
-/// 便签 id 的锁内快照（托盘/热键等后台动作先拿 id 列表，再逐个操作窗口，
-/// 不把 Store 锁带进窗口操作——v2.2 死锁教训）
-fn note_ids(app: &AppHandle) -> Vec<String> {
+/// 便签的锁内快照（id / visible / mini / 位置）：托盘与启动恢复先拿快照，
+/// 再逐个操作窗口，不把 Store 锁带进窗口操作——v2.2 死锁教训。
+fn note_snapshots(app: &AppHandle) -> Vec<(String, bool, bool, Option<[i32; 2]>)> {
   app
     .try_state::<Mutex<Store>>()
-    .and_then(|s| s.lock().ok().map(|g| g.data.stickies.iter().map(|n| n.id.clone()).collect()))
+    .and_then(|s| {
+      s.lock().ok().map(|g| {
+        g.data
+          .stickies
+          .iter()
+          .map(|n| {
+            (
+              n.id.clone(),
+              n.visible,
+              n.mini,
+              g.runtime.note_pos.get(&n.id).copied(),
+            )
+          })
+          .collect()
+      })
+    })
     .unwrap_or_default()
 }
 
@@ -951,13 +1284,39 @@ pub fn handle_tray_click(app: &AppHandle, id: &str) -> bool {
       }
     }
     "sticky_show_all" => {
-      for id in note_ids(app) {
-        let _ = show_window(app, &note_label(&id));
+      // 「显示全部便签」= 恢复所有「可见」便签的窗口。隐藏是用户主动关闭的语义
+      // （✕/Alt+F4 只隐藏），这里绝不擅自把隐藏项改回可见（fix-known-defects 4.3）。
+      for (id, visible, mini, pos) in note_snapshots(app) {
+        if visible {
+          let _ = open_note_window(app, &id, mini, pos);
+        }
       }
     }
     "sticky_hide_all" => {
-      for id in note_ids(app) {
-        let _ = hide_window(app, &note_label(&id));
+      // 「隐藏全部便签」= 全部置 visible=false 并落盘，再藏窗；数据与位置都保留。
+      let mut hidden_any = false;
+      if let Some(state) = app.try_state::<Mutex<Store>>() {
+        if let Ok(mut guard) = state.lock() {
+          for note in guard.data.stickies.iter_mut() {
+            if note.visible {
+              note.visible = false;
+              note.updated_at = crate::models::now_text();
+              hidden_any = true;
+            }
+          }
+          if hidden_any {
+            let _ = guard.save();
+          }
+        }
+      }
+      if hidden_any {
+        let _ = app.emit_all(
+          "store-changed",
+          crate::models::StoreEvent::changed("stickies"),
+        );
+      }
+      for (id, ..) in note_snapshots(app) {
+        hide_note_window(app, &id);
       }
     }
     "reminders" => {

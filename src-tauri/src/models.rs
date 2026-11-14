@@ -36,6 +36,10 @@ fn is_false(value: &bool) -> bool {
   !*value
 }
 
+fn is_true(value: &bool) -> bool {
+  *value
+}
+
 fn bool_true() -> bool {
   true
 }
@@ -400,9 +404,11 @@ impl Settings {
   }
 }
 
-/// 便签（sticky-separation 定稿）：纯自由便签，≤500 字纯文本，多开（≤ STICKY_CAP）。
-/// 三态生命周期：展开 ↔ 缩小（置顶悬浮文本条）↔ 关闭（销毁）；常驻置顶无开关。
-/// 内容归 data.json（用户数据，ADR-0005）；位置归 runtime.json note_pos（ADR-0007）。
+/// 便签（sticky-separation 定稿）：纯自由便签，≤500 字纯文本，多开。
+/// 生命周期：展开 ↔ 缩小（置顶悬浮文本条）↔ 隐藏（✕/Alt+F4 只关窗，数据保留）；
+/// 显式 delete_sticky 才真删除。可见（visible=true）便签合计上限 = STICKY_CAP。
+/// 常驻置顶无开关。内容归 data.json（用户数据，ADR-0005）；位置归 runtime.json
+/// note_pos（ADR-0007，隐藏不清位置）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct StickyNote {
@@ -419,6 +425,12 @@ pub struct StickyNote {
   /// skip_serializing_if = None：旧数据无此字段→默认 None→零迁移。
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub kb_ref: Option<String>,
+  /// 可见性（fix-known-defects D9）：关闭（✕ / Alt+F4）只置 false 并隐藏窗口，
+  /// 不删数据、不清位置；可从便签列表 open_sticky 重新打开。隐藏便签不计入上限。
+  /// 旧数据缺字段 → true（默认可见，零迁移，不写迁移脚本）；
+  /// visible=true 时省略字段，旧数据形状不变（前端按 `!== false` 解读可见）。
+  #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+  pub visible: bool,
   pub created_at: String,
   pub updated_at: String,
 }
@@ -431,10 +443,17 @@ impl Default for StickyNote {
       content: String::new(),
       mini: false,
       kb_ref: None,
+      visible: true,
       created_at: stamp.clone(),
       updated_at: stamp,
     }
   }
+}
+
+/// 可见便签数（free + 知识便签合计，隐藏不计）：上限判定与单测共用纯函数，
+/// 不依赖 AppHandle、不碰锁，便于单测与托盘/命令多处复用。
+pub fn visible_sticky_count(stickies: &[StickyNote]) -> usize {
+  stickies.iter().filter(|note| note.visible).count()
 }
 
 /// 落盘的数据文件（data.json 的根结构）
@@ -467,15 +486,16 @@ pub struct KbPayload {
   pub title: Option<String>,
   pub body_md: Option<String>,
   pub tags: Option<Vec<String>>,
+  /// 三态：None = 不改；Some("") = 移到未分类（存 None）；Some(id) = 归到该文件夹（校验存在）
+  pub folder_id: Option<String>,
 }
 
 pub const STICKY_PAPERS: [&str; 4] = ["warm", "kraft", "cyan", "ink"];
 /// 纸面花纹（sticky-background-pattern.md 定稿：无 / 墨竹 / 远山；选竹或山时朱印自动伴随）
 pub const STICKY_PATTERNS: [&str; 3] = ["none", "bamboo", "mountain"];
-/// 便签总数上限（含 float 主便签）——防「贴满废纸」，对应 metric Counter 壁纸化
-pub const STICKY_CAP: usize = 6;
-/// 知识便签上限（分池：与自由便签 STICKY_CAP 互不影响）
-pub const STICKY_KB_CAP: usize = 4;
+/// 同时可见便签总数上限（自由 + 知识合计，隐藏不计）——防「贴满废纸」，
+/// 对应 metric Counter 壁纸化。分池已取消（fix-known-defects 4.2）。
+pub const STICKY_CAP: usize = 5;
 
 fn default_sticky_fade_opacity() -> u32 {
   38
@@ -501,6 +521,10 @@ pub struct KbItem {
   pub tags: Vec<String>,
   pub created_at: String,
   pub updated_at: String,
+  /// 所属文件夹（None = 未分类）。旧 notes.json 无该字段靠 default 兼容；
+  /// 序列化必须保留 `folderId: null`（不加 skip_serializing_if），前端按 null 判未分类。
+  #[serde(default)]
+  pub folder_id: Option<String>,
 }
 
 impl Default for KbItem {
@@ -512,8 +536,20 @@ impl Default for KbItem {
       tags: Vec::new(),
       created_at: String::new(),
       updated_at: String::new(),
+      folder_id: None,
     }
   }
+}
+
+/// 知识库文件夹（D6：独立 folders.json，KbItem 仅持引用）。
+/// `name` 由命令层校验（trim 非空、≤40 字）；`order` 同级递增，删除后允许空洞。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KbFolder {
+  pub id: String,
+  pub name: String,
+  pub parent_id: Option<String>,
+  pub order: i64,
 }
 
 /// 运行态（ADR-0005）：住在 runtime.json，与用户数据物理隔离。
@@ -534,6 +570,10 @@ pub struct RuntimeState {
   /// 待办悬浮窗上次显隐（todo-float）：重启恢复；损坏重建时默认显示
   #[serde(default = "todo_float_visible_default")]
   pub todo_float_visible: bool,
+  /// 待办悬浮窗最小化（fix-known-defects 4.7）：true = 380×40 单行条；
+  /// false（缺省）= 380×456 完整面板。旧 runtime.json 缺字段 → false，零迁移。
+  #[serde(default)]
+  pub todo_float_mini: bool,
 }
 
 // ---------------------------------------------------------------- 命令入参（patch）
@@ -649,6 +689,22 @@ pub struct BackupInfo {
   pub error: Option<String>,
 }
 
+/// 知识库备份（notes.json.bak-1..5），与 BackupInfo 同构但不含 taskCount。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KbBackupInfo {
+  /// "1".."5"
+  pub slot: String,
+  /// notes.json.bak-1 .. notes.json.bak-5
+  pub name: String,
+  pub created_at: String,
+  pub size_kb: u64,
+  pub note_count: u32,
+  pub readable: bool,
+  #[serde(skip_serializing_if = "is_absent")]
+  pub error: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MigrationIssue {
@@ -706,6 +762,13 @@ pub struct RestoreResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RestoreKbResult {
+  /// 恢复后知识条目数
+  pub restored: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Bootstrap {
   pub tasks: Vec<Task>,
   pub reminders: Vec<Reminder>,
@@ -714,6 +777,9 @@ pub struct Bootstrap {
   pub migration: Option<MigrationReport>,
   /// 应用版本（设置页「版本 vN」展示；取自 Cargo.toml）
   pub version: String,
+  /// 待办悬浮窗最小化态（fix-known-defects 4.7）：前端启动时据此决定窗口初始形态；
+  /// 真实窗口尺寸由 Rust 建窗时按 runtime.todo_float_mini 落定，前端只读不写。
+  pub todo_float_mini: bool,
 }
 
 /// `store-changed` 事件负载
@@ -1178,5 +1244,65 @@ mod sticky_serialization_tests {
       value["content"], "",
       "空 content 也必须序列化：字段缺省 = 破坏前端类型契约（黑屏根因）"
     );
+  }
+}
+
+#[cfg(test)]
+mod sticky_visibility_tests {
+  use super::*;
+
+  /// 旧数据（fix-known-defects 之前落盘）没有 visible 字段：必须默认 true（可见），
+  /// 靠 serde default 兼容，不写迁移脚本、不改 data.json 形状。
+  #[test]
+  fn legacy_sticky_without_visible_deserializes_as_visible() {
+    let raw = serde_json::json!({
+      "id": "n1",
+      "content": "旧便签",
+      "createdAt": "2026-09-01T10:00",
+      "updatedAt": "2026-09-01T10:00"
+    });
+    let note: StickyNote = serde_json::from_value(raw).expect("旧 JSON 必须可反序列化");
+    assert!(note.visible, "旧数据缺 visible 必须默认 true（可见）");
+    // 反向：显式 false 必须读回 false（隐藏态可持久化）
+    let raw_hidden = serde_json::json!({
+      "id": "n2",
+      "content": "已隐藏",
+      "visible": false,
+      "createdAt": "2026-09-01T10:00",
+      "updatedAt": "2026-09-01T10:00"
+    });
+    let hidden: StickyNote = serde_json::from_value(raw_hidden).expect("隐藏便签可反序列化");
+    assert!(!hidden.visible);
+  }
+
+  /// 上限判定只看 visible：隐藏便签不计入（fix-known-defects 4.2 合计上限 5）。
+  #[test]
+  fn visible_sticky_count_only_counts_visible() {
+    let mut a = StickyNote::default();
+    let mut b = StickyNote::default();
+    let mut c = StickyNote::default();
+    a.visible = true;
+    b.visible = false;
+    c.visible = true;
+    assert_eq!(visible_sticky_count(&[a, b, c]), 2);
+    assert_eq!(visible_sticky_count(&[]), 0);
+    assert_eq!(STICKY_CAP, 5, "可见便签合计上限固定为 5");
+  }
+
+  /// visible=true 省略字段（旧数据形状不变）；visible=false 必须落盘，
+  /// 否则重启读回默认 true 会把用户关掉的便签全部重开。
+  #[test]
+  fn visible_serialization_skips_true_but_keeps_false() {
+    let visible = serde_json::to_value(StickyNote::default()).expect("可序列化");
+    assert!(
+      visible.get("visible").is_none(),
+      "visible=true 必须省略字段：旧数据形状不变"
+    );
+    let hidden = serde_json::to_value(StickyNote {
+      visible: false,
+      ..Default::default()
+    })
+    .expect("可序列化");
+    assert_eq!(hidden["visible"], serde_json::json!(false));
   }
 }
