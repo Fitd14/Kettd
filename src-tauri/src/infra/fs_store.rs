@@ -15,11 +15,20 @@ pub const PRE_SPLIT_FILE: &str = "data.pre-split.json";
 pub const NOTES_FILE: &str = "notes.json";
 pub const FOLDERS_FILE: &str = "folders.json";
 
-/// v1 同款目录：Windows 下 `dirs::data_dir()` == `%APPDATA%`
+/// KETTD_DATA_DIR 覆盖语义：非空 → 原样作为数据根（不拼 todo-list）；空/全空白/未设 → 默认。
+/// 纯函数：测试不碰进程 env，避免并行测试竞态。
+pub fn resolve_data_dir(override_dir: Option<&str>) -> PathBuf {
+  match override_dir.map(str::trim).filter(|value| !value.is_empty()) {
+    Some(value) => PathBuf::from(value),
+    None => dirs::data_dir()
+      .unwrap_or_else(|| PathBuf::from("."))
+      .join("todo-list"),
+  }
+}
+
+/// v1 同款目录：Windows 下 `dirs::data_dir()` == `%APPDATA%`；KETTD_DATA_DIR 非空时原样覆盖
 pub fn default_dir() -> PathBuf {
-  dirs::data_dir()
-    .unwrap_or_else(|| PathBuf::from("."))
-    .join("todo-list")
+  resolve_data_dir(std::env::var("KETTD_DATA_DIR").ok().as_deref())
 }
 
 pub struct FsBackend {
@@ -396,5 +405,30 @@ impl StoreBackend for FsBackend {
   fn write_folders(&self, json: &str) -> Result<(), String> {
     let target = self.folders_path();
     self.write_data_at(&target, json)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::resolve_data_dir;
+  use std::path::PathBuf;
+
+  #[test]
+  fn override_used_verbatim_without_subdir() {
+    assert_eq!(
+      resolve_data_dir(Some("D:\\kettd-test-data")),
+      PathBuf::from("D:\\kettd-test-data")
+    );
+  }
+
+  #[test]
+  fn none_falls_back_to_appdata_todo_list() {
+    assert!(resolve_data_dir(None).ends_with("todo-list"));
+  }
+
+  #[test]
+  fn empty_or_whitespace_falls_back_to_default() {
+    assert!(resolve_data_dir(Some("")).ends_with("todo-list"));
+    assert!(resolve_data_dir(Some("   ")).ends_with("todo-list"));
   }
 }

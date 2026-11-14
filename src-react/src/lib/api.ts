@@ -252,7 +252,6 @@ export type CallResult<T> = { data: T | null; err: string | null }
 type TauriWindowApi = {
   minimize?: () => Promise<void>
   toggleMaximize?: () => Promise<void>
-  close?: () => Promise<void>
   isMaximized?: () => Promise<boolean>
   onResized?: (handler: (ev: unknown) => void) => Promise<() => void>
 }
@@ -394,6 +393,8 @@ export const registerStickyHotkey = (combo: string | null) => call<void>('regist
 export const registerTodoHotkey = (combo: string | null) => call<void>('register_todo_hotkey', { combo })
 /** 隐藏待办悬浮窗（✕ 同款）：只藏窗，显隐状态落盘 */
 export const hideTodoFloat = () => call<void>('hide_todo_float')
+/** 主窗 ✕ = 收进托盘：必须走后端 hide，前端 close() 会销毁窗口且再也呼不回来 */
+export const hideMainWindow = () => call<void>('hide_main_window')
 /** 待办悬浮窗最小化（380×40 单行条 ↔ 380×456 完整面板）：持久化到 runtime.json */
 export const setTodoFloatMini = (mini: boolean) => call<void>('set_todo_float_mini', { mini })
 /** 热键实际注册快照（null = 未绑上/已解绑），设置页据此标「未生效」 */

@@ -95,6 +95,7 @@ fn boot_error(message: String) -> Box<dyn std::error::Error> {
 }
 
 fn main() {
+  infra::env::load();
   runtime::mark_main_thread();
   #[cfg(windows)]
   enforce_single_instance();
@@ -161,6 +162,7 @@ fn main() {
       commands::snooze_reminder,
       commands::set_settings,
       commands::open_main_window,
+      commands::hide_main_window,
       commands::open_capture_overlay,
       commands::close_capture_overlay,
       commands::capture_start_drag,

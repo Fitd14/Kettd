@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { mainWindowBridge } from '@/lib/api'
+import { hideMainWindow, mainWindowBridge } from '@/lib/api'
 
 /**
  * 自定义标题栏（方案B）：main 窗 decorations:false 后，栏由前端用设计令牌绘制，
@@ -62,7 +62,7 @@ export function TitleBar() {
           className="titlebar-btn close"
           title="关闭"
           aria-label="关闭"
-          onClick={() => { void mainWindowBridge()?.close?.() }}
+          onClick={() => { void hideMainWindow() }}
         >
           ×
         </button>

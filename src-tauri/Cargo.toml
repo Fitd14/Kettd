@@ -1,6 +1,6 @@
 [package]
 name = "kettd"
-version = "2.1.0"
+version = "2.2.0"
 description = "待办列表 - 一款简洁高效的待办列表应用"
 authors = ["lamb"]
 license = ""
@@ -16,6 +16,7 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.0.0", features = [ "api-all", "system-tray" ] }
 dirs = "4.0"
+dotenvy = "0.15"
 chrono = { version = "0.4", features = [ "clock", "std" ] }
 
 [target.'cfg(target_os = "windows")'.dependencies]

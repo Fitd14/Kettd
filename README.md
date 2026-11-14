@@ -90,6 +90,14 @@ npm run tauri dev           # 启动桌面应用
 
 前端改动后需重跑 `npm run build:front`（`beforeDevCommand` 为空，dev 直接读 `src-react/dist`）。
 
+### 环境变量与存储目录
+
+复制根目录 `.env.example` 为 `.env`，可把存储根从默认 `%APPDATA%\todo-list` 挪走（`.env` 不提交）。典型用途：dev / 手点回归指到临时目录，不碰正式数据。
+
+- 开发态读项目根 `.env`，打包态读 exe 同目录 `.env`；优先级：系统环境变量 > exe 同目录 > 项目根
+- `KETTD_DATA_DIR` 设绝对路径时原样作为数据根（不再拼 `todo-list`），留空 = 默认
+- **Windows 路径写正斜杠 `F:/kettd-data` 或单引号 `'F:\kettd-data'`**：dotenv 把裸 `\` 当转义符，整行解析会失败；失败时 dev 控制台报错，打包态无控制台则静默沿用默认目录
+
 ### 发布打包
 
 ```bash

@@ -832,6 +832,14 @@ pub fn set_todo_float_mini(
   runtime::set_todo_float_mini(&app, mini)
 }
 
+/// 主窗 ✕ = 收进托盘（A3 托盘常驻）。必须是 hide：前端 appWindow.close() 在 tauri 1.8.3 走
+/// `on_window_close` → 丢弃 tao Window → DestroyWindow，全程不产生 CloseRequested，
+/// main.rs 里的 prevent_close 无从拦截 —— 主窗一旦被销毁，这个进程就再也呼不出它了。
+#[tauri::command]
+pub fn hide_main_window(app: AppHandle) -> Result<(), String> {
+  runtime::hide_window(&app, runtime::MAIN_LABEL)
+}
+
 #[tauri::command]
 pub fn open_data_folder() -> Result<(), String> {
   runtime::open_in_folder(&crate::store::data_dir())

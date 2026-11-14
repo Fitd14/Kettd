@@ -128,9 +128,25 @@ pub fn window_of(app: &AppHandle, label: &str) -> Result<Window, String> {
     .ok_or_else(|| "窗口还没准备好，请稍后再试".to_string())
 }
 
+/// 主窗 builder：与 `tauri.conf.json` 的 main 节同参（1100×720 / min 1024×640 /
+/// decorations:false / 初始隐藏），仅供缺窗重建复用，不参与首启（首启仍由配置建窗）
+fn main_builder<'a>(app: &'a AppHandle, label: &'a str) -> WindowBuilder<'a> {
+  WindowBuilder::new(app, label, WindowUrl::App("index.html".into()))
+    .title("Kettd")
+    .inner_size(1100.0, 720.0)
+    .min_inner_size(1024.0, 640.0)
+    .resizable(true)
+    .decorations(false)
+    .center()
+    .visible(false)
+}
+
 /// 打开主界面；route 为前端内部路由（如 /planned/reminders）
 pub fn show_main(app: &AppHandle, route: Option<&str>) -> Result<(), String> {
-  let window = window_of(app, MAIN_LABEL)?;
+  let window = match app.get_window(MAIN_LABEL) {
+    Some(window) => window,
+    None => return restore_main_window(app, route),
+  };
   window.show().map_err(|_| "主界面显示失败，请重试".to_string())?;
   if window.is_maximized().unwrap_or(false) {
     let _ = window.unmaximize();
@@ -140,6 +156,51 @@ pub fn show_main(app: &AppHandle, route: Option<&str>) -> Result<(), String> {
     let _ = window.emit("navigate", path.to_string());
   }
   Ok(())
+}
+
+/// 主窗已不在（历史 ✕ 走 appWindow.close() = 销毁，绕不过 prevent_close）时的恢复通道。
+/// 建窗丢给帮手线程且立刻返回：托盘分发跑在事件循环线程上，在这里等建窗回执会和新窗口
+/// 互相卡死（回执只有循环空出来才处理得了）。恢复后的深链 route 尽力送达，页面尚未
+/// 监听时落到默认视图。
+fn restore_main_window(app: &AppHandle, route: Option<&str>) -> Result<(), String> {
+  crate::telemetry::record_str("main_window_restore", &[("from", "tray_or_hotkey")]);
+  let app2 = app.clone();
+  let route2 = route.map(|path| path.to_string());
+  std::thread::Builder::new()
+    .name("main-window-restore".into())
+    .spawn(move || {
+      let rebuilt = build_with_timeout(
+        &app2,
+        MAIN_LABEL.to_string(),
+        "main_window_restore",
+        |app, label| {
+          main_builder(app, label)
+            .build()
+            .map_err(|e| log_build_error("main_window_restore", label, &format!("{e}")))
+        },
+      );
+      match rebuilt {
+        Ok(window) => {
+          let _ = window.show();
+          let _ = window.set_focus();
+          if let Some(path) = route2 {
+            let _ = window.emit("navigate", path);
+          }
+        }
+        Err(error) => {
+          notify_title(&app2, "Kettd", &error);
+        }
+      }
+    })
+    .map_err(|_| "主界面恢复失败，请重启应用".to_string())?;
+  Ok(())
+}
+
+/// 窗口呼出的失败上报：错误本身就是用户可见文案（中文短句，不含路径与堆栈）
+fn report_window_error(app: &AppHandle, result: Result<(), String>) {
+  if let Err(error) = result {
+    notify_title(app, "Kettd", &error);
+  }
 }
 
 pub fn show_window(app: &AppHandle, label: &str) -> Result<(), String> {
@@ -1102,7 +1163,7 @@ fn bind_global_hotkey<M: GlobalShortcutManager>(
       let handle = app.clone();
       manager
         .register(combo, move || {
-          let _ = show_main(&handle, None);
+          report_window_error(&handle, show_main(&handle, None));
         })
         .is_ok()
     }
@@ -1265,7 +1326,7 @@ fn note_snapshots(app: &AppHandle) -> Vec<(String, bool, bool, Option<[i32; 2]>)
 pub fn handle_tray_click(app: &AppHandle, id: &str) -> bool {
   match id {
     "open_main" => {
-      let _ = show_main(app, None);
+      report_window_error(app, show_main(app, None));
     }
     "capture" => {
       let _ = open_capture_overlay(app);
@@ -1320,10 +1381,10 @@ pub fn handle_tray_click(app: &AppHandle, id: &str) -> bool {
       }
     }
     "reminders" => {
-      let _ = show_main(app, Some("/planned/reminders"));
+      report_window_error(app, show_main(app, Some("/planned/reminders")));
     }
     "weekly" => {
-      let _ = show_main(app, Some("/review/weekly"));
+      report_window_error(app, show_main(app, Some("/review/weekly")));
     }
     "data_dir" => {
       let _ = open_in_folder(&crate::store::data_dir());

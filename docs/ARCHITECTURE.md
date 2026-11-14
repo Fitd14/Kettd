@@ -3,7 +3,7 @@
 - **状态**：当前架构（ADR-0001…0007 决策已全部落地）
 - **初版**：2026-09-05 · 最后更新：2026-11-08
 - **决策档案**：`adr/`（历史决策记录，含背景与备选方案）
-- **命令契约**：本文附录（63 命令，四方对账门禁）
+- **命令契约**：本文附录（64 命令，四方对账门禁）
 - **需求规格**：`requirements/总体需求.md`
 
 > 本文描述系统当前架构与不变红线。§1 现状审计为初版时的历史快照（vanilla 前端已退役、端口已引入），仅供溯源；§2 起为当前设计。
@@ -414,6 +414,7 @@ interface RestoreKbResult { restored: number }
 | `get_settings` | — | `Settings` | |
 | `set_settings` | `patch: Partial<Settings>` | `Settings` | 部分字段 MERGE；改任一热键（`captureHotkey`/`mainHotkey`/`stickyHotkey`/`todoHotkey`）会真实重绑热键，任一失败整次回滚（四槽位事务）并 Err「快捷键被占用，请用备用入口」；`todoFloatPinned` 即时同步悬浮窗 always_on_top；`stickyPaper` 校验四预设 |
 | `open_main_window` | — | `void` | 显示主窗并请求焦点 |
+| `hide_main_window` | — | `void` | 主窗 ✕ = 收进托盘：只 hide。**不许换成前端 `close()`** —— tauri 1.8.3 的 close 走 `on_window_close` 丢弃 tao Window（DestroyWindow），不产生 CloseRequested，`prevent_close` 拦不住，主窗一旦销毁该进程就再也呼不出它 |
 | `hide_todo_float` | — | `void` | 隐藏待办悬浮窗（✕ 同款）：只藏窗，显隐状态落 runtime.json，重启恢复 |
 | `set_todo_float_mini` | `mini: bool` | `void` | 待办悬浮窗最小化：`true` → 380×40 单行条；`false` → 380×456 完整面板。持久化到 `runtime.json`，重启按此恢复；窗口不存在时只落盘不改窗 |
 | `open_data_folder` | — | `void` | 在文件管理器里打开 `%APPDATA%/todo-list`；失败 Err「打不开这个位置，请手动前往」 |
@@ -579,7 +580,7 @@ interface RestoreKbResult { restored: number }
 | 项 | 手段 | 结果 |
 | --- | --- | --- |
 | 类型检查与链接 | `cargo check` / `cargo build`（debug） | **0 error**；7 条 `dead_code` warning（`models.rs:21/187/243/385/573/748`、`store.rs:688`） |
-| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **63 ↔ 63 ↔ 63**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + 方案B `capture_resize` + sticky-separation 4 项 + todo-float `register_todo_hotkey` / `hide_todo_float` + fix-known-defects 迭代 `open_sticky` / `set_todo_float_mini`（便签关闭改隐藏·可见合计上限 5·待办最小化）+ 批次4 知识库文件夹 `list_folders` / `create_folder` / `rename_folder` / `delete_folder` + 知识库备份 `list_kb_backups` / `restore_kb_backup`；Phase 3 AI 4 命令于 2026-11-07 随混合检索放弃整体摘除） |
+| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **64 ↔ 64 ↔ 64**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + 方案B `capture_resize` + sticky-separation 4 项 + todo-float `register_todo_hotkey` / `hide_todo_float` + fix-known-defects 迭代 `open_sticky` / `set_todo_float_mini`（便签关闭改隐藏·可见合计上限 5·待办最小化）+ 批次4 知识库文件夹 `list_folders` / `create_folder` / `rename_folder` / `delete_folder` + 知识库备份 `list_kb_backups` / `restore_kb_backup` + 主窗常驻 `hide_main_window`（2026-11-09 主窗销毁缺陷修复）；Phase 3 AI 4 命令于 2026-11-07 随混合检索放弃整体摘除） |
 | 存储安全自查 | 人工 | 无 `unwrap_or_default()` 式空库回退；无 `toISOString`/`Utc`/`naive_utc` 混入；`tauri.conf.json` JSON 合法 |
 | 提醒编辑器逻辑 | `node test/rem-editor.test.mjs`（从 `index.html` 抽真实函数源码断言，17 项） | 全绿：多时刻 round-trip 四形态、模式收敛、渲染契约、aria-label、文案不含手输格式 |
 | 时间契约 + v1 迁移十规则 | `cargo test`（**30 项** = `models` 14 时间契约 + `store` 16 迁移规则，纯内存 fixture，不碰数据目录） | 全绿。过程逼出 `parse_clock` 两处加固：带秒输入归零（否则永不命中整分 tick = 到点不响）、接受裸 `HH:MM:SS` 与单位数小时 |
