@@ -1,7 +1,7 @@
 # 20261113-1438-c285-处理-createwebview-错误并指定可写用户数据目录: 处理 CreateWebview 错误并指定可写用户数据目录
 
 - **Tags**: WebView2, 建窗, 数据目录, 错误处理
-- **Status**: doing · 2026-11-13 17:12:53 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
+- **Status**: doing · 2026-11-14 01:33:54 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 - **Created**: 2026-11-13 14:38:13 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 
 <!-- Header lines are maintained by the script, fixed order: Tags → Status → Created → Sealed.
@@ -77,3 +77,4 @@
 - 2026-11-13 15:24:29 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 复现核查：本机数据目录存在且可写、无失败事件；炸点链与启动失败无日志时序落 repro/window.md
 - 2026-11-13 16:46:13 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 定位完成：0x800700AA 出自 wry webview2/mod.rs:135-163 的 CreateCoreWebView2EnvironmentWithOptions，被 main.rs:330 的 .expect 打成 panic 且早于 telemetry；实测排除 profile 损坏/残留进程/每窗重复建环境（TAURI_AUTOMATION 共用上下文仍失败），受限上下文可 100% 复现；修复见 To Do 4-6
 - 2026-11-13 17:12:53 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 修复落地：runtime.rs 增 WEBVIEW2_DIR/resolve_webview2_dir（%APPDATA%\todo-list\webview2 → %LOCALAPPDATA%\com.todo.list → %TEMP%\kettd-webview2，真写探针）+ with_webview2_dir，四类窗统一 data_directory；main.rs 建窗前探测、telemetry 提前、主窗/capture 改 setup 内 &*app 直建、build() 改 match 走中文弹框与 startup_error 埋点，不再 panic；tauri.conf.json windows 清空。门禁：cargo check/build OK、cargo test 100、tsc 0、parity 5/5、md-fidelity 14/14；沙箱 Low IL 下验证到探测→TEMP 回退→可见错误，成功启动待真机冒烟。
+- 2026-11-14 01:33:54 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 7.1-7.4落地：可写目录探测回退、主窗代码建窗、退出关闭WebView2；cargo test 100过
