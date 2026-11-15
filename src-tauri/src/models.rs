@@ -15,8 +15,8 @@ pub const DEFAULT_HOTKEY: &str = "Alt+Shift+A";
 pub const DEFAULT_MAIN_HOTKEY: &str = "Alt+Shift+O";
 pub const DEFAULT_STICKY_HOTKEY: &str = "Alt+Shift+S";
 pub const DEFAULT_TODO_HOTKEY: &str = "Alt+Shift+T";
-pub const DEFAULT_DND_FROM: &str = "23:00";
-pub const DEFAULT_DND_TO: &str = "07:30";
+/// 直达知识库全局热键（kb-storage-backup S4）；允许清空（None = 不注册）
+pub const DEFAULT_KB_HOTKEY: &str = "Alt+Shift+K";
 pub const REMINDER_CAP_DEFAULT: u32 = 3;
 /// 本地时刻（全链路不用 UTC）
 pub type DateTimeLocal = chrono::DateTime<Local>;
@@ -265,25 +265,6 @@ impl Reminder {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
-pub struct Dnd {
-  #[serde(default = "bool_true")]
-  pub enabled: bool,
-  pub from: String,
-  pub to: String,
-}
-
-impl Default for Dnd {
-  fn default() -> Self {
-    Self {
-      enabled: true,
-      from: DEFAULT_DND_FROM.to_string(),
-      to: DEFAULT_DND_TO.to_string(),
-    }
-  }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
 pub struct Settings {
   /// 主题（float / dark / light …由前端决定，后端只存不解释）
   pub theme: String,
@@ -311,7 +292,9 @@ pub struct Settings {
   /// 待办悬浮窗呼出/隐藏全局热键；None = 未绑定
   #[serde(default = "default_todo_hotkey")]
   pub todo_hotkey: Option<String>,
-  pub dnd: Dnd,
+  /// 直达知识库全局热键（kb-storage-backup S4）：呼出主窗并导航到 /kb；None = 未绑定
+  #[serde(default = "default_kb_hotkey")]
+  pub kb_hotkey: Option<String>,
   pub remind_cap_per_hour: u32,
   pub onboarded: bool,
   #[serde(skip_serializing_if = "is_absent")]
@@ -319,6 +302,9 @@ pub struct Settings {
   /// 本地度量埋点开关（默认开；纯本机、绝不出网）
   #[serde(default = "telemetry_default")]
   pub telemetry_enabled: bool,
+  /// 阅读面字族："" = 跟随正文；`system:<键>` = 系统字体；`file:<文件名>` = 用户上传
+  #[serde(default)]
+  pub reading_font: String,
 }
 
 fn telemetry_default() -> bool {
@@ -331,6 +317,10 @@ fn default_sticky_hotkey() -> Option<String> {
 
 fn default_todo_hotkey() -> Option<String> {
   Some(DEFAULT_TODO_HOTKEY.to_string())
+}
+
+fn default_kb_hotkey() -> Option<String> {
+  Some(DEFAULT_KB_HOTKEY.to_string())
 }
 
 fn todo_float_visible_default() -> bool {
@@ -350,11 +340,12 @@ impl Default for Settings {
       sticky_hotkey: Some(DEFAULT_STICKY_HOTKEY.to_string()),
       todo_float_pinned: true,
       todo_hotkey: Some(DEFAULT_TODO_HOTKEY.to_string()),
-      dnd: Dnd::default(),
+      kb_hotkey: Some(DEFAULT_KB_HOTKEY.to_string()),
       remind_cap_per_hour: REMINDER_CAP_DEFAULT,
       onboarded: false,
       export_dir: None,
       telemetry_enabled: true,
+      reading_font: String::new(),
     }
   }
 }
@@ -392,14 +383,13 @@ impl Settings {
         self.todo_hotkey = None;
       }
     }
+    if let Some(value) = self.kb_hotkey.as_deref() {
+      if value.trim().is_empty() {
+        self.kb_hotkey = None;
+      }
+    }
     if self.remind_cap_per_hour == 0 || self.remind_cap_per_hour > 60 {
       self.remind_cap_per_hour = REMINDER_CAP_DEFAULT;
-    }
-    if parse_clock(&self.dnd.from).is_none() {
-      self.dnd.from = DEFAULT_DND_FROM.to_string();
-    }
-    if parse_clock(&self.dnd.to).is_none() {
-      self.dnd.to = DEFAULT_DND_TO.to_string();
     }
   }
 }
@@ -488,6 +478,10 @@ pub struct KbPayload {
   pub tags: Option<Vec<String>>,
   /// 三态：None = 不改；Some("") = 移到未分类（存 None）；Some(id) = 归到该文件夹（校验存在）
   pub folder_id: Option<String>,
+  /// 同级排序目标索引（kb-file-tree D4）：None = 不改；Some(i) = 插到该父级索引位后 dense 重排
+  pub order: Option<i64>,
+  /// 置顶（kb-file-tree D6）：None = 不改；Some(true/false) = 置位/取消
+  pub pinned: Option<bool>,
 }
 
 pub const STICKY_PAPERS: [&str; 4] = ["warm", "kraft", "cyan", "ink"];
@@ -496,6 +490,90 @@ pub const STICKY_PATTERNS: [&str; 3] = ["none", "bamboo", "mountain"];
 /// 同时可见便签总数上限（自由 + 知识合计，隐藏不计）——防「贴满废纸」，
 /// 对应 metric Counter 壁纸化。分池已取消（fix-known-defects 4.2）。
 pub const STICKY_CAP: usize = 5;
+
+// ---------------------------------------------------------------- 阅读面字体（reading-font）
+
+/// 设置里可选的系统字族：`readingFont = "system:<键>"`，键即 CSS 族名，
+/// 前端用同一张表拼回退栈，后端只做白名单校验。
+pub const READING_FONT_SYSTEMS: [(&str, &str); 4] = [
+  ("SimSun", "宋体"),
+  ("KaiTi", "楷体"),
+  ("FangSong", "仿宋"),
+  ("Microsoft YaHei", "微软雅黑"),
+];
+
+const FONT_EXTENSIONS: [&str; 4] = ["ttf", "otf", "woff", "woff2"];
+
+/// 上传字体的文件名白名单：不许带路径、不许控制字符、不许点开头、扩展名要认识。
+/// 真正的落盘路径拼接在 `infra::fonts`，这里只回答「这个名字能不能用」。
+pub fn is_safe_font_file_name(name: &str) -> bool {
+  let trimmed = name.trim();
+  if trimmed.is_empty() || trimmed.chars().count() > 80 || trimmed.starts_with('.') {
+    return false;
+  }
+  if trimmed
+    .chars()
+    .any(|ch| ch.is_control() || matches!(ch, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'))
+  {
+    return false;
+  }
+  let lower = trimmed.to_ascii_lowercase();
+  match lower.rsplit_once('.') {
+    Some((stem, ext)) => !stem.is_empty() && FONT_EXTENSIONS.contains(&ext),
+    None => false,
+  }
+}
+
+/// 设置值归一化：空串 = 跟随正文；`system:<键>`；`file:<安全文件名>`。
+pub fn normalize_reading_font(value: &str) -> Result<String, String> {
+  let trimmed = value.trim();
+  if trimmed.is_empty() {
+    return Ok(String::new());
+  }
+  if let Some(key) = trimmed.strip_prefix("system:") {
+    if READING_FONT_SYSTEMS.iter().any(|(name, _)| *name == key) {
+      return Ok(format!("system:{key}"));
+    }
+    return Err("这个系统字体不在可选项里".to_string());
+  }
+  if let Some(name) = trimmed.strip_prefix("file:") {
+    if is_safe_font_file_name(name) {
+      return Ok(format!("file:{name}"));
+    }
+    return Err("字体文件名不合法".to_string());
+  }
+  Err("字体设置不认识，已忽略".to_string())
+}
+
+#[cfg(test)]
+mod reading_font_tests {
+  use super::*;
+
+  #[test]
+  fn accepts_plain_and_prefixed_values() {
+    assert_eq!(normalize_reading_font("").unwrap(), "");
+    assert_eq!(normalize_reading_font("system:KaiTi").unwrap(), "system:KaiTi");
+    assert_eq!(normalize_reading_font("  file:文楷.ttf ").unwrap(), "file:文楷.ttf");
+  }
+
+  #[test]
+  fn rejects_unknown_system_face_and_loose_value() {
+    assert!(normalize_reading_font("system:Comic Sans").is_err());
+    assert!(normalize_reading_font("KaiTi").is_err());
+    assert!(normalize_reading_font("file:../../evil.ttf").is_err());
+  }
+
+  #[test]
+  fn filename_whitelist_covers_edges() {
+    assert!(is_safe_font_file_name("a.ttf"));
+    assert!(is_safe_font_file_name("LXGWWenKai-Regular.woff2"));
+    assert!(!is_safe_font_file_name("a.exe"));
+    assert!(!is_safe_font_file_name(".hidden.ttf"));
+    assert!(!is_safe_font_file_name("dir/a.ttf"));
+    assert!(!is_safe_font_file_name("a b.txt"));
+    assert!(!is_safe_font_file_name(""));
+  }
+}
 
 fn default_sticky_fade_opacity() -> u32 {
   38
@@ -525,6 +603,19 @@ pub struct KbItem {
   /// 序列化必须保留 `folderId: null`（不加 skip_serializing_if），前端按 null 判未分类。
   #[serde(default)]
   pub folder_id: Option<String>,
+  /// 同级排序（kb-file-tree D4）：dense 整数，越小越靠前。旧 notes.json 无该字段 → None，
+  /// 加载后按 updated_at 倒序在同级生成 0..n-1（只在内存生成，下次保存落盘）。
+  /// 序列化必须保留 `order: null`（不加 skip_serializing_if），前端类型为 `number | null`。
+  #[serde(default)]
+  pub order: Option<i64>,
+  /// 置顶（kb-file-tree D6）：置顶项在树顶部快捷区展示且原位置保留。旧 JSON 缺字段 → false。
+  #[serde(default)]
+  pub pinned: bool,
+  /// 正文内容指纹（kb-storage-backup D1）：`sha256(规范化正文)` 的 64 位小写十六进制。
+  /// 旧 IPC / 旧 notes.json 缺该字段 → None（前端旧类型可缺省）；序列化保留
+  /// `contentHash: null`（与 folderId/order 同风格，不加 skip_serializing_if）。
+  #[serde(default)]
+  pub content_hash: Option<String>,
 }
 
 impl Default for KbItem {
@@ -537,12 +628,55 @@ impl Default for KbItem {
       created_at: String::new(),
       updated_at: String::new(),
       folder_id: None,
+      order: None,
+      pinned: false,
+      content_hash: None,
+    }
+  }
+}
+
+/// 知识库元数据索引（kb-storage-backup D1）：`notes.json` 数组的唯一元素形状。
+/// 正文在 `notes/<id>.md`，图片在 `assets/<sha256>.<ext>`；索引 MUST NOT 内联正文。
+/// 与 `KbItem` 同一套 camelCase IPC 契约（folderId/order 保留 null，前端按 null 判未分类）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct KbItemMeta {
+  pub id: String,
+  pub title: String,
+  pub tags: Vec<String>,
+  /// None = 未分类；序列化保留 `folderId: null`
+  #[serde(default)]
+  pub folder_id: Option<String>,
+  /// 同级 dense 排序；序列化保留 `order: null`
+  #[serde(default)]
+  pub order: Option<i64>,
+  #[serde(default)]
+  pub pinned: bool,
+  pub created_at: String,
+  pub updated_at: String,
+  /// 正文 SHA-256（64 位小写十六进制），由 `digest::sha256_hex` 计算
+  pub content_hash: String,
+}
+
+impl Default for KbItemMeta {
+  fn default() -> Self {
+    Self {
+      id: String::new(),
+      title: String::new(),
+      tags: Vec::new(),
+      folder_id: None,
+      order: None,
+      pinned: false,
+      created_at: String::new(),
+      updated_at: String::new(),
+      content_hash: String::new(),
     }
   }
 }
 
 /// 知识库文件夹（D6：独立 folders.json，KbItem 仅持引用）。
-/// `name` 由命令层校验（trim 非空、≤40 字）；`order` 同级递增，删除后允许空洞。
+/// `name` 由命令层校验（trim 非空、≤40 字）；`order` 为同级 dense 排序（0..n-1，
+/// 移动/排序时整体重排；旧数据允许空洞，下一次结构操作收敛）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KbFolder {
@@ -550,6 +684,9 @@ pub struct KbFolder {
   pub name: String,
   pub parent_id: Option<String>,
   pub order: i64,
+  /// 置顶（kb-file-tree D6）：文件夹同样可置顶，快捷区展示且原位置保留。旧 JSON 缺字段 → false。
+  #[serde(default)]
+  pub pinned: bool,
 }
 
 /// 运行态（ADR-0005）：住在 runtime.json，与用户数据物理隔离。
@@ -631,14 +768,6 @@ pub struct ReminderPayload {
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
-pub struct DndPayload {
-  pub enabled: Option<bool>,
-  pub from: Option<String>,
-  pub to: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
 pub struct SettingsPayload {
   pub theme: Option<String>,
   pub sticky_paper: Option<String>,
@@ -651,10 +780,10 @@ pub struct SettingsPayload {
   pub sticky_hotkey: Option<String>,
   pub todo_float_pinned: Option<bool>,
   pub todo_hotkey: Option<String>,
-  pub dnd: Option<DndPayload>,
   pub remind_cap_per_hour: Option<u32>,
   pub onboarded: Option<bool>,
   pub export_dir: Option<String>,
+  pub reading_font: Option<String>,
 }
 
 /// patch 字符串字段：null / 空串 → None（清空）
@@ -750,6 +879,8 @@ pub struct HotkeyStatus {
   pub main: Option<String>,
   pub sticky: Option<String>,
   pub todo: Option<String>,
+  /// 直达知识库热键（kb-storage-backup S4 第五槽）
+  pub kb: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -780,6 +911,9 @@ pub struct Bootstrap {
   /// 待办悬浮窗最小化态（fix-known-defects 4.7）：前端启动时据此决定窗口初始形态；
   /// 真实窗口尺寸由 Rust 建窗时按 runtime.todo_float_mini 落定，前端只读不写。
   pub todo_float_mini: bool,
+  /// 知识库图片的绝对 assets 目录（kb-storage-backup D2）。
+  /// 前端用 `convertFileSrc(<assets_dir>/<sha>.<ext>)` 显示正文里的 `assets/<sha>.<ext>`。
+  pub assets_dir: String,
 }
 
 /// `store-changed` 事件负载
@@ -1066,6 +1200,22 @@ mod tests {
   }
 
   #[test]
+  fn settings_kb_hotkey_defaults_for_old_config_and_coerces_blank() {
+    // 旧配置缺 kbHotkey：serde default 必须补 Alt+Shift+K 且不报错（kb-storage-backup S4）
+    let old: Settings = serde_json::from_value(json!({ "theme": "float" })).unwrap();
+    assert_eq!(old.kb_hotkey.as_deref(), Some(DEFAULT_KB_HOTKEY));
+    // 用户主动清空：空串 / 纯空白 coerce 成 None（表示不注册）
+    let mut settings = Settings::default();
+    settings.kb_hotkey = Some("   ".to_string());
+    settings.coerce();
+    assert_eq!(settings.kb_hotkey, None);
+    // 非空值保持原样（与 main/sticky/todo 同形态）
+    settings.kb_hotkey = Some(" Ctrl+Shift+K ".to_string());
+    settings.coerce();
+    assert_eq!(settings.kb_hotkey.as_deref(), Some(" Ctrl+Shift+K "));
+  }
+
+  #[test]
   fn parse_clock_accepts_clock_and_datetime_forms() {
     assert_eq!(parse_clock("09:00"), Some(clock(9, 0)));
     assert_eq!(parse_clock(" 23:59 "), Some(clock(23, 59)));
@@ -1304,5 +1454,192 @@ mod sticky_visibility_tests {
     })
     .expect("可序列化");
     assert_eq!(hidden["visible"], serde_json::json!(false));
+  }
+}
+
+#[cfg(test)]
+mod kb_tree_serialization_tests {
+  use super::*;
+
+  /// 旧 notes.json / folders.json 缺 order、pinned：必须靠 serde default 无损读取
+  /// （kb-file-tree D4/D6：不写迁移脚本、不改文件形状）。
+  #[test]
+  fn kb_legacy_json_defaults_order_and_pinned() {
+    let legacy_item: KbItem = serde_json::from_value(serde_json::json!({
+      "id": "k1",
+      "title": "旧条目",
+      "bodyMd": "",
+      "tags": [],
+      "createdAt": "2026-09-01T09:00",
+      "updatedAt": "2026-09-01T09:00"
+    }))
+    .expect("旧条目 JSON 必须可读");
+    assert_eq!(legacy_item.order, None, "旧 notes 缺 order → None（加载后内存补齐）");
+    assert!(!legacy_item.pinned, "旧 notes 缺 pinned → false");
+    assert_eq!(legacy_item.folder_id, None, "旧 notes 缺 folderId → 未分类");
+
+    let legacy_folder: KbFolder = serde_json::from_value(serde_json::json!({
+      "id": "f1",
+      "name": "旧文件夹",
+      "parentId": null,
+      "order": 3
+    }))
+    .expect("旧文件夹 JSON 必须可读");
+    assert!(!legacy_folder.pinned, "旧 folders 缺 pinned → false");
+
+    let payload: KbPayload = serde_json::from_value(serde_json::json!({ "title": "t" }))
+      .expect("旧 payload 必须可读");
+    assert_eq!(payload.order, None, "缺省 order = 不改排序");
+    assert_eq!(payload.pinned, None, "缺省 pinned = 不改置顶");
+    let full: KbPayload =
+      serde_json::from_value(serde_json::json!({ "order": 2, "pinned": true }))
+        .expect("新 payload 必须可读");
+    assert_eq!(full.order, Some(2));
+    assert_eq!(full.pinned, Some(true));
+  }
+
+  /// order 必须序列化为数字 / null（前端类型 number | null），不能 skip 省略字段
+  #[test]
+  fn kb_order_serializes_as_null_not_omitted() {
+    let item = KbItem::default();
+    let value = serde_json::to_value(&item).expect("KbItem 必须可序列化");
+    assert!(
+      value.get("order").is_some(),
+      "order 字段必须始终出现（null 也是合法值）：{value}"
+    );
+    assert!(value["order"].is_null(), "None → order: null");
+    assert_eq!(value["pinned"], serde_json::json!(false), "pinned 必须序列化");
+
+    let folder = KbFolder {
+      id: "f1".to_string(),
+      name: "工作".to_string(),
+      parent_id: None,
+      order: 1,
+      pinned: true,
+    };
+    let value = serde_json::to_value(&folder).expect("KbFolder 必须可序列化");
+    assert_eq!(value["pinned"], serde_json::json!(true));
+    assert_eq!(value["order"], serde_json::json!(1));
+  }
+}
+
+#[cfg(test)]
+mod kb_storage_serialization_tests {
+  use super::*;
+
+  /// KbItemMeta 是 notes.json 的唯一元素形状：camelCase 字段、null 必须保留
+  /// （与 KbItem 同一 IPC 契约），且绝不能出现 bodyMd。
+  #[test]
+  fn kb_item_meta_serializes_camel_case_and_keeps_nulls() {
+    let meta = KbItemMeta {
+      id: "k1".to_string(),
+      title: "标题".to_string(),
+      tags: vec!["rust".to_string()],
+      folder_id: None,
+      order: None,
+      pinned: false,
+      created_at: "2026-09-01T09:00".to_string(),
+      updated_at: "2026-09-02T09:00".to_string(),
+      content_hash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        .to_string(),
+    };
+    let value = serde_json::to_value(&meta).expect("KbItemMeta 必须可序列化");
+    assert_eq!(value["id"], "k1");
+    assert_eq!(value["title"], "标题");
+    assert_eq!(value["createdAt"], "2026-09-01T09:00");
+    assert_eq!(value["updatedAt"], "2026-09-02T09:00");
+    assert_eq!(value["contentHash"], meta.content_hash);
+    assert!(
+      value.get("created_at").is_none() && value.get("content_hash").is_none(),
+      "索引字段必须是 camelCase：{value}"
+    );
+    assert!(
+      matches!(value.get("folderId"), Some(serde_json::Value::Null)),
+      "folderId:null 必须保留（前端按 null 判未分类）：{value}"
+    );
+    assert!(matches!(value["order"], serde_json::Value::Null), "order:null 必须保留");
+    assert_eq!(value["pinned"], serde_json::json!(false));
+    assert!(
+      value.get("bodyMd").is_none() && value.get("body_md").is_none(),
+      "索引 MUST NOT 内联正文：{value}"
+    );
+    let back: KbItemMeta = serde_json::from_value(value).expect("索引必须可反序列化");
+    assert_eq!(back, meta);
+  }
+
+  /// 旧 IPC / 旧索引缺字段：serde default 兜底，不因此报错。
+  #[test]
+  fn kb_item_meta_tolerates_missing_optional_fields() {
+    let meta: KbItemMeta =
+      serde_json::from_value(serde_json::json!({ "id": "k1", "contentHash": "abc" }))
+        .expect("缺省字段的索引必须可读");
+    assert_eq!(meta.folder_id, None);
+    assert_eq!(meta.order, None);
+    assert!(!meta.pinned);
+    assert_eq!(meta.tags, Vec::<String>::new());
+  }
+
+  /// KbItem 的 contentHash 对旧前端可选：缺省 → None，序列化保留 null。
+  #[test]
+  fn kb_item_content_hash_is_optional_for_legacy_ipc() {
+    let legacy: KbItem = serde_json::from_value(serde_json::json!({
+      "id": "k1",
+      "title": "旧条目",
+      "bodyMd": "正文",
+      "tags": [],
+      "createdAt": "2026-09-01T09:00",
+      "updatedAt": "2026-09-01T09:00"
+    }))
+    .expect("旧 KbItem JSON 必须可读");
+    assert_eq!(legacy.content_hash, None, "旧 IPC 缺 contentHash → None");
+    let value = serde_json::to_value(&legacy).expect("KbItem 必须可序列化");
+    assert!(
+      matches!(value.get("contentHash"), Some(serde_json::Value::Null)),
+      "contentHash 必须序列化为 null（不省略字段）：{value}"
+    );
+
+    let with_hash: KbItem = serde_json::from_value(serde_json::json!({
+      "id": "k2",
+      "contentHash": "abc"
+    }))
+    .expect("带 contentHash 的 JSON 必须可读");
+    assert_eq!(with_hash.content_hash.as_deref(), Some("abc"));
+  }
+}
+
+#[cfg(test)]
+mod legacy_settings_compat_tests {
+  use super::*;
+
+  /// 免打扰已从产品移除（sticky-shell-polish quiet-mode-removal）：老 data.json 的
+  /// `settings.dnd` 是嵌套对象，加载时必须被静默忽略，不能报错进恢复页。
+  /// Settings 故意不设 deny_unknown_fields —— 兼容旧字段正是本契约的根。
+  #[test]
+  fn legacy_settings_with_dnd_loads_and_ignores_it() {
+    let raw = serde_json::json!({
+      "settings": {
+        "theme": "dark",
+        "dnd": { "enabled": true, "from": "23:00", "to": "07:30" }
+      }
+    });
+    let data: AppData = serde_json::from_value(raw).expect("旧 data.json 带 settings.dnd 必须可加载");
+    assert_eq!(data.settings.theme, "dark");
+    // 保存一次即自然消失：序列化输出不得再出现 dnd（无需迁移脚本）
+    let saved = serde_json::to_value(&data).expect("AppData 必须可序列化");
+    assert!(
+      saved["settings"].get("dnd").is_none(),
+      "新写入不得再出现 settings.dnd：{saved}"
+    );
+  }
+
+  /// 旧前端仍可能带 dnd patch：SettingsPayload 同样忽略未知字段，不拒绝整次保存。
+  #[test]
+  fn legacy_settings_payload_with_dnd_is_accepted() {
+    let payload: SettingsPayload = serde_json::from_value(serde_json::json!({
+      "theme": "light",
+      "dnd": { "enabled": false, "from": "22:00", "to": "08:00" }
+    }))
+    .expect("旧 patch 带 dnd 必须可反序列化");
+    assert_eq!(payload.theme.as_deref(), Some("light"));
   }
 }

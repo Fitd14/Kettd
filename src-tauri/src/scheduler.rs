@@ -3,14 +3,14 @@
 //! - 1 秒 tick，全程 `chrono::Local`（不做任何 UTC 换算）
 //! - 到点 → 系统通知「待办提醒」；触发与落库都 emit `store-changed`
 //! - 每小时最多 `remindCapPerHour` 条（内存滑窗，超额排队等窗口放开）
-//! - 免打扰时段（默认 23:00–07:30，可关）内静默入账，结束后合并补发一条
+//! - 不设免打扰时段：任何时段到点都照常通知（quiet-mode-removal）
 //! - 错过超过 24h 不再发通知，只记 missed 并清账
 //! - 应用未运行期间错过的，下次启动补一条「错过 N 条提醒」汇总通知
 //! - snooze 通过 `snoozedUntil` 重触发
 //! - 兼任：嵌入桌面形态的悬浮面板失焦后自动收起
 
 use crate::models::{
-  clocks_of, fmt_dt, now_text, parse_clock, parse_wall, repeat_allows, to_local, Reminder, Settings,
+  clocks_of, fmt_dt, now_text, parse_clock, parse_wall, repeat_allows, to_local, Reminder,
   StoreEvent, MISSED_GRACE_HOURS,
 };
 use crate::ports::clock::Clock;
@@ -41,8 +41,6 @@ pub struct NightState {
   warmed_up: bool,
   queue: Vec<Due>,
   sent: VecDeque<DateTime<Local>>,
-  quiet: usize,
-  last_dnd: bool,
 }
 
 impl NightState {
@@ -51,8 +49,6 @@ impl NightState {
       warmed_up: false,
       queue: Vec::new(),
       sent: VecDeque::new(),
-      quiet: 0,
-      last_dnd: false,
     }
   }
 }
@@ -109,7 +105,7 @@ pub fn start(app: AppHandle) {
 struct Plan {
   /// 逐条发通知的到点事件（发完在 ③ 落库）
   fires: Vec<Due>,
-  /// 汇总类通知（启动补发、免打扰合并）
+  /// 汇总类通知（启动补发）
   batches: Vec<String>,
   /// ③ 阶段要落库的动作：(事件, quiet)
   settles: Vec<(Due, bool)>,
@@ -126,13 +122,12 @@ struct Outcome {
 }
 
 /// ① 持短锁决策：只读 Store、只改线程内的 NightState，**不写库、不发通知**
-/// 时钟经端口注入（ADR-0002）：DND 跨午夜、24h 降级等时间边界因此可表驱动测试
+/// 时钟经端口注入（ADR-0002）：跨午夜、24h 降级等时间边界因此可表驱动测试
 fn plan_tick(store: &mut Store, state: &mut NightState, clock: &dyn Clock) -> Option<Plan> {
   if store.is_corrupt() {
     return None; // corrupt 状态下不发通知也不写库（等用户恢复）
   }
   let at = clock.now();
-  let dnd = in_dnd(&store.data.settings, &at);
   let mut candidates: Vec<Due> = Vec::new();
   collect(store, &at, &mut candidates);
   for due in candidates.into_iter() {
@@ -202,18 +197,6 @@ fn plan_tick(store: &mut Store, state: &mut NightState, clock: &dyn Clock) -> Op
         index += 1;
         continue;
       }
-      if dnd {
-        // 免打扰：静默入账，等时段结束合并补发
-        state.queue.remove(index);
-        telemetry::record_str(
-          "reminder_missed",
-          &[("id", due.id.as_str()), ("reason", "dnd")],
-        );
-        state.quiet += 1;
-        plan.settles.push((due, true));
-        plan.dirty = true;
-        continue;
-      }
       if budget == 0 {
         index += 1;
         continue; // 本小时已达上限：留在队列里，下个 tick 再试
@@ -225,13 +208,6 @@ fn plan_tick(store: &mut Store, state: &mut NightState, clock: &dyn Clock) -> Op
     }
   }
 
-  // 4. 免打扰结束：把期间静默入账的合并成一条
-  if state.last_dnd && !dnd && state.quiet > 0 {
-    let count = state.quiet;
-    state.quiet = 0;
-    plan.batches.push(format!("免打扰期间有 {} 条提醒", count));
-  }
-  state.last_dnd = dnd;
   Some(plan)
 }
 
@@ -480,30 +456,6 @@ fn snooze_due(reminder: &Reminder) -> Option<Due> {
   })
 }
 
-// ---------------------------------------------------------------- 免打扰
-
-/// 免打扰时段（支持跨零点）
-pub fn in_dnd(settings: &Settings, at: &DateTime<Local>) -> bool {
-  if !settings.dnd.enabled {
-    return false;
-  }
-  let from = match parse_clock(&settings.dnd.from) {
-    Some(value) => value,
-    None => return false,
-  };
-  let to = match parse_clock(&settings.dnd.to) {
-    Some(value) => value,
-    None => return false,
-  };
-  let current = at.time();
-  if from <= to {
-    current >= from && current < to
-  } else {
-    current >= from || current < to
-  }
-}
-
-
 // ---------------------------------------------------------------- 调度决策单测
 // 离线构造 Store（字段全 pub），不碰 %APPDATA%、不建窗口、不真实等待时间。
 // ADR-0004 出口判据③：决策逻辑必须可表驱动测试。
@@ -735,10 +687,11 @@ mod tests {
     assert_eq!(store.runtime.fired.len(), 2, "补发也记 fired 键");
   }
 
+  /// 免打扰已移除（quiet-mode-removal）：深夜到点在**所有时段**都照常通知，
+  /// 不再静默入账、也没有出窗合并批次。
   #[test]
-  fn dnd_silences_then_merges_after_window_ends() {
+  fn night_reminder_fires_normally_without_dnd() {
     let mut store = store_with(vec![reminder("r1", "23:10")], vec![]);
-    // 默认免打扰 23:00–07:30 已开启（Dnd::default）
     let mut state = NightState::new();
     let clock = clock_at(2026, 9, 5, 10, 0);
     let notifier = RecordingNotifier::new();
@@ -748,25 +701,14 @@ mod tests {
     apply(&mut store, &mut state, deliver(&notifier, warm), &clock);
     assert!(notifier.bodies().is_empty());
 
-    // 23:30：到点但落在免打扰窗口 → 静默入账，不发通知
+    // 23:30：到点直接逐条通知，不存在「静默入账」
     clock.advance(chrono::Duration::hours(13) + chrono::Duration::minutes(30));
     let plan = plan_tick(&mut store, &mut state, &clock).unwrap();
-    assert!(plan.fires.is_empty(), "免打扰期间不得逐条发");
+    assert_eq!(plan.fires.len(), 1, "到点必须照常入队");
+    assert!(plan.batches.is_empty(), "不得再产生免打扰合并批次");
     apply(&mut store, &mut state, deliver(&notifier, plan), &clock);
-    assert!(notifier.bodies().is_empty(), "免打扰期间零通知");
-    assert_eq!(state.quiet, 1, "应静默入账 1 条");
-    assert!(store.has_fired("r|r1|2026-09-05T23:10"), "入账也记 fired");
-
-    // 次日 07:31：窗口结束 → 合并补一条
-    clock.advance(chrono::Duration::hours(8) + chrono::Duration::minutes(1));
-    let plan = plan_tick(&mut store, &mut state, &clock).unwrap();
-    assert_eq!(plan.batches, vec!["免打扰期间有 1 条提醒".to_string()]);
-    deliver(&notifier, plan);
-    assert_eq!(
-      notifier.bodies(),
-      vec!["免打扰期间有 1 条提醒".to_string()],
-      "跨午夜出窗后只补一条汇总"
-    );
+    assert_eq!(notifier.bodies().len(), 1, "深夜到点也照常发通知");
+    assert!(store.has_fired("r|r1|2026-09-05T23:10"), "触发后记 fired");
   }
 
   #[test]

@@ -14,6 +14,8 @@ pub const MAIN_LABEL: &str = "main";
 pub const TODO_LABEL: &str = "todo";
 pub const CAPTURE_LABEL: &str = "capture";
 pub const TRAY_ID: &str = "main";
+/// 直达知识库热键触发后主窗要落到的前端路由（kb-storage-backup S4）
+pub const KB_ROUTE: &str = "/kb";
 
 /// 本次启动实际使用的 WebView2 用户数据目录。
 /// 由 main 在 `Builder::build()` 之前探测并注入；所有建窗路径共用同一份，
@@ -101,24 +103,36 @@ fn probe_writable(dir: &Path) -> Result<(), String> {
 }
 
 /// 当前注册成功的全局快捷键（换键时先解绑旧的）
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct HotkeyRegistry {
   pub capture: Option<String>,
   pub main: Option<String>,
   pub sticky: Option<String>,
   pub todo: Option<String>,
+  /// 直达知识库（kb-storage-backup S4 第五槽）
+  pub kb: Option<String>,
 }
 
 pub struct HotkeyLock(pub Mutex<HotkeyRegistry>);
 
 /// 全局快捷键用途；同一组合键不允许绑两个动作
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum HotkeyAction {
   Capture,
   OpenMain,
   NewSticky,
   ToggleTodoFloat,
+  OpenKb,
 }
+
+/// 五槽位动作全集（互斥遍历 / 槽位映射的唯一来源）
+const HOTKEY_ACTIONS: [HotkeyAction; 5] = [
+  HotkeyAction::Capture,
+  HotkeyAction::OpenMain,
+  HotkeyAction::NewSticky,
+  HotkeyAction::ToggleTodoFloat,
+  HotkeyAction::OpenKb,
+];
 
 // ---------------------------------------------------------------- 窗口
 
@@ -1072,6 +1086,13 @@ pub fn register_todo_hotkey(app: &AppHandle, combo: &Option<String>) -> Result<(
   result
 }
 
+/// 注册 / 换绑 / 解绑「直达知识库」热键；None 或空串 = 解绑（kb-storage-backup S4）
+pub fn register_kb_hotkey(app: &AppHandle, combo: &Option<String>) -> Result<(), String> {
+  let result = kb_hotkey_inner(app, combo);
+  publish_hotkey_state(app);
+  result
+}
+
 fn main_hotkey_inner(app: &AppHandle, combo: &Option<String>) -> Result<(), String> {
   match combo.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
     Some(target) => register_global_hotkey(app, target, HotkeyAction::OpenMain),
@@ -1111,37 +1132,110 @@ fn todo_hotkey_inner(app: &AppHandle, combo: &Option<String>) -> Result<(), Stri
   }
 }
 
-fn register_global_hotkey(app: &AppHandle, combo: &str, action: HotkeyAction) -> Result<(), String> {
+fn kb_hotkey_inner(app: &AppHandle, combo: &Option<String>) -> Result<(), String> {
+  match combo.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+    Some(target) => register_global_hotkey(app, target, HotkeyAction::OpenKb),
+    None => {
+      if let Some(old) = read_hotkey(app, HotkeyAction::OpenKb) {
+        let _ = app.global_shortcut_manager().unregister(&old);
+      }
+      store_hotkey(app, HotkeyAction::OpenKb, None);
+      Ok(())
+    }
+  }
+}
+
+/// 换绑抽象：真实实现走 Tauri 全局快捷键；单测注入 FakeBinder 验证互斥 / 回滚
+trait ShortcutBinder {
+  fn unbind(&mut self, combo: &str);
+  fn bind(&mut self, combo: &str) -> bool;
+}
+
+struct GlobalShortcutBinder<'a, M: GlobalShortcutManager> {
+  app: &'a AppHandle,
+  manager: &'a mut M,
+  action: HotkeyAction,
+}
+
+impl<'a, M: GlobalShortcutManager> ShortcutBinder for GlobalShortcutBinder<'a, M> {
+  fn unbind(&mut self, combo: &str) {
+    let _ = self.manager.unregister(combo);
+  }
+
+  fn bind(&mut self, combo: &str) -> bool {
+    bind_global_hotkey(self.manager, self.app, combo, self.action)
+  }
+}
+
+/// 找出除 `action` 外已经绑了 `target` 的动作（五槽位互斥）
+fn conflicting_action(
+  registry: &HotkeyRegistry,
+  action: HotkeyAction,
+  target: &str,
+) -> Option<HotkeyAction> {
+  HOTKEY_ACTIONS
+    .iter()
+    .copied()
+    .find(|rival| *rival != action && slot(registry, *rival).as_deref() == Some(target))
+}
+
+/// 换绑单个槽位：空串拒绝 → 五槽位互斥 → 解绑旧键 → 绑定新键；
+/// 绑定失败把旧键绑回去并保持槽位旧值，返回可显示的中文提示。
+fn rebind_hotkey<B: ShortcutBinder>(
+  registry: &mut HotkeyRegistry,
+  action: HotkeyAction,
+  combo: &str,
+  binder: &mut B,
+) -> Result<(), String> {
   let target = combo.trim().to_string();
   if target.is_empty() {
     return Err("快捷键不能为空".to_string());
   }
-  // 四槽位互斥：任一其他功能绑了这个组合键都拒绝
-  for rival in [HotkeyAction::Capture, HotkeyAction::OpenMain, HotkeyAction::NewSticky, HotkeyAction::ToggleTodoFloat] {
-    if rival == action {
-      continue;
-    }
-    if read_hotkey(app, rival).as_deref() == Some(target.as_str()) {
-      return Err("这个快捷键已被其他功能占用，换一个组合".to_string());
-    }
+  if conflicting_action(registry, action, &target).is_some() {
+    return Err("这个快捷键已被其他功能占用，换一个组合".to_string());
   }
-  let previous = read_hotkey(app, action);
-  let mut manager = app.global_shortcut_manager();
+  let previous = slot(registry, action).clone();
+  if previous.as_deref() == Some(target.as_str()) {
+    // 目标与当前一致：无需重绑，避免重复 register 把已生效的键弄坏
+    return Ok(());
+  }
   if let Some(old) = &previous {
-    if old != &target {
-      let _ = manager.unregister(old);
-    }
+    binder.unbind(old);
   }
-  let registered = bind_global_hotkey(&mut manager, app, &target, action);
-  if registered {
-    store_hotkey(app, action, Some(target));
+  if binder.bind(&target) {
+    *slot_mut(registry, action) = Some(target);
     return Ok(());
   }
   // 注册失败：把旧键还回去，保证用户还能用
   if let Some(old) = previous {
-    let _ = bind_global_hotkey(&mut manager, app, &old, action);
+    binder.bind(&old);
   }
   Err("快捷键被占用，请用备用入口".to_string())
+}
+
+/// 读一份注册表快照（锁内 clone，后续换绑在快照上做，避免跨 OS 调用持锁）
+fn read_registry(app: &AppHandle) -> HotkeyRegistry {
+  match app.try_state::<HotkeyLock>() {
+    None => HotkeyRegistry::default(),
+    Some(state) => match state.0.lock() {
+      Ok(guard) => guard.clone(),
+      Err(poisoned) => poisoned.into_inner().clone(),
+    },
+  }
+}
+
+fn register_global_hotkey(app: &AppHandle, combo: &str, action: HotkeyAction) -> Result<(), String> {
+  // 互斥判断与解绑/绑定都在本地快照上完成；锁内不做任何 OS 调用
+  let mut registry = read_registry(app);
+  let mut manager = app.global_shortcut_manager();
+  let mut binder = GlobalShortcutBinder {
+    app,
+    manager: &mut manager,
+    action,
+  };
+  rebind_hotkey(&mut registry, action, combo, &mut binder)?;
+  store_hotkey(app, action, Some(combo.trim().to_string()));
+  Ok(())
 }
 
 fn bind_global_hotkey<M: GlobalShortcutManager>(
@@ -1164,6 +1258,15 @@ fn bind_global_hotkey<M: GlobalShortcutManager>(
       manager
         .register(combo, move || {
           report_window_error(&handle, show_main(&handle, None));
+        })
+        .is_ok()
+    }
+    HotkeyAction::OpenKb => {
+      let handle = app.clone();
+      manager
+        .register(combo, move || {
+          // 直达知识库：显示主窗并广播 navigate 事件，由前端路由切到 #/kb
+          report_window_error(&handle, show_main(&handle, Some(KB_ROUTE)));
         })
         .is_ok()
     }
@@ -1226,13 +1329,14 @@ fn store_hotkey(app: &AppHandle, action: HotkeyAction, value: Option<String>) {
   }
 }
 
-/// 四个热键的**实际注册**快照（read_hotkey 是唯一事实来源，不另存一份判断）
+/// 五个热键的**实际注册**快照（read_hotkey 是唯一事实来源，不另存一份判断）
 pub fn hotkey_status(app: &AppHandle) -> crate::models::HotkeyStatus {
   crate::models::HotkeyStatus {
     capture: read_hotkey(app, HotkeyAction::Capture),
     main: read_hotkey(app, HotkeyAction::OpenMain),
     sticky: read_hotkey(app, HotkeyAction::NewSticky),
     todo: read_hotkey(app, HotkeyAction::ToggleTodoFloat),
+    kb: read_hotkey(app, HotkeyAction::OpenKb),
   }
 }
 
@@ -1249,6 +1353,7 @@ fn slot(registry: &HotkeyRegistry, action: HotkeyAction) -> &Option<String> {
     HotkeyAction::OpenMain => &registry.main,
     HotkeyAction::NewSticky => &registry.sticky,
     HotkeyAction::ToggleTodoFloat => &registry.todo,
+    HotkeyAction::OpenKb => &registry.kb,
   }
 }
 
@@ -1258,6 +1363,7 @@ fn slot_mut(registry: &mut HotkeyRegistry, action: HotkeyAction) -> &mut Option<
     HotkeyAction::OpenMain => &mut registry.main,
     HotkeyAction::NewSticky => &mut registry.sticky,
     HotkeyAction::ToggleTodoFloat => &mut registry.todo,
+    HotkeyAction::OpenKb => &mut registry.kb,
   }
 }
 
@@ -1270,16 +1376,9 @@ pub fn tray_menu(todo_visible: bool) -> SystemTrayMenu {
   }
   SystemTrayMenu::new()
     .add_item(CustomMenuItem::new("open_main", "打开主界面"))
-    .add_item(CustomMenuItem::new("capture", "快速记录"))
-    .add_native_item(SystemTrayMenuItem::Separator)
     .add_item(todo_item)
     .add_native_item(SystemTrayMenuItem::Separator)
     .add_item(CustomMenuItem::new("sticky_new", "新建便签"))
-    .add_item(CustomMenuItem::new("sticky_show_all", "显示全部便签"))
-    .add_item(CustomMenuItem::new("sticky_hide_all", "隐藏全部便签"))
-    .add_native_item(SystemTrayMenuItem::Separator)
-    .add_item(CustomMenuItem::new("reminders", "管理提醒"))
-    .add_item(CustomMenuItem::new("weekly", "本周汇总导出"))
     .add_item(CustomMenuItem::new("data_dir", "打开数据文件夹"))
     .add_native_item(SystemTrayMenuItem::Separator)
     .add_item(CustomMenuItem::new("quit", "退出"))
@@ -1298,38 +1397,11 @@ pub fn sync_tray_todo(app: &AppHandle, visible: bool) {
   }
 }
 
-/// 便签的锁内快照（id / visible / mini / 位置）：托盘与启动恢复先拿快照，
-/// 再逐个操作窗口，不把 Store 锁带进窗口操作——v2.2 死锁教训。
-fn note_snapshots(app: &AppHandle) -> Vec<(String, bool, bool, Option<[i32; 2]>)> {
-  app
-    .try_state::<Mutex<Store>>()
-    .and_then(|s| {
-      s.lock().ok().map(|g| {
-        g.data
-          .stickies
-          .iter()
-          .map(|n| {
-            (
-              n.id.clone(),
-              n.visible,
-              n.mini,
-              g.runtime.note_pos.get(&n.id).copied(),
-            )
-          })
-          .collect()
-      })
-    })
-    .unwrap_or_default()
-}
-
 /// 托盘菜单点击分发；返回 true 表示要退出应用
 pub fn handle_tray_click(app: &AppHandle, id: &str) -> bool {
   match id {
     "open_main" => {
       report_window_error(app, show_main(app, None));
-    }
-    "capture" => {
-      let _ = open_capture_overlay(app);
     }
     "sticky_new" => {
       let handle = app.clone();
@@ -1343,48 +1415,6 @@ pub fn handle_tray_click(app: &AppHandle, id: &str) -> bool {
       if result.is_ok() {
         sync_tray_todo(app, next);
       }
-    }
-    "sticky_show_all" => {
-      // 「显示全部便签」= 恢复所有「可见」便签的窗口。隐藏是用户主动关闭的语义
-      // （✕/Alt+F4 只隐藏），这里绝不擅自把隐藏项改回可见（fix-known-defects 4.3）。
-      for (id, visible, mini, pos) in note_snapshots(app) {
-        if visible {
-          let _ = open_note_window(app, &id, mini, pos);
-        }
-      }
-    }
-    "sticky_hide_all" => {
-      // 「隐藏全部便签」= 全部置 visible=false 并落盘，再藏窗；数据与位置都保留。
-      let mut hidden_any = false;
-      if let Some(state) = app.try_state::<Mutex<Store>>() {
-        if let Ok(mut guard) = state.lock() {
-          for note in guard.data.stickies.iter_mut() {
-            if note.visible {
-              note.visible = false;
-              note.updated_at = crate::models::now_text();
-              hidden_any = true;
-            }
-          }
-          if hidden_any {
-            let _ = guard.save();
-          }
-        }
-      }
-      if hidden_any {
-        let _ = app.emit_all(
-          "store-changed",
-          crate::models::StoreEvent::changed("stickies"),
-        );
-      }
-      for (id, ..) in note_snapshots(app) {
-        hide_note_window(app, &id);
-      }
-    }
-    "reminders" => {
-      report_window_error(app, show_main(app, Some("/planned/reminders")));
-    }
-    "weekly" => {
-      report_window_error(app, show_main(app, Some("/review/weekly")));
     }
     "data_dir" => {
       let _ = open_in_folder(&crate::store::data_dir());
@@ -1472,5 +1502,139 @@ mod main_titlebar_tests {
   #[test]
   fn maximized_window_gets_square_corners() {
     assert_eq!(corner_preference_for(true), 1, "最大化态 = DWMWCP_DONOTROUND");
+  }
+}
+
+/// 热键换绑的纯逻辑单测：不碰真实 OS 全局快捷键，注入 FakeBinder 验证
+/// 五槽位互斥 / 失败回滚旧绑定 / 成功换绑 / 空串拒绝（kb-storage-backup S4）。
+#[cfg(test)]
+mod hotkey_rebind_tests {
+  use super::*;
+
+  #[derive(Default)]
+  struct FakeBinder {
+    installed: Vec<String>,
+    fail: Option<String>,
+    calls: Vec<String>,
+  }
+
+  impl FakeBinder {
+    fn failing(combo: &str) -> Self {
+      Self {
+        fail: Some(combo.to_string()),
+        ..Self::default()
+      }
+    }
+  }
+
+  impl ShortcutBinder for FakeBinder {
+    fn unbind(&mut self, combo: &str) {
+      self.calls.push(format!("unbind:{combo}"));
+      self.installed.retain(|value| value != combo);
+    }
+
+    fn bind(&mut self, combo: &str) -> bool {
+      self.calls.push(format!("bind:{combo}"));
+      if self.fail.as_deref() == Some(combo) {
+        return false;
+      }
+      if !self.installed.iter().any(|value| value == combo) {
+        self.installed.push(combo.to_string());
+      }
+      true
+    }
+  }
+
+  fn four_slot_registry() -> HotkeyRegistry {
+    HotkeyRegistry {
+      capture: Some("Alt+Shift+A".to_string()),
+      main: Some("Alt+Shift+O".to_string()),
+      sticky: Some("Alt+Shift+S".to_string()),
+      todo: Some("Alt+Shift+T".to_string()),
+      kb: None,
+    }
+  }
+
+  #[test]
+  fn five_slot_mutual_exclusion_rejects_occupied_combos() {
+    let mut registry = four_slot_registry();
+    let mut binder = FakeBinder::default();
+    for occupied in ["Alt+Shift+A", "Alt+Shift+O", "Alt+Shift+S", "Alt+Shift+T"] {
+      let error = rebind_hotkey(&mut registry, HotkeyAction::OpenKb, occupied, &mut binder)
+        .expect_err("已占用的组合键必须拒绝");
+      assert_eq!(error, "这个快捷键已被其他功能占用，换一个组合");
+    }
+    assert!(registry.kb.is_none(), "冲突被拒时不落槽位");
+    // 第五槽占用后，原有四动作也不能反过来抢
+    registry.kb = Some("Alt+Shift+K".to_string());
+    assert!(rebind_hotkey(
+      &mut registry,
+      HotkeyAction::Capture,
+      "Alt+Shift+K",
+      &mut binder
+    )
+    .is_err());
+  }
+
+  #[test]
+  fn failed_bind_rolls_back_previous_combo() {
+    let mut registry = HotkeyRegistry::default();
+    registry.sticky = Some("Alt+Shift+S".to_string());
+    let mut binder = FakeBinder::failing("Ctrl+Shift+X");
+    let error = rebind_hotkey(
+      &mut registry,
+      HotkeyAction::NewSticky,
+      "Ctrl+Shift+X",
+      &mut binder,
+    )
+    .expect_err("绑定失败必须报错");
+    assert_eq!(error, "快捷键被占用，请用备用入口");
+    assert_eq!(
+      registry.sticky.as_deref(),
+      Some("Alt+Shift+S"),
+      "失败后槽位保持旧值"
+    );
+    assert!(binder.calls.contains(&"unbind:Alt+Shift+S".to_string()));
+    assert!(binder.calls.contains(&"bind:Ctrl+Shift+X".to_string()));
+    assert!(
+      binder.calls.contains(&"bind:Alt+Shift+S".to_string()),
+      "旧键必须绑回去，保证用户还能用"
+    );
+  }
+
+  #[test]
+  fn successful_rebind_trims_and_unbinds_old() {
+    let mut registry = HotkeyRegistry::default();
+    registry.kb = Some("Alt+Shift+K".to_string());
+    let mut binder = FakeBinder::default();
+    rebind_hotkey(
+      &mut registry,
+      HotkeyAction::OpenKb,
+      " Ctrl+Shift+K ",
+      &mut binder,
+    )
+    .unwrap();
+    assert_eq!(registry.kb.as_deref(), Some("Ctrl+Shift+K"), "落槽位的是 trim 后的组合");
+    assert!(binder.calls.contains(&"unbind:Alt+Shift+K".to_string()));
+    // 目标与当前一致：不重复解绑 / 绑定，避免把已生效的键弄坏
+    binder.calls.clear();
+    rebind_hotkey(
+      &mut registry,
+      HotkeyAction::OpenKb,
+      "Ctrl+Shift+K",
+      &mut binder,
+    )
+    .unwrap();
+    assert!(binder.calls.is_empty());
+  }
+
+  #[test]
+  fn blank_target_rejected_without_touching_binder() {
+    let mut registry = HotkeyRegistry::default();
+    let mut binder = FakeBinder::default();
+    let error = rebind_hotkey(&mut registry, HotkeyAction::OpenKb, "   ", &mut binder)
+      .expect_err("空组合键必须拒绝");
+    assert_eq!(error, "快捷键不能为空");
+    assert!(binder.calls.is_empty());
   }
 }

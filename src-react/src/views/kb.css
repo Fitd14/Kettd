@@ -1,14 +1,18 @@
-/* ─── KB 视图布局（#/kb）───────────────────────────────────────────────── */
+/* 鈹€鈹€鈹€ KB 瑙嗗浘甯冨眬锛?/kb锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
+/* 鏍瑰澹宠蛋鍏ㄥ眬 .view锛坅pp.css:179-185锛?-sp-6 鍐呰竟璺濄€?-sp-4 闂磋窛銆乷verflow-y:auto锛夛紱
+   杩欓噷鍙ˉ鐭ヨ瘑搴撶壒鏈夌殑楂樺害绾︽潫锛屼笉鍐嶈嚜甯︾浜屽鏍瑰唴杈硅窛銆?*/
 .kb-view {
-  display: flex;
-  flex-direction: column;
   height: 100%;
-  padding: 1rem;
-  gap: 0.75rem;
+  min-height: 0;
 }
 
-/* ─── 搜索栏 ───────────────────────────────────────────────────────────── */
+/* 宸︽爲 / 鍙宠鎯呬袱鏍忓湪鍥哄畾楂樺害閲屽悇鑷粴鍔細澶栧眰鐨?overflow-y:auto 涓嶈兘鍚冩帀鍒嗘爮婊氬姩 */
+.kb-view > .kb-layout {
+  min-height: 0;
+}
+
+/* 鈹€鈹€鈹€ 鎼滅储鏍?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-topbar {
   display: flex;
@@ -38,7 +42,7 @@
   border: 1px solid var(--border, hsl(var(--muted-foreground) / 0.2));
   border-radius: var(--radius, 0.5rem);
   background: var(--card, hsl(var(--card)));
-  font-size: 0.9em;
+  font-size: var(--fs-sub);
   outline: none;
 }
 
@@ -46,18 +50,18 @@
   border-color: hsl(var(--primary) / 0.6);
 }
 
-/* ─── 主布局（左清单 + 右详情）─────────────────────────────────────────── */
+/* 鈹€鈹€鈹€ 涓诲竷灞€锛堝乏娓呭崟 + 鍙宠鎯咃級鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-layout {
   display: grid;
-  /* 真机反馈：清单列太宽挤占编辑区 → 固定窄带（200-264px），可折叠 */
+  /* 鐪熸満鍙嶉锛氭竻鍗曞垪澶鎸ゅ崰缂栬緫鍖?鈫?鍥哄畾绐勫甫锛?00-264px锛夛紝鍙姌鍙?*/
   grid-template-columns: clamp(200px, 232px, 264px) 1fr;
   gap: 1rem;
   flex: 1;
   overflow: hidden;
 }
 
-/* 折叠态：窄轨（96px，落在 72–110px 区间）保留条目标题，不再 width:0 + display:none（#13） */
+/* 鎶樺彔鎬侊細绐勮建锛?6px锛岃惤鍦?72鈥?10px 鍖洪棿锛変繚鐣欐潯鐩爣棰橈紝涓嶅啀 width:0 + display:none锛?13锛?*/
 .kb-layout.is-collapsed {
   grid-template-columns: 96px 1fr;
   gap: 0.5rem;
@@ -65,25 +69,25 @@
 
 .kb-layout.is-collapsed .kb-item-row {
   padding: 0.5rem 0.4rem;
-  /* 窄轨仅剩单行标题（约 36px）：占位高度随折叠态收窄，避免滚动条按展开行高估算 */
+  /* 绐勮建浠呭墿鍗曡鏍囬锛堢害 36px锛夛細鍗犱綅楂樺害闅忔姌鍙犳€佹敹绐勶紝閬垮厤婊氬姩鏉℃寜灞曞紑琛岄珮浼扮畻 */
   contain-intrinsic-size: 2.25rem;
   contain-intrinsic-size: auto 2.25rem;
 }
 
 .kb-layout.is-collapsed .kb-item-row .item-title {
-  font-size: 0.85em;
-  /* 窄轨内标题单行省略（#13）；展开态恢复原本的换行显示 */
+  font-size: var(--fs-sub);
+  /* 绐勮建鍐呮爣棰樺崟琛岀渷鐣ワ紙#13锛夛紱灞曞紑鎬佹仮澶嶅師鏈殑鎹㈣鏄剧ず */
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-/* 折叠态隐藏条目标签与日期等非标题内容，只留标题省略号 */
+/* 鎶樺彔鎬侀殣钘忔潯鐩爣绛句笌鏃ユ湡绛夐潪鏍囬鍐呭锛屽彧鐣欐爣棰樼渷鐣ュ彿 */
 .kb-layout.is-collapsed .kb-item-row .item-meta {
   display: none;
 }
 
-/* 折叠切换钮：详情面板左缘竖条 */
+/* 鎶樺彔鍒囨崲閽細璇︽儏闈㈡澘宸︾紭绔栨潯 */
 .kb-list-toggle {
   position: absolute;
   left: 0;
@@ -96,12 +100,15 @@
   background: var(--card, hsl(var(--card)));
   color: var(--muted-foreground, hsl(var(--muted-foreground)));
   cursor: pointer;
-  font-size: 0.8em;
+  font-size: var(--fs-sub);
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
+  /* 閽 20px = --kb-gutter 涓嬮檺锛氭濂界珯鍦ㄥ乏渚х暀鐧介噷锛屼笉鍘嬫鏂囧垪锛?
+     灞傜骇鎶珮閬垮厤闀挎枃/琛ㄦ牸妯悜婊氬姩鏃朵粠杈圭紭鐩栦綇閽€?*/
+  z-index: 3;
 }
 
 .kb-list-toggle:hover {
@@ -109,10 +116,10 @@
   background: var(--muted, hsl(var(--muted)));
 }
 
-/* ─── 左清单 ───────────────────────────────────────────────────────────── */
+/* 鈹€鈹€鈹€ 宸︽竻鍗?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-list {
-  /* 左列表列：文件夹树 + 条目列表两段；滚动交给内层 .kb-item-list（#4） */
+  /* 宸﹀垪琛ㄥ垪锛氭枃浠跺す鏍?+ 鏉＄洰鍒楄〃涓ゆ锛涙粴鍔ㄤ氦缁欏唴灞?.kb-item-list锛?4锛?*/
   position: relative;
   min-height: 0;
   overflow: hidden;
@@ -121,7 +128,7 @@
   gap: 0.3rem;
 }
 
-/* 加载中轻提示：绝对定位不占位，不清空/顶掉旧列表（#1 保存闪烁） */
+/* 鍔犺浇涓交鎻愮ず锛氱粷瀵瑰畾浣嶄笉鍗犱綅锛屼笉娓呯┖/椤舵帀鏃у垪琛紙#1 淇濆瓨闂儊锛?*/
 .kb-loading-hint {
   position: absolute;
   top: 0.15rem;
@@ -129,7 +136,7 @@
   z-index: 2;
   padding: 0.05rem 0.45rem;
   border-radius: 4px;
-  font-size: 0.72em;
+  font-size: var(--fs-meta);
   color: var(--muted-foreground, hsl(var(--muted-foreground)));
   background: hsl(var(--background) / 0.85);
   pointer-events: none;
@@ -149,11 +156,11 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  /* #2 列表性能（≤5000 条）：屏幕外行跳过布局/绘制，降低首屏布局与滚动成本。
-     两行退化写法：旧 WebView2（Chromium <117 不认 auto 关键字）保留定长占位，
-     新内核用 auto 记住真实渲染高度，减少滚动条抖动。 */
+  /* #2 鍒楄〃鎬ц兘锛堚墹5000 鏉★級锛氬睆骞曞琛岃烦杩囧竷灞€/缁樺埗锛岄檷浣庨灞忓竷灞€涓庢粴鍔ㄦ垚鏈€?
+     涓よ閫€鍖栧啓娉曪細鏃?WebView2锛圕hromium <117 涓嶈 auto 鍏抽敭瀛楋級淇濈暀瀹氶暱鍗犱綅锛?
+     鏂板唴鏍哥敤 auto 璁颁綇鐪熷疄娓叉煋楂樺害锛屽噺灏戞粴鍔ㄦ潯鎶栧姩銆?*/
   content-visibility: auto;
-  contain-intrinsic-size: 3.75rem; /* 展开态单行条目约 60px */
+  contain-intrinsic-size: 3.75rem; /* 灞曞紑鎬佸崟琛屾潯鐩害 60px */
   contain-intrinsic-size: auto 3.75rem;
 }
 
@@ -169,19 +176,19 @@
 
 .kb-item-row .item-title {
   font-weight: 500;
-  font-size: 0.95em;
+  font-size: var(--fs-body);
 }
 
 .kb-item-row .item-meta {
   display: flex;
   gap: 0.4em;
-  font-size: 0.8em;
+  font-size: var(--fs-sub);
   color: var(--muted-foreground, hsl(var(--muted-foreground)));
   align-items: center;
   flex-wrap: wrap;
 }
 
-/* ─── 标签筛选 ─────────────────────────────────────────────────────────── */
+/* 鈹€鈹€鈹€ 鏍囩绛涢€?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-tag-filter {
   display: flex;
@@ -191,7 +198,7 @@
 }
 
 .kb-tag-chip {
-  font-size: 0.8em;
+  font-size: var(--fs-sub);
   padding: 0.15em 0.6em;
   border-radius: 99px;
   background: var(--secondary, hsl(var(--secondary)));
@@ -209,25 +216,43 @@
   background: hsl(var(--secondary));
 }
 
-/* ─── 右详情面板 ───────────────────────────────────────────────────────── */
+/* 鈹€鈹€鈹€ 鍙宠鎯呴潰鏉?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
-/* ─── 详情面板：朱砂宣纸面（board tokens：暖宣底+暖墨字+朱砂点缀，qa board 选型 D）─── */
+/* 鈹€鈹€鈹€ 璇︽儏闈㈡澘锛氭湵鐮傚绾搁潰锛坆oard tokens锛氭殩瀹ｅ簳+鏆栧ⅷ瀛?鏈辩爞鐐圭紑锛宷a board 閫夊瀷 D锛夆攢鈹€鈹€ */
 .kb-detail {
+  /* 令牌映射（design.md §4.6，tasks 5.1）：原来全部写死 hex，暗色下宣纸仍是亮纸。
+     现在暖色四项在暗色主题里改由共享令牌接管，亮色值不变；纸纹 SVG 与 inset 阴影不是色值，保留。 */
   --paper: #FAF6EE;
   --paper-deep: #F2EBDC;
   --ink-1: #4A3A36;
   --ink-2: #7A655F;
-  --ink-3: #A59089;
-  --seal: #C0574F;
-  --seal-soft: #F9EDEA;
-  --line-warm: #EADFD2;
+  --ink-3: hsl(var(--muted-foreground) / 0.75); /* 由共享令牌弱化得到，不另立新变量 */
+  --seal-track: hsl(var(--seal)); /* 结构色：焦点下划线、印章点；选取色随主题，亮暗都保持朱砂 */
+  --seal-ink: hsl(var(--seal)); /* 文字色：与结构色同源 */
+  --seal-soft: hsl(var(--seal) / 0.12);
+  --line-warm: hsl(var(--border));
+  /* 暗色主题下纸面与两级墨色由下面 .dark .kb-detail 规则接管（tasks 5.1 / design.md §4.6）。 */
+  /* S3 鍐欎綔鍖哄竷灞€ token锛堟暟鍊兼帹瀵艰 docs/capability/06-鐭ヨ瘑搴?md銆屽啓浣滃尯甯冨眬銆嶏級锛?
+     --kb-measure 姝ｆ枃鍒楀涓婇檺 78ch鈥斺€擟JK 绾?39 瀛?琛岋紝钀藉湪 <80 瀛楃鍙鍖洪棿锛?
+     --kb-gutter 宸﹀彸鏈€灏忕暀鐧解€斺€旂獎闈㈡澘 20px 璧凤紝瀹界獥闅忛潰鏉垮闀裤€?4px 灏侀《锛?
+     --kb-bottom 搴曢儴鍐欎綔鐣欑櫧鈥斺€旀湯琛屽彲婊氬埌瑙嗗彛涓儴浠ヤ笂锛屽厜鏍囦笉璐磋鍙ｅ簳杈广€?*/
+  --kb-measure: 78ch;
+  --kb-gutter: clamp(20px, 4vw, 64px);
+  --kb-bottom: max(64px, 26vh);
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  /* 鏈眰鏄敮涓€婊氬姩瀹瑰櫒锛堝唴灞備笉鍐嶅 .kb-detail锛夛紱overflow-x 鏄惧紡 hidden锛?
+     overflow-y 闈?visible 鏃惰鑼冧細鎶?visible 绠楁垚 auto锛屾í鍚戠粷涓嶅嚭鐜版粴鍔ㄦ潯銆?*/
   overflow-y: auto;
+  overflow-x: hidden;
+  /* 閿洏/鍏夋爣婊氬叆瑙嗛噹鏃剁粰鏈鐣欏嚭搴曢儴鍛煎惛锛涙粴鍔ㄦ潯杩涘嚭涓嶆尋鍘嬫鏂囧垪銆?*/
+  scroll-padding-bottom: var(--kb-bottom);
+  scrollbar-gutter: stable;
   border-left: 1px solid var(--line-warm);
-  padding: 0.75rem 1.25rem 1.5rem;
+  /* 涓婏細宸ュ叿鏍忓懠鍚镐綅锛涘乏鍙筹細gutter锛涗笅锛氬啓浣滅暀鐧斤紙Chromium 婊氬姩鍒板簳浼氫繚鐣欏熬 padding锛夈€?*/
+  padding: clamp(20px, 2.6vh, 28px) var(--kb-gutter) var(--kb-bottom);
   background-color: var(--paper);
   background-image:
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/></svg>"),
@@ -235,6 +260,41 @@
   box-shadow: inset 0 0 90px rgba(90,80,60,.07);
   color: var(--ink-1);
   border-radius: 2px;
+}
+
+/* 暗色主题：宣纸面随共享令牌走（tasks 5.1 / design.md §4.6）。
+   亮色下 `.kb-detail` 的暖纸值保持原样；暗色下纸面、两级墨色换成共享令牌，
+   结构线已经走 --border，朱砂结构与文字色已分档，纸纹 SVG 与 inset 阴影保留。 */
+.dark .kb-detail {
+  --paper: hsl(var(--background));
+  --ink-1: hsl(var(--foreground));
+  --ink-2: hsl(var(--muted-foreground));
+  --ink-3: hsl(var(--muted-foreground) / 0.75);
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/></svg>");
+  box-shadow: inset 0 0 90px rgba(0, 0, 0, .18);
+}
+
+/* S3 鍐欎綔鍖哄竷灞€锛氬绾镐腑澶殑鎵嬬鏍忊€斺€斿唴瀹瑰垪姘村钩灞呬腑锛屽绐楀彧澧炵暀鐧戒笉鍔犺瀹姐€?
+   鍒楀鐢辨湰灞傜粺涓€鎺у埗锛氬伐鍏锋爮 / 鏍囬 / 鏍囩 / 姝ｆ枃鑷姩鍚屽垪宸︾紭瀵归綈锛?
+   涓嶅啀鐢?.kb-editor-content 鍗曠嫭闄愬锛堥偅鏍蜂細鍜屾爣棰樹笉鍦ㄥ悓涓€鏉″乏缂橈級銆?*/
+.kb-detail-inner {
+  width: min(100%, var(--kb-measure));
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 鍐欎綔鍖哄搷搴斿紡锛坱asks 4.2锛夛細绐勯潰鏉挎鏂囧崰婊″垪瀹姐€佷晶鐣欑櫧淇濆簳 20px锛?
+   瀹界獥锛?=1440px锛変笉鍔?--kb-measure 鈫?澶氬嚭鐨勫搴﹀彧鍙樺乏鍙崇暀鐧姐€?*/
+@media (max-width: 720px) {
+  .kb-detail {
+    --kb-gutter: 20px;
+    --kb-measure: 100%;
+  }
 }
 
 .kb-detail-body {
@@ -264,51 +324,51 @@
 }
 
 .kb-detail-title {
-  font-size: 1.15em;
+  font-size: var(--fs-reading);
   font-weight: 600;
   margin: 0;
 }
 
-/* ── 元数据区（标题就地编辑 + 保存指示 + 标签增删）─── */
+/* 鈹€鈹€ 鍏冩暟鎹尯锛堟爣棰樺氨鍦扮紪杈?+ 淇濆瓨鎸囩ず + 鏍囩澧炲垹锛夆攢鈹€鈹€ */
 .kb-meta { display: flex; flex-direction: column; }
 .kb-title-row { display: flex; align-items: baseline; gap: 10px; }
 .kb-title-input {
   flex: 1; min-width: 0;
   border: none; outline: none; background: transparent;
-  font: inherit; font-size: 1.5em; font-weight: 700; letter-spacing: .4px;
+  font: inherit; font-size: var(--fs-masthead); font-weight: 700; letter-spacing: .4px;
   color: var(--ink-1); padding: 0;
   border-bottom: 1px dashed transparent;
 }
 .kb-title-input:hover { border-bottom-color: var(--line-warm); }
-.kb-title-input:focus { border-bottom-color: var(--seal); }
+.kb-title-input:focus { border-bottom-color: var(--seal-track); }
 .kb-save-pill {
   display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11px; color: var(--ink-2); flex-shrink: 0; white-space: nowrap;
+  font-size: var(--fs-meta); color: var(--ink-2); flex-shrink: 0; white-space: nowrap;
 }
-.kb-save-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--seal); }
-.kb-save-pill.editing { color: var(--seal); }
+.kb-save-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--seal-track); }
+.kb-save-pill.editing { color: var(--seal-ink); }
 .kb-save-pill.editing .dot { animation: kb-pulse 1.1s ease-in-out infinite; }
 @keyframes kb-pulse { 50% { opacity: .3; } }
 
 .kb-tag-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .kb-tag-row .kb-tag-chip { display: inline-flex; align-items: center; gap: 4px; }
 .kb-tag-x { display: inline-flex; border: none; background: transparent; color: var(--ink-3); cursor: pointer; padding: 0; }
-.kb-tag-x:hover { color: var(--seal); }
+.kb-tag-x:hover { color: var(--seal-ink); }
 .kb-tag-add {
   display: inline-flex; align-items: center; gap: 3px;
-  font-size: 11.5px; padding: 2px 9px; border-radius: 3px;
+  font-size: var(--fs-sub); padding: 2px 9px; border-radius: 3px;
   color: var(--ink-2); border: 1px dashed var(--line-warm); background: transparent; cursor: pointer;
 }
-.kb-tag-add:hover { color: var(--seal); border-color: var(--seal); }
+.kb-tag-add:hover { color: var(--seal-ink); border-color: var(--seal-track); }
 .kb-tag-input {
-  font-size: 11.5px; padding: 2px 8px; border-radius: 3px;
-  border: 1px solid var(--seal); background: transparent; color: var(--ink-1);
+  font-size: var(--fs-sub); padding: 2px 8px; border-radius: 3px;
+  border: 1px solid var(--seal-track); background: transparent; color: var(--ink-1);
   outline: none; width: 110px;
 }
 .kb-meta-sep { height: 1px; background: var(--line-warm); margin: 14px 0 4px; }
-.kb-del-confirm { font-size: 0.8em; color: var(--ink-2); }
+.kb-del-confirm { font-size: var(--fs-sub); color: var(--ink-2); }
 
-/* ─── 空态 / 无结果 / 失效 ────────────────────────────────────────────── */
+/* 鈹€鈹€鈹€ 绌烘€?/ 鏃犵粨鏋?/ 澶辨晥 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-empty {
   display: flex;
@@ -321,8 +381,15 @@
 }
 
 .kb-empty .empty-icon {
-  font-size: 2.5rem;
+  font-size: var(--fs-masthead);
   opacity: 0.4;
+}
+
+/* 璇︽儏闈㈡澘绌烘€侊細鍗犳弧鍓╀綑楂樺害骞跺瀭鐩村眳涓紙flex:1 璁?.kb-empty 鐨?justify-content:center 鐢熸晥锛?
+   宸︽竻鍗曢噷鐨?.kb-empty 涓嶅彈褰卞搷锛夈€?*/
+.kb-detail > .kb-empty {
+  flex: 1;
+  min-height: 0;
 }
 
 .kb-invalid {
@@ -330,13 +397,13 @@
   text-decoration: line-through;
 }
 
-/* ─── 挂载资料 chip ────────────────────────────────────────────────────── */
+/* 鈹€鈹€鈹€ 鎸傝浇璧勬枡 chip 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-ref-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.3em;
-  font-size: 0.85em;
+  font-size: var(--fs-sub);
   padding: 0.2em 0.5em;
   border-radius: 4px;
   background: var(--secondary, hsl(var(--secondary)));
@@ -360,50 +427,20 @@
 }
 
 .detail-label {
-  font-size: 0.85em;
+  font-size: var(--fs-sub);
   color: var(--muted-foreground, hsl(var(--muted-foreground)));
   font-weight: 500;
 }
 
-/* ─── 搜索结果计数 ─────────────────────────────────────────────────────── */
+/* 鈹€鈹€鈹€ 鎼滅储缁撴灉璁℃暟 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-result-count {
-  font-size: 0.8em;
+  font-size: var(--fs-sub);
   color: var(--muted-foreground, hsl(var(--muted-foreground)));
   flex-shrink: 0;
 }
 
-/* ─── #4 文件夹树（左栏）──────────────────────────────────────────────── */
-
-.kb-folder-tree {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-height: 0;
-  max-height: 46%;
-  overflow-y: auto;
-  padding-bottom: 0.35rem;
-  border-bottom: 1px solid hsl(var(--muted-foreground) / 0.14);
-}
-
-.kb-folder-tree-head {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0 0.15rem 0.2rem;
-  background: hsl(var(--background));
-}
-
-.kb-folder-tree-title {
-  flex: 1;
-  font-size: 0.72em;
-  letter-spacing: 0.06em;
-  color: hsl(var(--muted-foreground));
-}
+/* 鈹€鈹€鈹€ #4 鏂囦欢澶规爲锛堝乏鏍忥級鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-folder-add {
   display: inline-flex;
@@ -443,7 +480,7 @@
   background: transparent;
   color: hsl(var(--foreground));
   font: inherit;
-  font-size: 0.82em;
+  font-size: var(--fs-sub);
   text-align: left;
   cursor: pointer;
 }
@@ -538,7 +575,7 @@
 
 .kb-folder-count {
   flex: none;
-  font-size: 0.85em;
+  font-size: var(--fs-sub);
   font-variant-numeric: tabular-nums;
   color: hsl(var(--muted-foreground));
 }
@@ -570,7 +607,7 @@
   background: transparent;
   color: hsl(var(--muted-foreground));
   font: inherit;
-  font-size: 0.72em;
+  font-size: var(--fs-meta);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -591,7 +628,7 @@
 
 .kb-folder-empty {
   padding: 2px 6px;
-  font-size: 0.75em;
+  font-size: var(--fs-meta);
   color: hsl(var(--muted-foreground));
 }
 
@@ -599,18 +636,155 @@
   margin: 2px 0 3px;
   padding: 4px 6px;
   border-radius: 4px;
-  font-size: 0.75em;
+  font-size: var(--fs-meta);
   line-height: 1.45;
   color: hsl(var(--destructive));
   background: hsl(var(--destructive) / 0.07);
 }
 
-/* 折叠态（96px 窄轨）：隐藏文件夹树，只保留条目窄条，布局不撑坏 */
-.kb-layout.is-collapsed .kb-folder-tree {
+/* 鈹€鈹€鈹€ S1 鍗曟爲锛坉esign D1/D2锛氭枃浠跺す鏍?+ 鏉＄洰鍙跺瓙 / 杩囨护鎬佹墎骞崇粨鏋滐級鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+
+.kb-tree {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+/* 鏍戝ご锛氭爣棰?+ 鏂板缓鏂囦欢澶癸紙涓嶉殢鏍戞粴鍔級 */
+.kb-tree-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.15rem 0.25rem;
+  border-bottom: 1px solid hsl(var(--muted-foreground) / 0.14);
+}
+
+.kb-tree-title {
+  flex: 1;
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+  color: hsl(var(--muted-foreground));
+}
+
+/* 鏍戞粴鍔ㄥ尯锛氭暣涓乏鏍忓敮涓€鐨勬粴鍔ㄥ鍣紙鏍戞湰韬笉婊氬姩锛?*/
+.kb-tree-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-bottom: 0.35rem;
+}
+
+/* 鍒嗘敮瀹瑰櫒涓嶅弬涓庡竷灞€锛氬睍寮€鐨勫瓙鏂囦欢澶?鏉＄洰琛岀洿鎺ユ垚涓烘粴鍔ㄥ鍣ㄧ殑 flex 瀛愰」 */
+.kb-tree-branch {
+  display: contents;
+}
+
+/* 灞傜骇缂╄繘璧?CSS 鍙橀噺 --kb-depth锛堣鍐?style 娉ㄥ叆锛夛紝鎶樺彔鎬佸彲鏁翠綋鍘嬪钩 */
+.kb-tree .kb-folder-row-wrap,
+.kb-tree .kb-tree-item {
+  padding-left: calc(2px + var(--kb-depth, 0) * 14px);
+}
+
+/* 鏉＄洰鍙跺瓙琛岋細涓庢枃浠跺す琛屽悓楂橈紝鏍囬鍗曡鐪佺暐 */
+.kb-tree-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: hsl(var(--foreground));
+  font: inherit;
+  font-size: var(--fs-sub);
+  text-align: left;
+  cursor: pointer;
+}
+
+.kb-tree-item:hover {
+  background: hsl(var(--muted-foreground) / 0.07);
+}
+
+.kb-tree-item.is-active {
+  background: hsl(var(--secondary));
+  color: hsl(var(--foreground));
+}
+
+.kb-tree-item .item-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.kb-tree-item.is-active .item-title {
+  font-weight: 500;
+}
+
+/* 鍥哄畾琛屻€屽叏閮ㄧ煡璇嗐€嶆病鏈?caret锛岀敤绛夊鍗犱綅淇濇寔涓庛€屾湭鍒嗙被銆嶅榻?*/
+.kb-tree .kb-folder-fixed > .kb-folder-row {
+  flex: none;
+  padding-left: calc(2px + 16px + 1px + 4px);
+}
+
+/* 杩囨护鎬佹墎骞崇粨鏋滐細澶嶇敤 .kb-item-row 鐨勫弻琛岀粨鏋勶紝绗簩琛屾崲鎴愯矾寰勯潰鍖呭睉 */
+.kb-flat-list {
+  flex: 1;
+  min-height: 0;
+}
+
+.kb-flat-row {
+  gap: 0.15rem;
+}
+
+.kb-flat-path {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-meta);
+}
+
+/* 鈹€鈹€鈹€ 鎶樺彔鎬侊紙96px 绐勮建锛夛細鍘嬪钩缂╄繘锛屽彧鐣欐枃浠跺す鍚?/ 鏉＄洰鏍囬 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+
+.kb-layout.is-collapsed .kb-tree-head,
+.kb-layout.is-collapsed .kb-tree .kb-folder-caret,
+.kb-layout.is-collapsed .kb-tree .kb-folder-ico,
+.kb-layout.is-collapsed .kb-tree .kb-folder-count,
+.kb-layout.is-collapsed .kb-tree .kb-folder-actions {
   display: none;
 }
 
-/* ─── 条目列表（独立滚动区）────────────────────────────────────────────── */
+.kb-layout.is-collapsed .kb-tree .kb-folder-row-wrap {
+  padding-left: 0;
+}
+
+.kb-layout.is-collapsed .kb-tree .kb-tree-item {
+  padding: 0.5rem 0.4rem;
+  font-size: var(--fs-sub);
+}
+
+.kb-layout.is-collapsed .kb-tree .kb-folder-row-wrap .kb-folder-row {
+  padding: 0.5rem 0.4rem;
+  font-size: var(--fs-sub);
+}
+
+.kb-layout.is-collapsed .kb-tree .kb-folder-name,
+.kb-layout.is-collapsed .kb-tree .kb-tree-item .item-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 鈹€鈹€鈹€ 鏉＄洰鍒楄〃锛堢嫭绔嬫粴鍔ㄥ尯锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-item-list {
   position: relative;
@@ -622,7 +796,7 @@
   gap: 0.25rem;
 }
 
-/* ─── #4 损坏 / 加载失败错误横幅（绝不渲染假空态）──────────────────────── */
+/* 鈹€鈹€鈹€ #4 鎹熷潖 / 鍔犺浇澶辫触閿欒妯箙锛堢粷涓嶆覆鏌撳亣绌烘€侊級鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-error-banner {
   flex: 0 0 auto;
@@ -635,7 +809,7 @@
   border-radius: 6px;
   background: hsl(var(--destructive) / 0.07);
   color: hsl(var(--destructive));
-  font-size: 0.8em;
+  font-size: var(--fs-sub);
   line-height: 1.45;
 }
 
@@ -659,7 +833,7 @@
   background: transparent;
   color: hsl(var(--destructive));
   font: inherit;
-  font-size: 0.9em;
+  font-size: var(--fs-sub);
   cursor: pointer;
 }
 
@@ -667,7 +841,7 @@
   background: hsl(var(--destructive) / 0.08);
 }
 
-/* ─── #14 打开数据目录按钮 ─────────────────────────────────────────────── */
+/* 鈹€鈹€鈹€ #14 鎵撳紑鏁版嵁鐩綍鎸夐挳 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-open-dir-btn {
   flex-shrink: 0;
@@ -677,64 +851,7 @@
   white-space: nowrap;
 }
 
-/* ─── #4 详情「所属文件夹」下拉（沿用详情面板纸面变量，深色主题下同样可读）── */
-
-.kb-folder-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-}
-
-.kb-folder-field-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11.5px;
-  color: var(--ink-2);
-  white-space: nowrap;
-}
-
-.kb-folder-select {
-  min-width: 120px;
-  max-width: 260px;
-  padding: 2px 6px;
-  border: 1px solid var(--line-warm);
-  border-radius: 4px;
-  background: var(--paper);
-  color: var(--ink-1);
-  font: inherit;
-  font-size: 11.5px;
-  outline: none;
-  cursor: pointer;
-}
-
-.kb-folder-select:hover {
-  border-color: var(--ink-3);
-}
-
-.kb-folder-select:focus {
-  border-color: var(--seal);
-}
-
-.kb-folder-select:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.kb-folder-saving {
-  font-size: 11px;
-  color: var(--ink-3);
-}
-
-.kb-folder-field-err {
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--seal);
-}
-
-/* ─── #4 新建 / 重命名文件夹弹窗（居中；交互同 LinkDialog）────────────── */
+/* 鈹€鈹€鈹€ #4 鏂板缓 / 閲嶅懡鍚嶆枃浠跺す寮圭獥锛堝眳涓紱浜や簰鍚?LinkDialog锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-folder-dialog-overlay {
   position: fixed;
@@ -760,7 +877,7 @@
 
 .kb-folder-dialog-title {
   margin-bottom: 10px;
-  font-size: 12px;
+  font-size: var(--fs-sub);
   font-weight: 600;
   letter-spacing: 0.4px;
 }
@@ -768,7 +885,7 @@
 .kb-folder-dialog-label {
   display: block;
   margin-bottom: 4px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: hsl(var(--muted-foreground));
 }
 
@@ -782,7 +899,7 @@
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-sub);
   outline: none;
 }
 
@@ -798,7 +915,7 @@
 .kb-folder-dialog-error {
   min-height: 16px;
   margin-top: 6px;
-  font-size: 10.5px;
+  font-size: var(--fs-meta);
   line-height: 1.4;
   color: hsl(var(--destructive));
 }
@@ -809,4 +926,198 @@
   justify-content: flex-end;
   gap: 6px;
   margin-top: 4px;
+}
+
+/* 鈹€鈹€鈹€ S1 鍚庡崐 tasks 2.4锛氬彸閿彍鍗曪紙portal 鍒?body锛屽彧鑳界敤鍏ㄥ眬 token锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+
+.kb-context-menu-root {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 120;
+}
+
+.kb-context-menu {
+  position: fixed;
+  z-index: 120;
+  min-width: 176px;
+  max-width: 300px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--card));
+  box-shadow: 0 12px 32px -12px hsl(var(--foreground) / 0.35);
+  color: hsl(var(--foreground));
+  font-size: var(--fs-sub);
+}
+
+.kb-context-menu-slot {
+  display: block;
+}
+
+.kb-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kb-context-menu-item:hover,
+.kb-context-menu-item:focus-visible,
+.kb-context-menu-item.is-open {
+  background: hsl(var(--muted));
+  outline: none;
+}
+
+.kb-context-menu-item.is-danger {
+  color: hsl(var(--destructive));
+}
+
+.kb-context-menu-item.is-disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.kb-context-menu-item.is-disabled:hover,
+.kb-context-menu-item.is-disabled:focus-visible,
+.kb-context-menu-item.is-disabled.is-open {
+  background: transparent;
+}
+
+.kb-context-menu-ico {
+  display: inline-flex;
+  flex: none;
+  width: 14px;
+  justify-content: center;
+  color: hsl(var(--muted-foreground));
+}
+
+.kb-context-menu-item.is-danger .kb-context-menu-ico {
+  color: inherit;
+}
+
+.kb-context-menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kb-context-menu-arrow {
+  flex: none;
+  margin-left: auto;
+  color: hsl(var(--muted-foreground));
+}
+
+/* 鈹€鈹€ S2 缃《蹇嵎鍖猴紙tasks 3.4锛宒esign D6锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+   鏍戦《閮ㄥ浐瀹氬壇鏈叆鍙ｏ細鐙珛浜庡睍寮€鎬佷笌鎶樺彔鎬侊紝鍙锛堜笉 draggable銆佷笉鎺?drop锛夈€?
+   棰滆壊涓€寰嬭蛋 token锛屼笌涓绘爲琛屼繚鎸佸悓涓€濂?hsl(var(--鈥?) 鍙ｅ緞銆?*/
+.kb-pin-section {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  /* 缃《寰堝鏃朵篃鍙崰涓婂崐鍖猴紝淇濊瘉涓绘爲浠嶆湁婊氬姩绌洪棿 */
+  max-height: 40%;
+  overflow-y: auto;
+  margin-bottom: 0.15rem;
+  padding: 0.1rem 0 0.25rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.6);
+}
+
+.kb-pin-title {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.35rem;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: hsl(var(--muted-foreground));
+}
+
+.kb-pin-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 26px;
+  padding: 0.2rem 0.35rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sub);
+  text-align: left;
+  cursor: pointer;
+}
+
+.kb-pin-row:hover,
+.kb-pin-row:focus-visible {
+  background: hsl(var(--muted-foreground) / 0.08);
+  outline: none;
+}
+
+.kb-pin-ico {
+  flex: none;
+  color: hsl(var(--muted-foreground));
+}
+
+.kb-pin-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kb-pin-star {
+  flex: none;
+  color: hsl(var(--primary));
+  opacity: 0.75;
+}
+
+/* 鍘熶綅缃鍐呭浘閽夎鏍囷細缃《鍙槸灞曠ず浼樺厛绾э紝鑺傜偣浠嶅湪鍘熷眰绾с€佷粛鍙嫋鎷芥帓搴?*/
+.kb-pin-badge {
+  flex: none;
+  margin-left: 0.1rem;
+  color: hsl(var(--primary));
+  opacity: 0.7;
+}
+
+/* 鈹€鈹€ S2 鎷栨嫿钀界偣瑙嗚锛坱asks 3.2锛宒esign D5锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+   inside = 绉诲叆楂樹寒锛沚efore/after = 2px 鎻掑叆绾匡紙folder wrap 涓?item 琛屽叡鐢級銆?*/
+.kb-tree-item.kb-tree-drop-inside,
+.kb-folder-row-wrap.kb-tree-drop-inside {
+  background: hsl(var(--primary) / 0.12);
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.55);
+  border-radius: 6px;
+}
+
+.kb-tree-item.kb-tree-drop-before,
+.kb-folder-row-wrap.kb-tree-drop-before {
+  box-shadow: inset 0 2px 0 0 hsl(var(--primary));
+}
+
+.kb-tree-item.kb-tree-drop-after,
+.kb-folder-row-wrap.kb-tree-drop-after {
+  box-shadow: inset 0 -2px 0 0 hsl(var(--primary));
+}
+
+/* 绌哄尯锛堟爲搴曢儴绌虹櫧锛? 杩藉姞鍒板綋鍓嶉€変腑鏂囦欢澶?鏍癸細鏁村潡杞绘弿杈规彁绀哄彲鏀?*/
+.kb-tree-scroll.is-drop-append {
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.35);
+  border-radius: 6px;
 }

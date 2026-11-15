@@ -43,7 +43,7 @@ export function KbAttachPicker({ currentRefs, onAttach, onClose }: Props) {
   return (
     <div className="dialog-overlay" onClick={onClose}>
       <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400 }}>
-        <h3 style={{ margin: '0 0 0.5rem' }}>挂载资料</h3>
+        <h3 style={{ margin: '0 0 0.5rem' }}>关联知识条目</h3>
         <input
           type="search"
           placeholder="搜索知识库..."
@@ -85,7 +85,7 @@ export function KbAttachPicker({ currentRefs, onAttach, onClose }: Props) {
         <div className="dialog-actions" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
           <button className="btn ghost" onClick={onClose}>取消</button>
           <button className="btn primary" onClick={() => { onAttach(Array.from(selected)); onClose() }}>
-            挂载 ({selected.size})
+            关联 ({selected.size})
           </button>
         </div>
       </div>

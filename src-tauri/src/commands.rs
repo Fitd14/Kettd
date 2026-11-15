@@ -1,5 +1,6 @@
 //! 所有对前端的命令（invoke 参数 camelCase；返回 Result<_, String>，Err 为可显示的中文短句）
 
+use crate::backup;
 use crate::export;
 use crate::models::{
   clocks_of, new_id, normalize_datetime, now_text,
@@ -50,6 +51,7 @@ pub fn get_bootstrap(state: State<'_, Shared>) -> Result<Bootstrap, String> {
     migration: store.runtime.migration.clone(),
     version: env!("CARGO_PKG_VERSION").to_string(),
     todo_float_mini: store.runtime.todo_float_mini,
+    assets_dir: store.assets_dir(),
   })
 }
 
@@ -485,6 +487,50 @@ pub fn clear_events() -> Result<(), String> {
   crate::telemetry::clear_events()
 }
 
+// ---------------------------------------------------------------- 阅读面字体（reading-font）
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadingFontInfo {
+  pub name: String,
+  pub size_kb: u32,
+}
+
+fn reading_fonts() -> Vec<ReadingFontInfo> {
+  crate::infra::fonts::list()
+    .into_iter()
+    .map(|(name, size_kb)| ReadingFontInfo { name, size_kb })
+    .collect()
+}
+
+/// 列出数据目录 `<fonts>/` 下已安装的阅读字体。
+#[tauri::command]
+pub fn list_reading_fonts() -> Vec<ReadingFontInfo> {
+  reading_fonts()
+}
+
+/// 安装用户上传的阅读字体（前端 `<input type=file>` 读成 base64 传来）。
+/// 校验扩展名与文件头，先写临时文件再 rename，半个文件不会被读到。
+#[tauri::command]
+pub fn save_reading_font(name: String, data: String) -> Result<Vec<ReadingFontInfo>, String> {
+  let bytes = crate::infra::text_codec::decode(&data)?;
+  crate::infra::fonts::install(&name, &bytes)?;
+  Ok(reading_fonts())
+}
+
+/// 删除一个阅读字体文件（前端负责先切回默认再调）。
+#[tauri::command]
+pub fn delete_reading_font(name: String) -> Result<Vec<ReadingFontInfo>, String> {
+  crate::infra::fonts::remove(&name)?;
+  Ok(reading_fonts())
+}
+
+/// 读一个字体文件（base64）；启动时前端据此用 `FontFace` 注册当前阅读字体。
+#[tauri::command]
+pub fn read_reading_font(name: String) -> Result<String, String> {
+  crate::infra::fonts::read_base64(&name)
+}
+
 // ---------------------------------------------------------------- 便签（多便签 H1 · multi-sticky-spec）
 
 #[derive(serde::Serialize)]
@@ -673,9 +719,17 @@ pub fn track_event(name: String, props: Option<String>) -> Result<(), String> {
 
 // ---------------------------------------------------------------- 窗口 / 托盘
 
+/// 打开主界面；route 可选（前端内部路由，如 /kb），缺省只显示不导航
 #[tauri::command]
-pub fn open_main_window(app: AppHandle) -> Result<(), String> {
-  runtime::show_main(&app, None)
+pub fn open_main_window(app: AppHandle, route: Option<String>) -> Result<(), String> {
+  runtime::show_main(&app, normalize_route(route).as_deref())
+}
+
+/// 前端可选路由归一：trim，空串 / 纯空白 = 不导航
+fn normalize_route(route: Option<String>) -> Option<String> {
+  route
+    .map(|value| value.trim().to_string())
+    .filter(|value| !value.is_empty())
 }
 
 #[tauri::command]
@@ -815,6 +869,36 @@ pub fn register_todo_hotkey(
   Ok(store.data.settings.clone())
 }
 
+/// 换绑/解绑「直达知识库」热键；空串 = 解绑；失败保持旧值（kb-storage-backup S4）
+#[tauri::command]
+pub fn register_kb_hotkey(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  combo: String,
+) -> Result<Settings, String> {
+  let trimmed = combo.trim().to_string();
+  let next = if trimmed.is_empty() {
+    None
+  } else {
+    Some(trimmed)
+  };
+  let mut store = lock(&state);
+  let previous = store.data.settings.kb_hotkey.clone();
+  runtime::register_kb_hotkey(&app, &next)?;
+  if previous == next {
+    return Ok(store.data.settings.clone());
+  }
+  store.ensure_writable()?;
+  store.data.settings.kb_hotkey = next.clone();
+  if let Err(error) = store.save() {
+    store.data.settings.kb_hotkey = previous.clone();
+    let _ = runtime::register_kb_hotkey(&app, &previous);
+    return Err(error);
+  }
+  emit(&app, StoreEvent::changed("settings"));
+  Ok(store.data.settings.clone())
+}
+
 /// 隐藏待办悬浮窗（✕ 同款）：只藏窗，显隐状态落盘，重启按此恢复
 #[tauri::command]
 pub fn hide_todo_float(app: AppHandle) -> Result<(), String> {
@@ -880,14 +964,72 @@ pub fn clear_migration_report(
   Ok(report)
 }
 
+// ---------------------------------------------------------------- 手动备份（D3 / D4）
+
+/// 手动导出单文件备份到 `<数据目录>/backups/*.kettdbackup`（design D3）。
+///
+/// **偏离原设计**：design D3 要求 async + spawn_blocking；本批沿用仓库现有同步命令风格，
+/// 锁在文件 I/O 期间短暂持有（单文件写盘，资源仅正文引用到的图片）。真机若出现主线程卡顿，
+/// 再改 async + spawn_blocking（TODO 见交付报告）。
+#[tauri::command]
+pub fn export_backup(
+  _app: AppHandle,
+  state: State<'_, Shared>,
+) -> Result<backup::ExportResult, String> {
+  let store = lock(&state);
+  store.export_backup_to_file(env!("CARGO_PKG_VERSION"), &now_text())
+}
+
+/// 从备份文本导入（design D4）；`dry_run = true` 只解析 + 预览，绝不写盘。
+/// 同步命令与锁内文件 I/O 的偏离说明同 `export_backup`。
+#[tauri::command]
+pub fn import_backup(
+  app: AppHandle,
+  state: State<'_, Shared>,
+  payload: String,
+  dry_run: bool,
+) -> Result<backup::ImportReport, String> {
+  let mut store = lock(&state);
+  let report = store.import_backup_from_payload(&payload, dry_run, &now_text())?;
+  drop(store);
+  if !dry_run {
+    emit(&app, StoreEvent::changed("data"));
+    emit(&app, StoreEvent::changed("kb"));
+  }
+  Ok(report)
+}
+
 // ---------------------------------------------------------------- 知识库（frame H1b：库 + 搜索 + 任务单向引用）
 
-/// 知识条目全量（内存扫检索在 search_kb；全量供前端本地过滤/详情跳转）
+/// 知识条目列表（D1）：缺省只回元数据（bodyMd 置空串，其余字段完整，降低 IPC 体积）；
+/// 传 `ids` 时按给定顺序批量返回完整条目（含正文），不存在的 id 忽略。
 #[tauri::command]
-pub fn get_kb_items(state: State<'_, Shared>) -> Result<Vec<KbItem>, String> {
+pub fn get_kb_items(
+  state: State<'_, Shared>,
+  ids: Option<Vec<String>>,
+) -> Result<Vec<KbItem>, String> {
   let store = lock(&state);
   store.ensure_kb_ok()?;
-  Ok(store.kb.clone())
+  match ids {
+    None => Ok(store.kb.iter().map(kb_metadata_only).collect()),
+    Some(ids) => {
+      let mut out: Vec<KbItem> = Vec::with_capacity(ids.len());
+      for id in ids {
+        if let Some(item) = store.kb.iter().find(|item| item.id == id) {
+          out.push(item.clone());
+        }
+      }
+      Ok(out)
+    }
+  }
+}
+
+/// 列表 IPC 的元数据形态：正文置空串，其余字段完整（正文经 get_kb_items(ids) 按需补取）
+fn kb_metadata_only(item: &KbItem) -> KbItem {
+  KbItem {
+    body_md: String::new(),
+    ..item.clone()
+  }
 }
 
 #[tauri::command]
@@ -901,7 +1043,7 @@ pub fn add_kb_item(
   store.ensure_kb_ok()?;
   // 先校验 folderId（失败时内存没有半截新建条目）
   let folder = store.folder_target(args.folder_id.as_deref())?;
-  let item = crate::kb::create(
+  let created = crate::kb::create(
     &mut store.kb,
     new_id("k"),
     args.title.as_deref().unwrap_or(""),
@@ -909,7 +1051,10 @@ pub fn add_kb_item(
     args.tags.unwrap_or_default(),
     &now_text(),
   )?;
-  let item = store.set_kb_item_folder(&item.id, folder)?;
+  // D1：先写正文（notes/<id>.md），再 place + 写索引；正文失败则命令整体失败
+  store.save_kb_item_body(&created.id, &created.body_md)?;
+  // 新条目追加到目标父级末尾（i64::MAX 由 place_kb_item clamp 成同级数量）
+  let item = store.place_kb_item(&created.id, Some(folder), Some(i64::MAX), None)?;
   store.save_notes()?;
   drop(store);
   emit(&app, StoreEvent::changed("kb"));
@@ -932,7 +1077,7 @@ pub fn update_kb_item(
   } else {
     None
   };
-  let item = crate::kb::update(
+  crate::kb::update(
     &mut store.kb,
     &id,
     patch.title.as_deref(),
@@ -940,10 +1085,16 @@ pub fn update_kb_item(
     patch.tags,
     &now_text(),
   )?;
-  let item = match folder {
-    Some(folder) => store.set_kb_item_folder(&id, folder)?,
-    None => item,
-  };
+  // D1：先写正文再落索引（update 只改内存；正文文件是 IPC 正文的唯一来源）
+  let body = store
+    .kb
+    .iter()
+    .find(|item| item.id == id)
+    .map(|item| item.body_md.clone())
+    .ok_or_else(|| "找不到这条资料，可能已经被删除".to_string())?;
+  store.save_kb_item_body(&id, &body)?;
+  // order/pinned 与 folderId 一并落位：改变归属或顺序时对旧/新父级 dense 重排
+  let item = store.place_kb_item(&id, folder, patch.order, patch.pinned)?;
   store.save_notes()?;
   drop(store);
   emit(&app, StoreEvent::changed("kb"));
@@ -961,25 +1112,25 @@ pub fn delete_kb_item(
   store.ensure_writable()?;
   store.ensure_kb_ok()?;
   crate::kb::delete(&mut store.kb, &id)?;
+  // D1：先删正文再写索引（顺序保证索引不会指回缺失正文）
+  store.delete_kb_item_body(&id)?;
   store.save_notes()?;
   emit(&app, StoreEvent::changed("kb"));
   Ok(())
 }
 
-/// 内存扫全文检索：返回按相关度排序的条目（空查询 = 全量按更新时间倒序）
+/// 内存检索（kb-storage-backup S4 收窄）：只匹配标题 + 全部祖先文件夹名，
+/// 返回按相关度排序的 id 数组；空查询 = 全量按更新时间倒序。
+/// 正文 / 标签不参与匹配（标签筛选由前端独立过滤，二者互不影响）。
 #[tauri::command]
-pub fn search_kb(
-  state: State<'_, Shared>,
-  query: Option<String>,
-) -> Result<Vec<KbItem>, String> {
+pub fn search_kb(state: State<'_, Shared>, query: Option<String>) -> Result<Vec<String>, String> {
   let store = lock(&state);
   store.ensure_kb_ok()?;
-  let ids = crate::kb::search(&store.kb, query.as_deref().unwrap_or(""));
-  Ok(ids
-    .iter()
-    .filter_map(|id| store.kb.iter().find(|item| &item.id == id))
-    .cloned()
-    .collect())
+  Ok(crate::kb::search(
+    &store.kb,
+    &store.folders,
+    query.as_deref().unwrap_or(""),
+  ))
 }
 
 // ---------------------------------------------------------------- 知识库文件夹（D6）/ notes 备份恢复（D8）
@@ -1009,17 +1160,22 @@ pub fn create_folder(
   Ok(folder)
 }
 
+/// 文件夹更新（D4）：改名 / 移动 / 同级排序 / 置顶统一入口。
+/// parentId 传 "" 表示移到顶层（根），缺省表示不改；order 缺省且发生移动时追加末尾。
 #[tauri::command]
-pub fn rename_folder(
+pub fn update_folder(
   app: AppHandle,
   state: State<'_, Shared>,
   id: String,
-  name: String,
+  name: Option<String>,
+  parent_id: Option<String>,
+  order: Option<i64>,
+  pinned: Option<bool>,
 ) -> Result<KbFolder, String> {
   let mut store = lock(&state);
   store.ensure_writable()?;
   store.ensure_kb_ok()?;
-  let folder = store.rename_folder(&id, &name)?;
+  let folder = store.update_folder(&id, name, parent_id, order, pinned)?;
   store.save_folders()?;
   drop(store);
   emit(&app, StoreEvent::changed("kb"));
@@ -1122,4 +1278,25 @@ pub fn get_form_hints() -> Result<serde_json::Value, String> {
 
 fn today_text() -> String {
   crate::models::fmt_day(&today())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn normalize_route_keeps_path_and_drops_blank() {
+    assert_eq!(
+      normalize_route(Some("/kb".to_string())).as_deref(),
+      Some("/kb"),
+      "open_main_window 的 route 透传给主窗（kb-storage-backup S4）"
+    );
+    assert_eq!(
+      normalize_route(Some("  /kb  ".to_string())).as_deref(),
+      Some("/kb"),
+      "首尾空白要裁掉"
+    );
+    assert_eq!(normalize_route(Some("   ".to_string())), None);
+    assert_eq!(normalize_route(None), None);
+  }
 }

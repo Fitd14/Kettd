@@ -13,11 +13,11 @@ Windows 桌面应用，基于 Tauri v1（Rust 后端）+ React 19（前端）。
 ## 功能一览
 
 - **待办管理**：今天 / 收件箱 / 计划 / 回顾四视图；分类（工作 / 学习 / 生活）、优先级、子任务、备注；软删回收站（保留 30 天）、撤销删除、手动排序
-- **定时提醒**：单次 / 每日 / 工作日 / 每周，支持多时刻；系统通知、免打扰时段、稍后提醒
+- **定时提醒**：单次 / 每日 / 工作日 / 每周，支持多时刻；系统通知、稍后提醒
 - **快速记录**：全局热键呼出置顶记录条，回车即记
-- **多便签**：自由便签（≤6 张）+ 知识便签（≤4 张，知识库条目贴桌面）；四套纸色与花纹、缩小态悬浮文本条、关闭即销毁
+- **多便签**：自由便签与知识便签同池，可见合计 ≤5 张（隐藏不计）；四套纸色与花纹、缩小态悬浮文本条、**关闭 = 隐藏**（数据保留，可在便签页重开）；侧栏「便签」页以卡片墙集中管理（搜索 / 打开 / 两步删除）
 - **待办悬浮窗**：今天列表镜像窗，可置顶
-- **知识库**：Markdown 即时渲染编辑（WYSIWYG）、标签筛选、本地全文搜索、知识便签贴到桌面、任务挂载资料、条目一键建待办
+- **知识库**：Markdown 即时渲染编辑（WYSIWYG）、标签筛选、本地全文搜索、知识便签贴到桌面、任务关联知识条目、条目一键建待办
 - **本周汇总导出**：Markdown / CSV
 - **本地度量**：仅本机统计，可随时关闭或清空
 
@@ -27,26 +27,27 @@ Windows 桌面应用，基于 Tauri v1（Rust 后端）+ React 19（前端）。
 
 | 窗口 | 用途 | 默认热键 |
 | --- | --- | --- |
-| 主窗口 | 今天 / 收件箱 / 计划 / 回顾 / 知识库 / 设置 | `Alt+Shift+O` |
+| 主窗口 | 今天 / 收件箱 / 计划 / 回顾 / 知识库 / 便签 / 设置 | `Alt+Shift+O` |
 | 快速记录 | 置顶记录条，回车记下、Esc 收起、按住 ✎ 拖动 | `Alt+Shift+A` |
 | 新建便签 | 创建一张自由便签 | `Alt+Shift+S` |
 | 待办悬浮窗 | 呼出 / 隐藏今天列表镜像 | `Alt+Shift+T` |
+| 直达知识库 | 唤起主窗口并跳到知识库 | `Alt+Shift+K` |
 
 热键均可在「设置」页改绑或解绑；解绑后仍可从托盘呼出。
 
 ### 托盘菜单
 
-打开主界面 · 快速记录 · 待办悬浮窗（勾选态）· 新建便签 · 显示/隐藏全部便签 · 管理提醒 · 本周汇总导出 · 打开数据文件夹 · 退出。
+打开主界面 · 待办悬浮窗（勾选态）· 新建便签 · 打开数据文件夹 · 退出。
 
 关闭主窗口不退出应用——托盘常驻，提醒照常触发。
 
 ### 便签三态
 
-展开（纸片编辑）⇄ 缩小（置顶悬浮文本条，显示正文第一行，点击展开）⇄ 关闭（即销毁，无确认）。自由便签支持 Markdown 渲染开关；知识便签指向知识库条目、随编辑同步，关闭不删数据。今天列表镜像由待办悬浮窗承担。
+展开（纸片编辑）⇄ 缩小（置顶悬浮文本条，显示正文第一行，点击展开）⇄ 关闭（**隐藏**：数据与窗口位置保留，在侧栏「便签」页可重开）。自由便签为 WYSIWYG 编辑（正文 ≤500 字）；知识便签指向知识库条目、随编辑同步，删除便签不影响条目。侧栏「便签」页集中管理：卡片墙（摘要 / 更新时间 / 可见状态 / 知识来源）、搜索、打开与两步删除。今天列表镜像由待办悬浮窗承担。
 
 ### 知识库
 
-左侧搜索 + 标签筛选，右侧阅读/编辑即时切换；条目可「贴到桌面」成为知识便签（视口指向条目，随编辑同步），也可一键建待办或挂载到任务资料区。搜索为纯本地全文扫描，键入即渲染。
+左侧搜索 + 标签筛选，右侧阅读/编辑即时切换；条目可「贴到桌面」成为知识便签（视口指向条目，随编辑同步），也可一键建待办或关联到任务资料区。搜索为纯本地全文扫描，键入即渲染。存储上是「索引 + 正文分文件」：`notes.json` 只存元数据，正文落 `notes/<id>.md`，图片落 `assets/<sha256>.<ext>`；旧格式（正文内联）首次启动自动迁移，原件存 `notes.v1.json`。
 
 ## 操作文档
 
@@ -57,25 +58,41 @@ Windows 桌面应用，基于 Tauri v1（Rust 后端）+ React 19（前端）。
 | 文件 | 内容 | 写策略 |
 | --- | --- | --- |
 | `data.json` | 任务 / 提醒 / 设置 | 写前轮转 5 份备份，原子替换 |
-| `notes.json` | 知识库条目 | 原子写，与主数据物理隔离 |
+| `data.json.bak-1~5` | 主数据轮转备份（bak-1 最新） | 设置页可恢复 |
+| `notes.json` | 知识库**索引**（元数据数组，不含正文） | 原子写；覆盖前轮转 5 份；与主数据物理隔离 |
+| `notes/<id>.md` | 知识库**正文**（每条一个 Markdown 文件） | 先写正文、后写索引；单条原子写 |
+| `assets/<sha256>.<ext>` | 知识库图片素材（按内容哈希命名去重） | 原子写；删除条目不清理资源 |
+| `folders.json` | 知识库文件夹树 | 原子写；不存在视为空表 |
+| `notes.json.bak-1~5` | 知识库索引轮转备份（bak-1 最新） | 设置页可回滚 |
+| `notes.v1.json` | 旧格式 `notes.json`（正文内联）迁移前存档 | 只写一次，永不覆盖 |
 | `runtime.json` | 窗口位置 / 提醒触发态 / 迁移报告 | 高频写，不轮转 |
 | `events.jsonl` | 本地度量事件 | 设置页可清空 |
-| `data.json.bak-1~5` | 轮转备份（bak-1 最新） | 设置页可恢复 |
+| `backups/` | 手动备份包（`kettd-backup-<时间戳>.kettdbackup`，单文件 JSON） | 导出命令写入，永不自动轮转 |
 | `data.v1.json` | v1 旧版迁移留档 | 永不覆盖 |
+
+知识库是「索引 + 正文分文件」：`notes.json` 只存元数据（`id` / `title` / `tags` / `folderId` / `order` / `pinned` / 时间戳 / `contentHash`），正文在 `notes/<id>.md`，图片在 `assets/<sha256>.<ext>`。写入顺序固定为「先正文、后索引」，崩溃最多留下孤儿正文，不会出现索引指向错误正文；索引里的 `contentHash` 是 `sha256(正文)`，加载时重算比对，不一致以正文为准（索引自动修复，不判损坏），正文缺失按空串加载（条目不丢）。旧版正文内联的 `notes.json` 首次加载自动迁移，原件存 `notes.v1.json`。
+
+正文里的图片只存相对引用 `assets/<sha256>.<ext>`（绝对路径一挪就坏）。渲染时前端经 `rendering/asset-url.ts` 用 `Bootstrap.assetsDir` + Tauri `convertFileSrc` 转成可加载地址，打包配置在 `tauri.conf.json` 用 `protocol.asset` + 窄 `assetScope`（`$APPDATA/todo-list/assets/**`）放行。已知限制：若用环境变量 `KETTD_DATA_DIR` 把数据目录指到别处，该 scope 不覆盖自定义目录，图片会显示不出来（数据本身不丢）。
 
 ### 备份与恢复
 
-每次写入 `data.json` 前自动轮转备份（最多 5 份）。设置页「数据与备份」可查看各备份的时间 / 任务数 / 可读性并一键恢复。知识库损坏时静默降级为空库，不传染主数据。
+每次写入 `data.json` 前自动轮转备份（最多 5 份）；`notes.json` 索引同样轮转 5 份。设置页「数据与备份」可查看各备份的时间 / 任务数 / 可读性并一键恢复，知识库索引可回滚 `notes.json.bak-1~5`。知识库索引 / 文件夹损坏时进可恢复错误态（引导到备份恢复），不降级为假空库，也不传染主数据；回滚旧版本时把 `notes.v1.json` 复制回 `notes.json` 再装旧版即可（详见 [docs/ARCHITECTURE.md §6](docs/ARCHITECTURE.md)）。
+
+**手动导出 / 导入**（`.kettdbackup` 单文件）：
+
+- **导出**：设置页「数据与备份」手动导出，写 `<数据目录>/backups/kettd-backup-<YYYYMMDD-HHmmss>.kettdbackup`。包内含任务 / 提醒 / 设置 / 便签快照 + 知识条目正文 + 文件夹 + 正文引用到的图片资源（缺失或读失败只计跳过数）；导出不轮转、不改本地数据。
+- **导入预览**：选择 `.kettdbackup` 后先出预览，展示「新增 / 更新 / 冲突 / 跳过 / 资源新增与复用 / 冲突标题」计数，**预览阶段不动任何文件**；确认后才真正应用。
+- **合并规则**：按 id 合并，`updatedAt` 较新的版本覆盖较旧的；本地较新则跳过；同刻但内容不同时保留本地并生成标题带「（导入冲突）」的副本；提醒 / 文件夹冲突降级为跳过；设置与便签不覆盖、本地独有绝不删。同一备份重复导入全部跳过，不会产生二次副作用。
 
 ### 设置项
 
-主题（亮 / 暗）、四个全局热键、便签纸色 / 花纹 / 移出淡化、免打扰时段、每小时提醒上限、本地度量开关、数据与备份管理。
+主题（亮 / 暗）、五个全局热键、便签纸色 / 花纹 / 移出淡化、知识库阅读字体（跟随正文 / 宋体·楷体·仿宋·微软雅黑 / 自己上传 ttf·otf·woff·woff2）、每小时提醒上限、本地度量开关、数据与备份管理。
 
 ## 技术架构
 
 ### 技术栈
 
-- **前端** `src-react/`：Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · shadcn · Tiptap 3；hash 路由，无状态库；`lib/api.ts` 为 64 个 Tauri 命令的类型化桥接
+- **前端** `src-react/`：Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · shadcn · Tiptap 3；hash 路由，无状态库；`lib/api.ts` 为 71 个 Tauri 命令的类型化桥接
 - **后端** `src-tauri/`：Tauri v1 · Rust（ports / infra / app 六边形分层）；JSON 文件持久化，无数据库
 - **契约文档** `docs/`：`ARCHITECTURE.md`（架构 + 命令契约附录）、`requirements/总体需求.md`、ADR 0001–0007（历史档案）
 
@@ -87,7 +104,7 @@ UI 层（React）
   capture/ sticky/ todo/      快速记录窗 / 便签窗 / 待办悬浮窗
   rendering/                  Markdown 与 Tiptap 渲染
   kernel/                     时间、选择器、事件总线、捕获语法（唯一实现）
-  lib/api.ts                  64 命令类型化 invoke
+  lib/api.ts                  71 命令类型化 invoke
         │  invoke
         ▼
 接口层  commands.rs + main.rs  generate_handler! 注册（薄壳，只做参数校验与转调）
@@ -101,13 +118,13 @@ UI 层（React）
 
 - **单向数据流**：UI 只通过 `api.ts` 调命令，不直接碰文件；跨窗口通信用 `store-changed` 事件，不用全局状态。
 - **时间语义**：全链路本地字符串（`YYYY-MM-DDTHH:mm`），后端 `DateTimeLocal` 保证不混入 UTC。
-- **持久化**：一切写入走 `StoreBackend`（tmp + rename 原子替换）；`data.json` 写前轮转备份，`notes.json` 与主数据物理隔离。
-- **提醒**：`scheduler.rs` 按分钟检查到点提醒；通知调用在锁外，免打扰时段内不发。
+- **持久化**：一切写入走 `StoreBackend`（tmp + rename 原子替换）；`data.json` 写前轮转备份，`notes.json` 与主数据物理隔离；知识库 = `notes.json` 纯索引 + `notes/<id>.md` 正文，写序固定「先正文后索引」，索引 `contentHash = sha256(正文)` 加载时校验、不一致以正文为准。
+- **提醒**：`scheduler.rs` 按分钟检查到点提醒；通知调用在锁外，所有时段照常发出。
 - **窗口**：`runtime.rs` 管理主窗 / 快速记录 / 便签 / 悬浮窗与托盘、热键；建窗一律 async + helper 线程，避开 WebView2 同步建窗挂起。
 
 ### 命令契约
 
-前端与后端的接口是 **64 个 Tauri 命令**，四方必须同步：
+前端与后端的接口是 **71 个 Tauri 命令**，四方必须同步：
 
 1. `src-tauri/src/main.rs` `generate_handler![]` 注册
 2. `src-tauri/src/commands.rs` `#[tauri::command]` 定义
@@ -116,12 +133,20 @@ UI 层（React）
 
 真相源是 `docs/ARCHITECTURE.md` 附录；`test/command-parity.test.mjs` 会当场拦下任何一处漏改。新增命令的写法与约束见 [AGENTS.md §2.4](AGENTS.md)。
 
+### 视觉语言
+
+- **字号五档，按角色取用**：`--fs-meta` 11px（时间 / 标签 / kbd）、`--fs-sub` 12.5px（副行 / 说明 / 按钮）、`--fs-body` 14px（行标题 / 输入框 / 正文）、`--fs-masthead` 22px（页面报头，KPI 数字同档）、`--fs-reading` 16px（仅编辑器正文，行高 1.85）。
+- **颜色只从令牌取**：一律 `hsl(var(--xxx))`；新增 `--seal`（朱砂 `4 47% 53%`）用于知识库印章与危险动作。
+- **两种纸，看得越久纸越实**：描图纸（`--vellum-*`，捕获浮条，停留 <2s）→ 白页（`--card` + `--shadow-sm`，当前行）→ 宣纸（`--background` + `--seal` + 纸纹，知识库详情 / 编辑器，停留 >10s）；一个面只用一种纸。
+- **唯一用力处**：同一帧只有当前行浮起（`.trow:hover` / `:focus-within`），其余行平贴账本。
+- 令牌定义在 `src-react/src/index.css`，视图骨架与行样式在 `src-react/src/styles/app.css`；完整规格见 `openspec/changes/refine-frontend-visual-language/design.md`。
+
 ### 关键文件索引
 
 | 文件 | 职责 |
 | --- | --- |
 | `src-tauri/src/main.rs` | 启动、初始化、命令注册 |
-| `src-tauri/src/commands.rs` | 64 个 Tauri 命令（参数校验 + 转调 app） |
+| `src-tauri/src/commands.rs` | 71 个 Tauri 命令（参数校验 + 转调 app） |
 | `src-tauri/src/app/` | 用例编排：tasks / reminders / settings |
 | `src-tauri/src/ports/` | 端口 trait：StoreBackend / Clock / Notifier / Hotkeys |
 | `src-tauri/src/infra/fs_store.rs` | 原子写、备份轮转、数据目录解析 |
@@ -129,9 +154,11 @@ UI 层（React）
 | `src-tauri/src/models.rs` | 领域模型、校验、`DateTimeLocal` |
 | `src-tauri/src/scheduler.rs` | 提醒调度 |
 | `src-tauri/src/runtime.rs` | 窗口 / 托盘 / 热键 |
-| `src-tauri/src/kb.rs` | 知识库搜索打分（标题 +2 / 标签 +1 / 正文 +1） |
+| `src-tauri/src/kb.rs` | 知识库搜索收窄（标题 100/50/20 + 祖先文件夹名 8/4/2；不读正文、不匹配标签） |
 | `src-tauri/src/telemetry.rs` | 本地度量事件 |
 | `src-react/src/lib/api.ts` | 命令桥接（`__TAURI__` 惰性取） |
+| `src-react/src/index.css` | 设计令牌：字号 / 颜色 / 材质 / 字体 |
+| `src-react/src/styles/app.css` | 视图骨架、行与行尾动作样式 |
 | `src-react/src/kernel/` | 时间 / 选择器 / 事件总线 / 捕获语法单源 |
 | `scripts/` | `version.mjs` 版本同步 · `check.ps1` 门禁 · `release.ps1` 一键发版 |
 | `test/` | 门禁：命令四方对账 / 主窗口关闭契约 / 打包配置契约 / 文档结构契约 |
@@ -182,12 +209,12 @@ Kettd/
 │   └── test/               # 前端门禁（渲染保真 / round-trip）
 ├── src-tauri/              # Rust 后端
 │   ├── src/
-│   │   ├── commands.rs     # 64 个 Tauri 命令
+│   │   ├── commands.rs     # 71 个 Tauri 命令
 │   │   ├── store.rs        # JSON 持久化 + 备份轮转
 │   │   ├── models.rs       # 领域模型 + 校验
 │   │   ├── scheduler.rs    # 提醒调度
 │   │   ├── runtime.rs      # 窗口 / 托盘 / 热键
-│   │   ├── kb.rs           # 知识库搜索打分
+│   │   ├── kb.rs           # 知识库搜索收窄
 │   │   ├── ports/ infra/ app/  # 六边形分层
 │   │   └── telemetry.rs    # 本地度量
 │   └── tauri.conf.json     # 打包配置（bundle / wix / 窗口）
@@ -199,7 +226,7 @@ Kettd/
 ### 测试与门禁
 
 ```bash
-npm run check                                                     # 一把跑完 12 项
+npm run check                                                     # 一把跑完 17 项
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1 -SkipRust    # 只查前端
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1 -Only Markdown  # 按名字过滤
 ```
@@ -209,7 +236,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1 -Only Mark
 单独跑某一项：
 
 ```bash
-cd src-tauri && cargo test && cd ..                    # Rust 单测（103 项）
+cd src-tauri && cargo test && cd ..                    # Rust 单测（210 项）
 node --test test/command-parity.test.mjs               # 命令四方对账：注册 ↔ 定义 ↔ api.ts ↔ ARCHITECTURE 附录
 node --test test/main-window-close.test.mjs            # 主窗口关闭契约
 node --test test/packaging.test.mjs                    # 打包配置契约（8 条）
@@ -230,7 +257,7 @@ npm run release      # 门禁 → 构建前端 → tauri build → 校验产物 
 一条链路做完四件事：
 
 1. **版本单一来源**：`scripts/version.mjs`（`get` / `check` / `set`）维护四处版本——根 `package.json`、`src-react/package.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`；不一致时门禁直接拦下。
-2. **门禁**：默认先跑 `scripts/check.ps1`（12 项），`-SkipChecks` 可跳过。
+2. **门禁**：默认先跑 `scripts/check.ps1`（17 项），`-SkipChecks` 可跳过。
 3. **构建**：调用 `tauri build --bundles msi,nsis`；bundle 阶段偶发 `os error 32`（Defender 瞬时锁）会自动退避重试，默认 2 次。
    - **预发布版本只出 NSIS**：WiX/MSI 要求版本里的预发布标识是纯数字（`0.0.2-1` 可以，`0.0.2-rc.1` 不行，会报 `pre-release identifier ... must be numeric-only ... for msi target`）。脚本检测到非数字标识时自动剔除 `msi`，只打 NSIS，并在 `build-manifest.json` 的 `droppedTargets` 记下原因。
 4. **归档**：产物拷到 `artifacts/v<版本>/`，同目录生成 `SHA256SUMS.txt` 与 `build-manifest.json`（含 git commit / 分支 / 是否脏工作区、node·npm·cargo·rustc 版本、各安装包大小与 sha256）。

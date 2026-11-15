@@ -14,6 +14,7 @@ import {
   type KbItem,
   type StickySelf,
 } from '@/lib/api'
+import { FADE_DEBOUNCE_MS, isPointerOutside, shouldFade } from '@/lib/sticky-fade'
 import { PaperPattern } from './paper-patterns'
 import { TipTapEditor } from '@/rendering/tiptap-editor'
 import './sticky.css'
@@ -39,6 +40,167 @@ function plainPreview(md: string): string {
   return text.length > 60 ? `${text.slice(0, 60)}…` : text
 }
 
+/** 窗口内浮层选择器：链接弹窗 / slash 命令面板 / 选区气泡 / 表格网格 / 通用弹层 */
+const OVERLAY_SELECTOR = [
+  '[role="dialog"]',
+  '[role="listbox"]',
+  '.kb-link-dialog-overlay',
+  '.kb-slash',
+  '.kb-bubble',
+  '.kb-grid-picker',
+].join(', ')
+
+/**
+ * 窗口内是否有可见浮层。隐藏浮层仍留在 DOM（选区气泡 `.kb-bubble` 就是用
+ * visibility/opacity 隐藏），必须按 computed style 过滤，否则 overlayOpen 恒为 true，
+ * 移出淡化会永久失效。
+ */
+function hasOpenOverlay(): boolean {
+  const nodes = document.querySelectorAll(OVERLAY_SELECTOR)
+  for (let i = 0; i < nodes.length; i += 1) {
+    const node = nodes[i]
+    if (!(node instanceof HTMLElement)) continue
+    if (node.getClientRects().length === 0) continue
+    const style = window.getComputedStyle(node)
+    if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') continue
+    if (Number(style.opacity) === 0) continue
+    return true
+  }
+  return false
+}
+
+/**
+ * 移出淡化守卫（tasks 4.2）：四条件全满足且持续 250ms 才淡化。
+ * - window mousemove 用 clientX/clientY 与窗口尺寸比较（主判据）；mouseleave 仅兜底：
+ *   指针离开 WebView 后浏览器不再派发窗外 mousemove，只靠坐标会漏掉真实移出；
+ *   IME 候选窗造成的误 mouseleave 由 composing / hasFocus / overlayOpen 吸收。
+ * - window blur/focus + document.hasFocus()：失焦才允许淡化，重新聚焦立即恢复。
+ * - compositionstart/end：组字期间不淡化，结束后按当前指针与焦点重新判定（仍走去抖）。
+ * - 窗口内任意 keydown / mousedown / mouseenter / focus / compositionstart 立即取消。
+ * enabled=false（设置关闭移出淡化或 mini 态）时不挂监听、不淡化。
+ */
+function useStickyFadeGuard(enabled: boolean) {
+  const [faded, setFaded] = useState(false)
+  const timerRef = useRef<number | null>(null)
+  const pointerOutsideRef = useRef(false)
+  const focusedRef = useRef(false)
+  const composingRef = useRef(false)
+  const enabledRef = useRef(enabled)
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }, [])
+
+  /** 立即取消待执行淡化并恢复不透明 */
+  const cancelFade = useCallback(() => {
+    clearTimer()
+    setFaded(false)
+  }, [clearTimer])
+
+  /** 当前是否满足淡化条件：去抖到期时重新读 DOM 焦点与浮层，保证判定用的是最新状态 */
+  const canFadeNow = useCallback(
+    () =>
+      shouldFade({
+        enabled: enabledRef.current,
+        pointerOutside: pointerOutsideRef.current,
+        hasFocus: focusedRef.current && document.hasFocus(),
+        composing: composingRef.current,
+        overlayOpen: hasOpenOverlay(),
+      }),
+    [],
+  )
+
+  /** 满足条件 → 排 250ms 去抖；不满足 → 立即取消并恢复 */
+  const evaluateFade = useCallback(() => {
+    clearTimer()
+    if (!canFadeNow()) {
+      setFaded(false)
+      return
+    }
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null
+      setFaded(canFadeNow())
+    }, FADE_DEBOUNCE_MS)
+  }, [canFadeNow, clearTimer])
+
+  /** 指针已确定在窗外（mousemove 坐标 / mouseleave 兜底）→ 重新判定并起去抖 */
+  const markOutside = useCallback(() => {
+    pointerOutsideRef.current = true
+    evaluateFade()
+  }, [evaluateFade])
+
+  /** 指针回到窗内（mousemove / mouseenter / focus）→ 立即恢复不透明 */
+  const markInside = useCallback(() => {
+    pointerOutsideRef.current = false
+    cancelFade()
+  }, [cancelFade])
+
+  // enabled 变化：关闭时清 timer 并复位（设置里关掉移出淡化 / 展开态 ⇄ mini 态）
+  useEffect(() => {
+    enabledRef.current = enabled
+    if (!enabled) {
+      clearTimer()
+      pointerOutsideRef.current = false
+      composingRef.current = false
+      setFaded(false)
+    }
+  }, [enabled, clearTimer])
+
+  useEffect(() => {
+    if (!enabled) return
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (isPointerOutside(event.clientX, event.clientY, window.innerWidth, window.innerHeight)) {
+        markOutside()
+      } else {
+        markInside()
+      }
+    }
+    const onBlur = () => {
+      focusedRef.current = false
+      evaluateFade()
+    }
+    const onFocus = () => {
+      focusedRef.current = true
+      cancelFade()
+    }
+    const onCompositionStart = () => {
+      composingRef.current = true
+      cancelFade()
+    }
+    const onCompositionEnd = () => {
+      composingRef.current = false
+      evaluateFade()
+    }
+    const onWindowActivity = () => cancelFade()
+
+    focusedRef.current = document.hasFocus()
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('blur', onBlur)
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('keydown', onWindowActivity, true)
+    window.addEventListener('mousedown', onWindowActivity, true)
+    document.addEventListener('compositionstart', onCompositionStart, true)
+    document.addEventListener('compositionend', onCompositionEnd, true)
+
+    return () => {
+      clearTimer()
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('blur', onBlur)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('keydown', onWindowActivity, true)
+      window.removeEventListener('mousedown', onWindowActivity, true)
+      document.removeEventListener('compositionstart', onCompositionStart, true)
+      document.removeEventListener('compositionend', onCompositionEnd, true)
+    }
+  }, [enabled, cancelFade, clearTimer, evaluateFade, markInside, markOutside])
+
+  return { faded, markOutside, markInside }
+}
+
 /**
  * 便签窗（sticky-separation 定稿）：纯自由便签，一张纸，多实例，常驻置顶无开关。
  * - 身份由后端 sticky_self 给出（note:* 动态窗）
@@ -49,7 +211,6 @@ function plainPreview(md: string): string {
 export default function StickyWindow() {
   const [boot, setBoot] = useState<Bootstrap | null>(null)
   const [self, setSelf] = useState<StickySelf | null>(null)
-  const [faded, setFaded] = useState(false)
   const [freeText, setFreeText] = useState('')
   const [saveErr, setSaveErr] = useState<string | null>(null)
   const [kbItem, setKbItem] = useState<KbItem | null>(null)
@@ -66,9 +227,9 @@ export default function StickyWindow() {
     const active = document.activeElement
     if (active instanceof Node && knowledgeBodyRef.current?.contains(active)) return
     try {
-      const r = await getKbItems()
-      const items = r.data ?? []
-      const found = items.find((i) => i.id === kbRef)
+      // 列表 IPC 只回元数据（bodyMd 为空串）：知识便签按 kbRef 直接取完整正文
+      const r = await getKbItems([kbRef])
+      const found = (r.data ?? []).find((i) => i.id === kbRef)
       if (found) {
         setKbItem(found)
         setKbInvalid(false)
@@ -115,6 +276,8 @@ export default function StickyWindow() {
   const fadeOpacity = boot?.settings.stickyFadeOpacity ?? 38
   const pattern = boot?.settings.stickyPattern ?? 'none'
   const mini = self?.mini ?? false
+  // 两个展开态（自由 / 知识）共用同一套移出淡化守卫；mini 态与关闭设置时 enabled=false
+  const { faded, markOutside, markInside } = useStickyFadeGuard(fadeOn && !mini)
 
   /** 缩小 ↔ 展开：形态记在便签数据里，重启按原样恢复 */
   const setMini = useCallback(async (next: boolean) => {
@@ -162,11 +325,7 @@ export default function StickyWindow() {
       ? (kbInvalid ? '⚠️ 已失效的知识便签' : (kbItem?.title ?? '加载中...'))
       : (plainPreview(self?.content ?? '') || '（空便签）')
     return (
-      <div
-        className={`sticky-note is-mini paper-${paper}${isKnowledge ? ' knowledge-sticky' : ''}`}
-        onMouseLeave={() => setFaded(true)}
-        onMouseEnter={() => setFaded(false)}
-      >
+      <div className={`sticky-note is-mini paper-${paper}${isKnowledge ? ' knowledge-sticky' : ''}`}>
         <span className="sticky-mini-grip" data-tauri-drag-region title="按住拖动">
           <GripHorizontal size={14} aria-hidden />
         </span>
@@ -227,8 +386,8 @@ export default function StickyWindow() {
       <div
         className={`sticky-note paper-${paper} knowledge-sticky${faded && fadeOn ? ' faded' : ''}`}
         style={{ '--sticky-fade-opacity': `${fadeOpacity}%` } as React.CSSProperties}
-        onMouseLeave={() => setFaded(true)}
-        onMouseEnter={() => setFaded(false)}
+        onMouseLeave={markOutside}
+        onMouseEnter={markInside}
       >
         <PaperPattern pattern={pattern} />
         <div className="sticky-strip">
@@ -268,8 +427,8 @@ export default function StickyWindow() {
     <div
       className={`sticky-note paper-${paper}${faded && fadeOn ? ' faded' : ''}`}
       style={{ '--sticky-fade-opacity': `${fadeOpacity}%` } as React.CSSProperties}
-      onMouseLeave={() => setFaded(true)}
-      onMouseEnter={() => setFaded(false)}
+      onMouseLeave={markOutside}
+      onMouseEnter={markInside}
     >
       <PaperPattern pattern={pattern} />
       <div className="sticky-strip">

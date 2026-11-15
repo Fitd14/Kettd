@@ -1,6 +1,4 @@
-/* 设置页 · 备份与恢复区（fix-known-defects 批次 4：#7 文件备份与恢复 UI）
-   只补备份列表布局与不可读配色；按钮/徽标/文字沿用 app.css 既有类（.btn / .badge / .tiny）。
-   颜色一律走 hsl(var(--xxx)) token，暗色主题自动跟随。 */
+﻿/* 璁剧疆椤?路 澶囦唤涓庢仮澶嶅尯锛坒ix-known-defects 鎵规 4锛?7 鏂囦欢澶囦唤涓庢仮澶?UI锛?   鍙ˉ澶囦唤鍒楄〃甯冨眬涓庝笉鍙閰嶈壊锛涙寜閽?寰芥爣/鏂囧瓧娌跨敤 app.css 鏃㈡湁绫伙紙.btn / .badge / .tiny锛夈€?   棰滆壊涓€寰嬭蛋 hsl(var(--xxx)) token锛屾殫鑹蹭富棰樿嚜鍔ㄨ窡闅忋€?*/
 
 .backup-list {
   display: flex;
@@ -25,7 +23,7 @@
   min-width: 0;
 }
 
-/* 左侧 slot + 元信息可收缩；右侧徽标/错误/按钮不被挤掉 */
+/* 宸︿晶 slot + 鍏冧俊鎭彲鏀剁缉锛涘彸渚у窘鏍?閿欒/鎸夐挳涓嶈鎸ゆ帀 */
 .backup-row-main {
   display: flex;
   align-items: baseline;
@@ -36,7 +34,7 @@
 
 .backup-slot {
   flex: none;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   color: hsl(var(--foreground));
 }
@@ -49,29 +47,165 @@
 }
 
 .backup-meta {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: hsl(var(--muted-foreground));
 }
 
-/* 不可读备份的错误文案：危险色小字，截断展示，全文走 title */
+/* 涓嶅彲璇诲浠界殑閿欒鏂囨锛氬嵄闄╄壊灏忓瓧锛屾埅鏂睍绀猴紝鍏ㄦ枃璧?title */
 .backup-err {
   flex: 0 1 auto;
   max-width: 180px;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   color: hsl(var(--destructive));
 }
 
-/* 不可读徽标：危险色（token 随主题走） */
+/* 涓嶅彲璇诲窘鏍囷細鍗遍櫓鑹诧紙token 闅忎富棰樿蛋锛?*/
 .backup-row .badge.backup-badge-bad {
   color: hsl(var(--destructive));
   border-color: hsl(var(--destructive) / 0.45);
 }
 
-/* 列表容器是 span（沿用设置页 set-row 的既有结构），把局部提示类改为块级，
-   避免行内排版挤在一行；作用域限定在 .backup-list 内，不影响其他视图。 */
+/* 鍒楄〃瀹瑰櫒鏄?span锛堟部鐢ㄨ缃〉 set-row 鐨勬棦鏈夌粨鏋勶級锛屾妸灞€閮ㄦ彁绀虹被鏀逛负鍧楃骇锛?   閬垮厤琛屽唴鎺掔増鎸ゅ湪涓€琛岋紱浣滅敤鍩熼檺瀹氬湪 .backup-list 鍐咃紝涓嶅奖鍝嶅叾浠栬鍥俱€?*/
 .backup-list > .inline-err,
 .backup-list > .inline-note,
 .backup-list > .tiny {
   display: block;
   margin-top: 0;
+}
+
+/* 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ 鎵嬪姩澶囦唤锛坘b-storage-backup 4.4 路 D3/D4锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+   瀵煎嚭缁撴灉 + 瀵煎叆棰勮瀵硅瘽妗嗐€傞鑹蹭竴寰?hsl(var(--xxx)) token锛屾殫鑹蹭富棰樿嚜鍔ㄨ窡闅忋€?*/
+
+/* 鍘熺敓鏂囦欢閫夋嫨妗嗚棌璧锋潵锛堝悓 settings-font.css 鐨?.font-file锛夛紝鐢便€岄€夋嫨澶囦唤鏂囦欢銆嶆寜閽唬鍔?*/
+.backup-file-input {
+  display: none;
+}
+
+/* 瀵煎嚭璺緞 / 鍚庣閿欒鍙兘寰堥暱锛氬厑璁镐换鎰忎綅缃柇琛岋紝閬垮厤鎶婅缃鎾戠牬 */
+.backup-manual-note {
+  overflow-wrap: anywhere;
+}
+
+/* 绐勫搴︼紙娌胯缃〉鏃㈡湁 720px 鏂偣锛夛細鍙充晶鎿嶄綔鍖烘崲鍒颁笅涓€琛岋紝涓嶆尋鍧忓乏渚ц鏄?*/
+@media (max-width: 720px) {
+  .set-row.manual-backup-row {
+    flex-wrap: wrap;
+  }
+}
+
+/* 瀵煎叆棰勮瀵硅瘽妗嗭細涓?kb 鏂囦欢澶瑰脊绐楋紙kb.css锛夊悓涓€濂楅伄缃?鍗＄墖璇█锛岀被鍚嶇嫭绔嬮伩鍏嶄簰鐩稿奖鍝?*/
+.backup-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: hsl(var(--foreground) / 0.18);
+}
+
+.backup-dialog {
+  width: min(92vw, 420px);
+  max-width: 100%;
+  max-height: 84vh;
+  overflow-y: auto;
+  padding: 14px 16px 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--r-md);
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  box-shadow: var(--shadow-lg);
+  outline: none;
+}
+
+.backup-dialog-title {
+  margin-bottom: 4px;
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.backup-dialog-file {
+  margin-bottom: 10px;
+  overflow-wrap: anywhere;
+}
+
+/* 鏂板 / 鏇存柊 / 鍐茬獊 / 璺宠繃璁℃暟鏍硷細绐勫搴﹁嚜鍔ㄦ崲琛?*/
+.backup-preview-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.backup-preview-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 62px;
+  padding: 4px 8px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--r-sm);
+  background: hsl(var(--muted));
+}
+
+.backup-preview-stat b {
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.backup-preview-stat span {
+  font-size: var(--fs-meta);
+  color: hsl(var(--muted-foreground));
+}
+
+/* 鏈夊啿绐佹椂璁℃暟鏍囧嵄闄╄壊锛屾彁绀洪渶浜哄伐纭 */
+.backup-preview-stat.is-danger b {
+  color: hsl(var(--destructive));
+}
+
+.backup-preview-assets {
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.backup-preview-conflicts {
+  margin-bottom: 8px;
+}
+
+/* 鍐茬獊鏍囬鏈€澶氬垪 5 鏉★細闄愰珮婊氬姩 + 鍗曡鐪佺暐锛岄暱鏍囬鍏ㄦ枃璧?title */
+.backup-conflict-list {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: var(--fs-meta);
+  color: hsl(var(--foreground));
+}
+
+.backup-conflict-list li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backup-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+/* 纭鎸夐挳鐢ㄤ富鑹诧細.btn.primary 鍦ㄦ湰椤圭洰鍏ㄥ眬 CSS 鏈畾涔夛紝杩欓噷鍙湪鑷繁鐨勫脊绐椾綔鐢ㄥ煙鍐呰ˉ榻愶紝
+   閬垮厤缁欏叾浠栬鍥惧紩鍏ユ柊鐨勫叏灞€鎸夐挳鏍峰紡銆?*/
+.backup-dialog .btn.primary {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.backup-dialog .btn.primary:hover {
+  background: hsl(var(--primary) / 0.88);
 }

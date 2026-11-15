@@ -74,6 +74,59 @@ pub trait StoreBackend: Send {
 
   /// 原子写 folders.json
   fn write_folders(&self, json: &str) -> Result<(), String>;
+
+  // ---------------------------------------------------------------- kb-storage-backup（D1/D2/D7）
+  // 端口仍只搬字节：路径规则、建目录、tmp+rename 都是实现的职责，Store 不做 IO。
+
+  /// 读 `notes/<id>.md` 正文；None = 文件不存在（按空正文加载，不判损坏）
+  fn read_note_body(&self, id: &str) -> Result<Option<String>, String>;
+
+  /// 原子写 `notes/<id>.md`（tmp + rename；目录不存在自动建）
+  fn write_note_body(&self, id: &str, body: &str) -> Result<(), String>;
+
+  /// 删除 `notes/<id>.md`；文件不存在视为成功（删除天然幂等）
+  fn delete_note_body(&self, id: &str) -> Result<(), String>;
+
+  /// 绝对 assets 目录（Bootstrap.assetsDir：前端用它把 `assets/<sha>.<ext>` 拼成
+  /// `convertFileSrc` 可用的绝对路径）。
+  ///
+  /// 默认值给内存/测试后端用：它们没有真实目录，只能给一个临时占位（不会被前端用于生产显示）。
+  fn assets_dir_abs(&self) -> String {
+    std::env::temp_dir()
+      .join("kettd-assets")
+      .to_string_lossy()
+      .into_owned()
+  }
+
+  /// `assets/<sha>.<ext>` 是否存在（内容寻址天然去重）
+  #[allow(dead_code)] // 批 3（D2 图片抽取）接入后启用
+  fn asset_exists(&self, sha: &str, ext: &str) -> bool;
+
+  /// 读资源文件
+  #[allow(dead_code)] // 批 3（D2 图片抽取）接入后启用
+  fn read_asset(&self, sha: &str, ext: &str) -> Result<Vec<u8>, String>;
+
+  /// 原子写资源文件（同名内容寻址文件可覆盖，内容相同）
+  #[allow(dead_code)] // 批 3（D2 图片抽取）接入后启用
+  fn write_asset(&self, sha: &str, ext: &str, bytes: &[u8]) -> Result<(), String>;
+
+  /// 写手动导出文件到 `<data_dir>/backups/<file_name>`，返回绝对路径（目录自动建）
+  #[allow(dead_code)] // 批 3（D3 手动导出）接入后启用
+  fn write_export_file(&self, file_name: &str, text: &str) -> Result<String, String>;
+
+  /// 建 `<data_dir>/backups/`（打开导出目录前调用）
+  #[allow(dead_code)] // 批 3（D3 手动导出）接入后启用
+  fn create_backups_dir(&self) -> Result<(), String>;
+
+  /// 旧格式 notes.json 永久存档 `notes.v1.json` 是否存在（存在则不再写，保留最早那份）
+  fn notes_v1_archive_exists(&self) -> bool;
+
+  /// 原子写 `notes.v1.json`（迁移前旧格式原文，永久保留）
+  fn write_notes_v1_archive(&self, json: &str) -> Result<(), String>;
+
+  /// 读 `notes.v1.json`；None = 不存在（降级/诊断用）
+  #[allow(dead_code)] // 批 3（回滚/诊断）接入后启用
+  fn read_notes_v1_archive(&self) -> Result<Option<String>, String>;
 }
 
 #[cfg(test)]
@@ -92,6 +145,14 @@ pub mod test_double {
     pub folders: RefCell<Option<String>>,
     pub pre_split: RefCell<Option<String>>,
     pub backups: RefCell<Vec<String>>,
+    /// notes/<id>.md 正文（kb-storage-backup D1）
+    pub note_bodies: RefCell<std::collections::HashMap<String, String>>,
+    /// assets/<sha>.<ext> 资源字节（D2）
+    pub assets: RefCell<std::collections::HashMap<String, Vec<u8>>>,
+    /// backups/<file_name> 导出文件（D3 手动导出）
+    pub exports: RefCell<Vec<(String, String)>>,
+    /// notes.v1.json 旧格式永久存档（D7）
+    pub notes_v1_archive: RefCell<Option<String>>,
     pub fail_writes: RefCell<bool>,
     /// 调用序列记录（编排顺序断言用：runtime 先于 data 落盘等）
     pub log: RefCell<Vec<String>>,
@@ -109,6 +170,10 @@ pub mod test_double {
         folders: RefCell::new(None),
         pre_split: RefCell::new(None),
         backups: RefCell::new(Vec::new()),
+        note_bodies: RefCell::new(std::collections::HashMap::new()),
+        assets: RefCell::new(std::collections::HashMap::new()),
+        exports: RefCell::new(Vec::new()),
+        notes_v1_archive: RefCell::new(None),
         fail_writes: RefCell::new(false),
         log: RefCell::new(Vec::new()),
         quarantine_count: RefCell::new(0),
@@ -351,6 +416,100 @@ pub mod test_double {
       }
       *self.folders.borrow_mut() = Some(json.to_string());
       Ok(())
+    }
+
+    fn read_note_body(&self, id: &str) -> Result<Option<String>, String> {
+      Ok(self.note_bodies.borrow().get(id).cloned())
+    }
+
+    fn write_note_body(&self, id: &str, body: &str) -> Result<(), String> {
+      self.note("write_note_body");
+      if *self.fail_writes.borrow() {
+        return Err("没有写入权限".to_string());
+      }
+      self
+        .note_bodies
+        .borrow_mut()
+        .insert(id.to_string(), body.to_string());
+      Ok(())
+    }
+
+    fn delete_note_body(&self, id: &str) -> Result<(), String> {
+      self.note("delete_note_body");
+      if *self.fail_writes.borrow() {
+        return Err("没有写入权限".to_string());
+      }
+      self.note_bodies.borrow_mut().remove(id);
+      Ok(())
+    }
+
+    fn asset_exists(&self, sha: &str, ext: &str) -> bool {
+      self.assets.borrow().contains_key(&format!("{sha}.{ext}"))
+    }
+
+    fn read_asset(&self, sha: &str, ext: &str) -> Result<Vec<u8>, String> {
+      self
+        .assets
+        .borrow()
+        .get(&format!("{sha}.{ext}"))
+        .cloned()
+        .ok_or_else(|| "资源文件不存在".to_string())
+    }
+
+    fn write_asset(&self, sha: &str, ext: &str, bytes: &[u8]) -> Result<(), String> {
+      self.note("write_asset");
+      if *self.fail_writes.borrow() {
+        return Err("没有写入权限".to_string());
+      }
+      self
+        .assets
+        .borrow_mut()
+        .insert(format!("{sha}.{ext}"), bytes.to_vec());
+      Ok(())
+    }
+
+    fn write_export_file(&self, file_name: &str, text: &str) -> Result<String, String> {
+      self.note("write_export_file");
+      if *self.fail_writes.borrow() {
+        return Err("没有写入权限".to_string());
+      }
+      self
+        .exports
+        .borrow_mut()
+        .push((file_name.to_string(), text.to_string()));
+      // 测试替身不落盘，但返回形态与真实实现一致（绝对路径 = 临时根 + backups/ + 文件名）
+      Ok(
+        std::env::temp_dir()
+          .join("kettd-memory-backups")
+          .join(file_name)
+          .to_string_lossy()
+          .into_owned(),
+      )
+    }
+
+    fn create_backups_dir(&self) -> Result<(), String> {
+      self.note("create_backups_dir");
+      if *self.fail_writes.borrow() {
+        return Err("没有写入权限".to_string());
+      }
+      Ok(())
+    }
+
+    fn notes_v1_archive_exists(&self) -> bool {
+      self.notes_v1_archive.borrow().is_some()
+    }
+
+    fn write_notes_v1_archive(&self, json: &str) -> Result<(), String> {
+      self.note("write_notes_v1_archive");
+      if *self.fail_writes.borrow() {
+        return Err("没有写入权限".to_string());
+      }
+      *self.notes_v1_archive.borrow_mut() = Some(json.to_string());
+      Ok(())
+    }
+
+    fn read_notes_v1_archive(&self) -> Result<Option<String>, String> {
+      Ok(self.notes_v1_archive.borrow().clone())
     }
   }
 }

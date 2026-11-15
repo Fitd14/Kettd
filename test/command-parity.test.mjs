@@ -12,6 +12,7 @@ const read = (p) => readFileSync(join(root, p), 'utf8');
 const mainRs = read('src-tauri/src/main.rs');
 const commandsRs = read('src-tauri/src/commands.rs');
 const apiTs = read('src-react/src/lib/api.ts');
+const readingFontTs = read('src-react/src/lib/reading-font.ts');
 const doc = read('docs/ARCHITECTURE.md');
 
 // ① generate_handler![] 里注册的命令名
@@ -50,6 +51,23 @@ test('V2-API 文档表 ↔ 注册表一一对应', () => {
   assert.deepEqual(diff(documented, handler), [], '文档有行但没注册');
 });
 
-test('命令总数与文档声明一致（当前 64）', () => {
-  assert.equal(handler.size, 64, '总数变更时同步更新 V2-API §10 与本断言');
+test('命令总数与文档声明一致（当前 71）', () => {
+  assert.equal(handler.size, 71, '总数变更时同步更新 V2-API §10 与本断言');
+  assert.ok(handler.has('update_folder'), 'kb-file-tree 1.4：必须注册 update_folder（改名/移动/排序/置顶）');
+  assert.ok(!handler.has('rename_folder'), 'kb-file-tree 1.4：rename_folder 已被 update_folder 取代，不得残留');
+  assert.ok(handler.has('export_backup'), 'kb-storage-backup D3：必须注册手动导出命令');
+  assert.ok(handler.has('import_backup'), 'kb-storage-backup D4：必须注册手动导入命令');
+  assert.ok(handler.has('register_kb_hotkey'), 'kb-storage-backup S4：必须注册直达知识库热键命令');
+});
+
+// 阅读字体：Rust 白名单 ↔ 设置页选项，两处必须同键同序，否则用户选了后端不认的值
+test('READING_FONT_SYSTEMS 两端一致（reading-font）', () => {
+  const modelsRs = read('src-tauri/src/models.rs');
+  const start = modelsRs.indexOf('pub const READING_FONT_SYSTEMS');
+  assert.notEqual(start, -1, 'models.rs 必须定义 READING_FONT_SYSTEMS');
+  const block = modelsRs.slice(start, modelsRs.indexOf('];', start));
+  const rustKeys = [...block.matchAll(/\("([^"]+)",/g)].map((m) => m[1]);
+  const tsKeys = [...readingFontTs.matchAll(/\{ key: '([^']+)', label: '[^']+' \}/g)].map((m) => m[1]);
+  assert.ok(rustKeys.length >= 4, 'Rust 侧至少要有四个系统字族');
+  assert.deepEqual(tsKeys, rustKeys, '前端 READING_FONT_SYSTEMS 的键与顺序必须与 models.rs 一致');
 });

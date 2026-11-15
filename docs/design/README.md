@@ -1,6 +1,6 @@
 # 设计文档
 
-历史设计参考与调研归档。来源：v1 时代未合并分支（2026-07），**非当前实现规格**——当前架构见 [ARCHITECTURE.md](../ARCHITECTURE.md)，当前功能行为见 [capability/](../capability/)。
+历史设计参考与调研归档。来源：v1 时代未合并分支（2026-07），**非当前实现规格**——当前架构见 [ARCHITECTURE.md](../ARCHITECTURE.md)，当前功能行为见 [capability/](../capability/)。当前视觉语言（令牌、字号、行语义、界面文案）以 [refine-frontend-visual-language/design.md](../../openspec/changes/refine-frontend-visual-language/design.md) 为准，归档后改看 `openspec/specs/visual-language/spec.md` 与 `openspec/specs/interface-copy/spec.md`。
 
 ## 分类
 

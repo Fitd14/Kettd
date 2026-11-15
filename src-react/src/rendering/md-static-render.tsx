@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
 import { getRendererForLang, highlightCode } from './renderer-registry'
+import { resolveAssetUrl } from './asset-url'
 
 interface Props {
   /** Markdown 源文本 */
@@ -36,6 +37,16 @@ md.renderer.rules.fence = (tokens, idx) => {
 
 // 表格：统一 class（kb-table）以便 CSS 美化（见 prosemirror.css）
 md.renderer.rules.table_open = () => '<table class="kb-table">\n'
+
+// 图片（D2）：正文只存 assets/<sha>.<ext> 相对引用，渲染时解析成 convertFileSrc 地址；
+// alt 沿用 markdown-it 默认口径（renderInlineAsText），data URL / 远程图原样不动。
+md.renderer.rules.image = (tokens, idx, options, env, self) => {
+  const token = tokens[idx]
+  const src = token.attrGet('src')
+  if (typeof src === 'string' && src) token.attrSet('src', resolveAssetUrl(src))
+  token.attrSet('alt', self.renderInlineAsText(token.children ?? [], options, env))
+  return self.renderToken(tokens, idx, options)
+}
 
 /**
  * 阅读态 Markdown→React 渲染器。

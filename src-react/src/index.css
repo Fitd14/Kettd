@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./styles/fonts.css";
 @import "./rendering/styles/prosemirror.css";
 
 @custom-variant dark (&:is(.dark *));
@@ -39,6 +40,24 @@
   --shadow-lg: 0 12px 34px hsl(240 6% 10% / 0.14), 0 2px 8px hsl(240 6% 10% / 0.06);
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-6: 24px; --sp-8: 32px;
 
+  /* ---- 字号令牌：chrome 四档 + 阅读一档（按角色选档，不按数值就近）----
+     `--fs-reading` 只给编辑器正文（行高 1.85），不得用于 chrome；
+     契约见 openspec/changes/refine-frontend-visual-language/design.md §4.1。 */
+  --fs-meta: 11px;      /* 时间戳、标签、kbd、行内 meta */
+  --fs-sub: 12.5px;     /* 副行、说明、按钮、段落标题 */
+  --fs-body: 14px;      /* 行标题、输入框、列表正文 */
+  --fs-masthead: 22px;  /* 页面报头；KPI 数字同档 */
+  --fs-reading: 16px;   /* 仅编辑器正文 */
+
+  /* ---- 字体令牌：只引入一族自绘字体（报头衬线子集），其余全部系统字栈 ----
+     报头衬线是「书页」的声音，只出现在品牌字与视图标题两处；正文仍是黑体，
+     这样同一屏里只有一处不是系统默认脸，克制才成立。 */
+  --font-ui: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  --font-serif: "Kettd Serif", "Noto Serif SC", "Songti SC", SimSun, serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  /* 阅读面（编辑器正文）暂与正文同族；等定下「霞鹜文楷 / 思源宋体」后只改这一行。 */
+  --font-reading: var(--font-ui);
+
   /* ---- 材质令牌：硫酸纸（capture 快速记录条专用；与 vanilla styles.css 逐字对齐，R2）----
      方向不是「iOS 玻璃」，是文具店里盖在笔记本上那张描图纸：物理透光、边缘反光、仍然是纸。
      浓度按最差对比 5.11:1 定档（等效 α 0.64）；tint 用 --background 暖纸白而非纯白。 */
@@ -60,6 +79,8 @@
   /* 亮色琥珀文字 5.2:1（1.4.3 ≥4.5；原 38% 仅 4.17:1） */
   --pri-med: 32 85% 34%;
   --pri-low: 240 4% 55%;
+  /* 朱砂：知识库印章 / 危险动作（原 kb.css 内联 #C0574F，收编为唯一新增颜色令牌） */
+  --seal: 4 47% 53%;
   /* 回顾热力 5 档绿（review-redesign-spec §7；lv1 浅 → lv4 深；lv1/2 提深改善 1.4.11） */
   --heat-1: hsl(140 38% 78%);
   --heat-2: hsl(142 48% 58%);
@@ -154,7 +175,7 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    font-family: var(--font-ui);
     -webkit-font-smoothing: antialiased;
   }
   /* 全局滚动条统一（owner 拍板 2026-09-09）：透明轨道 + 圆角细条，令牌取色、

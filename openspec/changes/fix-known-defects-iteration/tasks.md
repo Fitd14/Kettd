@@ -65,9 +65,9 @@
 
 ## 8. 集成验收
 
-- [ ] 8.1 全套门禁（cargo check/test、tsc、build、parity、md-fidelity、round-trip）全绿并保存输出
-- [ ] 8.2 对照 `repro/README.md` 逐项复核 17 项（含真机项），记录通过/未通过
-- [ ] 8.3 更新文档：`docs/ARCHITECTURE.md` 命令表与计数、README/AGENTS 相关说明（文档类交付先人工审核，审核通过前不提交）
+- [x] 8.1 全套门禁（cargo check/test、tsc、build、parity、md-fidelity、round-trip）全绿并保存输出
+- [x] 8.2 对照 `repro/README.md` 逐项复核 17 项（含真机项），记录通过/未通过
+- [x] 8.3 更新文档：`docs/ARCHITECTURE.md` 命令表与计数、README/AGENTS 相关说明（文档类交付先人工审核，审核通过前不提交）
 - [ ] 8.4 真机冒烟：快速记录 / 今天视图 / 提醒 / 便签三态 / 知识库搜索 / 退出，全通过
 
 ## Workflow follow-up

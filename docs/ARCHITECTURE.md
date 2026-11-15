@@ -1,9 +1,9 @@
 # Kettd 架构设计
 
 - **状态**：当前架构（ADR-0001…0007 决策已全部落地）
-- **初版**：2026-09-05 · 最后更新：2026-11-08
+- **初版**：2026-09-05 · 最后更新：2026-11-15
 - **决策档案**：`adr/`（历史决策记录，含背景与备选方案）
-- **命令契约**：本文附录（64 命令，四方对账门禁）
+- **命令契约**：本文附录（71 命令，四方对账门禁）
 - **需求规格**：`requirements/总体需求.md`
 
 > 本文描述系统当前架构与不变红线。§1 现状审计为初版时的历史快照（vanilla 前端已退役、端口已引入），仅供溯源；§2 起为当前设计。
@@ -20,7 +20,7 @@
 4. 存储安全底座是 v2 的核心资产（原子替换 + 覆盖前轮转备份 + corrupt 显式化 + 拒绝写命令），**只允许加固，不允许削弱**。
 5. Windows 优先，1366 宽可用。
 
-**范围**：后端分层与端口、状态所有权、多窗口通信、存储与调度、便签网与知识库的扩展点、迁移与退役路径。**不含**：具体 UI 规格（在 `spark-output/design/` 五份规格里）、视觉材质（ADR-001 §5 之外另有材质令牌）。
+**范围**：后端分层与端口、状态所有权、多窗口通信、存储与调度、便签网与知识库的扩展点、迁移与退役路径。**不含**：具体 UI 规格（视觉语言与界面文案以 `openspec/changes/refine-frontend-visual-language/design.md` 为准，归档后看 `openspec/specs/visual-language/spec.md` 与 `openspec/specs/interface-copy/spec.md`；历史调研归档在 `docs/design/`）、视觉材质（ADR-001 §5 之外另有材质令牌）。
 
 ---
 
@@ -158,23 +158,48 @@ src-tauri/src/
 
 ## 6 · 存储与调度
 
-**存储**：写盘协议不动（§1.3）。唯一变化是 **schema 分层**（ADR-005）：
+**存储**：写盘协议不动（§1.3）。`data.json` 内部做 **schema 分层**（ADR-005），知识库做 **索引 / 正文分文件**（kb-storage-backup，2026-11-14）：
 
 ```
 %APPDATA%/todo-list/
-├── data.json      用户数据（Task/Reminder/Settings）—— 轮转备份、可回滚、可迁移
-├── runtime.json   运行态（fired 键、health、窗口位置 map、埋点计数）—— 单文件覆盖写、不轮转
-└── data.v1.json   永久留档（现有承诺不变）
+├── data.json             用户数据（Task/Reminder/Settings）—— 轮转备份、可回滚、可迁移
+├── data.json.bak-1~5     主数据轮转备份（bak-1 最新）
+├── runtime.json          运行态（fired 键、health、窗口位置 map、埋点计数）—— 单文件覆盖写、不轮转
+├── data.v1.json          永久留档（现有承诺不变）
+├── notes.json            知识库索引（KbItemMeta 数组：id/title/tags/folderId/order/pinned/时间戳/contentHash，不含正文）
+├── notes.json.bak-1~5    知识库索引轮转备份
+├── notes/<id>.md         知识库正文（Markdown，每条一个文件；id 仅 [A-Za-z0-9_-]）
+├── assets/<sha256>.<ext> 知识库图片（按内容哈希命名、天然去重）
+├── notes.v1.json         旧格式 notes.json（正文内联）的迁移前永久存档
+├── folders.json          知识库文件夹树
+├── events.jsonl          本地度量事件
+├── exports/              周汇总等手动导出
+├── backups/              手动备份包（kettd-backup-<时间戳>.kettdbackup，单文件 JSON）
+└── data.corrupt.<ts>     损坏原件留存
 ```
 
-理由：`fired` 会随提醒数单调增长（上限 400），埋点会随使用增长；把它们留在 `data.json` 里意味着**每次轮转备份都在复制运行垃圾**，且用户"导出我的数据"时会带出一堆无语义键。
+理由：`fired` 会随提醒数单调增长（上限 400），埋点会随使用增长；把它们留在 `data.json` 里意味着**每次轮转备份都在复制运行垃圾**，且用户"导出我的数据"时会带出一堆无语义键。知识库拆成索引 + 正文后，列表只读一份索引、正文按打开条目单读，5000 条规模仍可接受。
+
+**知识库写入协议**：
+
+- **先正文、后索引**：写入顺序固定为 `notes/<id>.md` → `notes.json`（各自 tmp + rename 原子写）。崩溃最多留下孤儿正文，不会出现索引指向错误正文。
+- **contentHash 校验**：索引里的 `contentHash = sha256(正文)` 由后端计算；加载时重算比对，不一致（旧档 / 手改 / 外部编辑）**以正文为准**并顺手修复索引，不判损坏；正文文件缺失按空串加载，条目不丢。
+- **轮转**：`notes.json` 每次覆盖写前轮转 `notes.json.bak-1..5`；`folders.json` 原子写、不轮转。`notes.json` / `folders.json` 与主数据物理隔离，互不传染损坏。
+- **旧格式迁移**（D7）：加载时发现 `notes.json` 任一元素含 `bodyMd` / `body_md` 即触发一次性迁移——`notes.v1.json` 存档（不存在才写，永不覆盖）→ 轮转备份 → 逐条写正文 → 最后原子写新索引；失败置 `KB_UPGRADE_FAILED`（中文「知识库升级失败，原数据已保留，请重启后重试」），旧文件原样保留，下次启动重试。
+- **回滚旧版本**：把 `notes.v1.json` 复制回 `notes.json`（或把 `notes.json.bak-1` 复制回 `notes.json`），再安装旧版本；`notes.v1.json` 本身永不覆盖。
+
+**手动备份（kb-storage-backup D3/D4）**：
+
+- **格式**：单个 JSON 文件 `<数据目录>/backups/kettd-backup-<YYYYMMDD-HHmmss>.kettdbackup`，`format = "kettd-backup"`、`formatVersion = 1`，内容为 `data`（任务 / 提醒 / 设置 / 便签快照）+ `kb`（条目元信息 + 正文 + 文件夹）+ `assets`（正文引用到的图片，base64，带 `sha256` / `ext`）。上限：文本 256 MB、单资源 5 MB、资源 5000 个、条目 20000 条，扩展名白名单 png / jpg / webp / gif；只导出正文实际引用的资源，缺失或读失败只计 `skipped`，不阻断导出。
+- **导出不写库**：`export_backup` 只读 Store 内存 + `assets/` 字节，写 `backups/` 后返回；不轮转、不改 `data.json` / `notes.json`、不 emit。
+- **导入**：`dryRun=true` 只解析 + 算合并计划并返回计数，一个文件都不写；apply 按 id 合并（`updatedAt` 本地字符串比大小，备份较新覆盖、本地较新跳过、同刻不同内容保留本地并生成标题带「（导入冲突）」的副本；提醒与文件夹冲突降级 Skip），设置与便签不覆盖、本地独有绝不删。落盘顺序固定为 **assets → 正文 → folders → 索引 → `data.json`**（runtime 不动），应用前轮转由 `save_folders` / `save_notes` / `save` 各自完成一次，应用后由命令层 emit `store-changed`（data + kb）。同一备份重复导入全部 Skip，不产生二次副作用。
 
 **调度**：按 ADR-004 重排为三段式，消除持锁跨 IO：
 
 ```
 tick:
   ① 短锁读快照（提醒列表 + settings + now）      ← 拿锁 → clone → 放锁
-  ② 无锁计算到期集合、去重、DND/上限判定
+  ② 无锁计算到期集合、去重、24h 失效与上限判定
   ③ 短锁写回（fired 键、completed、last_fired）  ← 拿锁 → 改 → save → 放锁
   ④ 锁外：发系统通知、emit store-changed/fired/missed
 ```
@@ -238,7 +263,7 @@ ADR-001 的 M0–M5 是**前端**视角。后端解耦不依赖它，但双轨�
 # 附录：后端命令契约（原 V2-API.md）
 
 
-真相源：`spark-output/prd/kettd-v2.md` §6.1 / §6.2 / §6.3 / §6.4 / §6.6 + §6.9 状态矩阵。
+真相源：`docs/requirements/总体需求.md` §6.1 / §6.2 / §6.3 / §6.4 / §6.6 + §6.9 状态矩阵。
 本文档是前端对接的唯一契约：命令名、invoke 参数名（camelCase）、返回结构、事件、错误文案。
 实现在 `src-tauri/src/{models,store,runtime,scheduler,export,commands,main}.rs`。
 
@@ -250,8 +275,8 @@ ADR-001 的 M0–M5 是**前端**视角。后端解耦不依赖它，但双轨�
   - 仅日期 `YYYY-MM-DD`
   - 提醒循环时刻 `HH:MM`，兼容 v1 多时刻 `HH:MM/HH:MM`
   - 解析失败的旧值：置 `null` 并写入迁移报告（不猜测、不伪造）
-- 数据目录沿用 v1：`%APPDATA%/todo-list`（`data.json`）。
-- 写盘 = 读 → 内存改 → 序列化 `data.json.tmp` → `fs::rename` 原子替换；**每次覆盖写前**把当时的 `data.json` 轮转为 `data.json.bak-1`，旧档顺移，保留 5 份（`bak-1..bak-5`）。知识库同理：`notes.json` 每次覆盖写前轮转 5 份（`notes.json.bak-1..bak-5`）；`notes.json` / `folders.json` 也走 `StoreBackend` 原子写。
+- 数据目录沿用 v1：`%APPDATA%/todo-list`（`data.json`；知识库另有 `notes.json` 索引 + `notes/` 正文、`assets/`、`folders.json`，见 §6）。
+- 写盘 = 读 → 内存改 → 序列化 `data.json.tmp` → `fs::rename` 原子替换；**每次覆盖写前**把当时的 `data.json` 轮转为 `data.json.bak-1`，旧档顺移，保留 5 份（`bak-1..bak-5`）。知识库同理且**先正文、后索引**：单条写序为 `notes/<id>.md` → `notes.json`，`notes.json` 每次覆盖写前轮转 5 份（`notes.json.bak-1..bak-5`）；`notes.json` / `folders.json` 也走 `StoreBackend` 原子写。索引里的 `contentHash = sha256(正文)`，加载时校验，不一致以正文为准、不判损坏（详见 §6）。
 - 未从 corrupt 状态成功恢复前，**所有写命令一律返回 Err**（`数据文件已损坏，请先从备份恢复后再操作`），杜绝 v1 的「静默空库」。
 - `deletedAt` 非空 = 回收站；读取默认过滤，`get_tasks{includeDeleted:true}` 才带出。
 
@@ -309,8 +334,6 @@ interface Reminder {
   legacy?: boolean
 }
 
-interface Dnd { enabled: boolean; from: string; to: string }   // 默认 true, 23:00, 07:30
-
 interface Settings {
   theme: string                    // 主题名（float / dark / light，前端解释）
   stickyPaper: string              // 便签纸色：warm | kraft | cyan | ink（§12.1 四选一）
@@ -319,7 +342,7 @@ interface Settings {
   stickyHotkey: string | null      // 新建便签全局热键；null = 未绑定；默认 "Alt+Shift+S"
   todoFloatPinned: boolean         // 待办悬浮窗置顶（todo-float，默认开）
   todoHotkey: string | null        // 待办悬浮窗呼出热键；null = 未绑定；默认 "Alt+Shift+T"
-  dnd: Dnd
+  kbHotkey: string | null          // 直达知识库全局热键；null = 未绑定；默认 "Alt+Shift+K"
   remindCapPerHour: number         // 默认 3
   onboarded: boolean
   exportDir?: string | null
@@ -412,8 +435,8 @@ interface RestoreKbResult { restored: number }
 | `toggle_reminder` | `id` | `Reminder` | completed ⇄ enabled；重新启用会清 `snoozedUntil` |
 | `snooze_reminder` | `id`, `minutes` | `Reminder` | 写 `snoozedUntil = now + minutes`（1–720） |
 | `get_settings` | — | `Settings` | |
-| `set_settings` | `patch: Partial<Settings>` | `Settings` | 部分字段 MERGE；改任一热键（`captureHotkey`/`mainHotkey`/`stickyHotkey`/`todoHotkey`）会真实重绑热键，任一失败整次回滚（四槽位事务）并 Err「快捷键被占用，请用备用入口」；`todoFloatPinned` 即时同步悬浮窗 always_on_top；`stickyPaper` 校验四预设 |
-| `open_main_window` | — | `void` | 显示主窗并请求焦点 |
+| `set_settings` | `patch: Partial<Settings>` | `Settings` | 部分字段 MERGE；改任一热键（`captureHotkey`/`mainHotkey`/`stickyHotkey`/`todoHotkey`）会真实重绑热键，任一失败整次回滚（四槽位事务）并 Err「快捷键被占用，请用备用入口」；`kbHotkey` 不在此事务内，改绑/清空走 `register_kb_hotkey`（避免 set_settings 只落库不重绑）；`todoFloatPinned` 即时同步悬浮窗 always_on_top；`stickyPaper` 校验四预设 |
+| `open_main_window` | `route?: string` | `void` | 显示主窗并请求焦点；`route` 透传给主窗（emit `navigate`，如 `/kb`），缺省只显示（kb-storage-backup S4） |
 | `hide_main_window` | — | `void` | 主窗 ✕ = 收进托盘：只 hide。**不许换成前端 `close()`** —— tauri 1.8.3 的 close 走 `on_window_close` 丢弃 tao Window（DestroyWindow），不产生 CloseRequested，`prevent_close` 拦不住，主窗一旦销毁该进程就再也呼不出它 |
 | `hide_todo_float` | — | `void` | 隐藏待办悬浮窗（✕ 同款）：只藏窗，显隐状态落 runtime.json，重启恢复 |
 | `set_todo_float_mini` | `mini: bool` | `void` | 待办悬浮窗最小化：`true` → 380×40 单行条；`false` → 380×456 完整面板。持久化到 `runtime.json`，重启按此恢复；窗口不存在时只落盘不改窗 |
@@ -422,6 +445,7 @@ interface RestoreKbResult { restored: number }
 | `register_main_hotkey` | `combo` | `Settings` | 打开主界面全局热键；`combo` 空串 = 解绑（`mainHotkey` → `null`）；与其他槽位互斥、失败保持旧值 |
 | `register_sticky_hotkey` | `combo` | `Settings` | 新建便签全局热键（sticky-separation，默认 Alt+Shift+S）；`combo` 空串 = 解绑；与其他槽位互斥、失败保持旧值 |
 | `register_todo_hotkey` | `combo` | `Settings` | 待办悬浮窗呼出/隐藏热键（todo-float，默认 Alt+Shift+T）；`combo` 空串 = 解绑；与其他槽位互斥、失败保持旧值 |
+| `register_kb_hotkey` | `combo` | `Settings` | 直达知识库全局热键（kb-storage-backup S4，默认 Alt+Shift+K）：显示主窗并导航到 `#/kb`；`combo` 空串 = 解绑（`kbHotkey` → `null`）；与其余四槽互斥、失败保持旧值 |
 | `open_capture_overlay` | — | `void` | label `capture`：560×**内容实高**（动态高度，见 `capture_resize`）、无边框、「硫酸纸」材质（OS `apply_blur` 暖纸 tint + DWM 圆角，CSS 层负责反光描边/厚度/可读性，圆角全权归 DWM、CSS `border-radius:0`）、屏幕上部 28% 居中、置顶，显示后 emit `capture-opened` 让前端聚焦输入框；失焦自动收起 |
 | `close_capture_overlay` | — | `void` | |
 | `capture_start_drag` | — | `void` | 让无边框捕获条可被鼠标拖动（转调 `window.start_dragging()`）。**当前前端未接线** —— 实际拖拽走 Tauri 的 `data-tauri-drag-region` 属性（见 `capture.html` 的 ✎ 把手）；此命令作为备用入口保留，位置记忆由 `settings.capturePos` 承担 |
@@ -431,18 +455,18 @@ interface RestoreKbResult { restored: number }
 | `restore_backup` | `slot`（`"1".."5"`，也吃 `data.json.bak-3` 这种整名） | `RestoreResult` | 成功即解除 corrupt 封锁；损坏原件已留存为 `data.corrupt.*`，`data.v1.json` 永不删 |
 | `get_kb_items` | — | `KbItem[]` | 全量条目（frame H1b）；条目含 `folderId`（`null` = 未分类）；知识库损坏时 Err「知识库数据损坏，可在设置 → 备份与恢复中恢复」 |
 | `add_kb_item` | `args: { title, bodyMd?, tags?, folderId? }` | `KbItem` | 标题非空；tags 去空白去重；`folderId` 非空时必须是已存在的文件夹（`""` = 未分类） |
-| `update_kb_item` | `id`, `patch: KbPayload` | `KbItem` | 未给字段不动；`updatedAt` 刷新；`folderId` 三态：缺省 = 不改、`""` = 移到未分类、id = 归入该文件夹（须存在，否则 Err「文件夹不存在」） |
+| `update_kb_item` | `id`, `patch: KbPayload` | `KbItem` | 未给字段不动；`updatedAt` 刷新；`folderId` 三态：缺省 = 不改、`""` = 移到未分类、id = 归入该文件夹（须存在，否则 Err「文件夹不存在」）；`order` 缺省且跨夹移动 = 追加新父级末尾，排序/移动/置顶成功后对旧/新父级 dense 重排 0..n-1 |
 | `delete_kb_item` | `id` | `void` | 任务侧 kbRefs 会悬空，前端展示「已失效」 |
-| `search_kb` | `query?` | `KbItem[]` | 内存扫：title×2/tag×1.5/body×1 相关度排序；空查询=全量按更新时间倒序；知识库损坏时 Err（错误态不渲染假空结果） |
+| `search_kb` | `query?` | `string[]` | 内存检索（kb-storage-backup S4 收窄）：只匹配标题（完全相等 100 / 前缀 50 / 包含 20）+ 全部祖先文件夹名（8/4/2，取最高不累加），不匹配正文 / tags；空查询 = 全量按更新时间倒序；返回有序 id 数组；知识库损坏时 Err（错误态不渲染假空结果） |
 | `list_folders` | — | `KbFolder[]` | 扁平列表（`parentId` = null 为根，`order` 同级升序）；损坏时同知识库错误文案 |
-| `create_folder` | `name`, `parentId?` | `KbFolder` | 名称 trim 后非空且 ≤40 字；父必须存在，否则 Err「文件夹不存在」；`order` = 同级 max+1 |
-| `rename_folder` | `id`, `name` | `KbFolder` | 名称校验同创建；不存在 Err「文件夹不存在」 |
+| `create_folder` | `name`, `parentId?` | `KbFolder` | 名称 trim 后非空且 ≤40 字；父必须存在，否则 Err「文件夹不存在」；`order` = 同级数量（dense 追加），`pinned` 默认 false |
+| `update_folder` | `id`, `name?`, `parentId?`, `order?`, `pinned?` | `KbFolder` | 改名 / 移动 / 排序 / 置顶统一入口（kb-file-tree D4）；`name` 校验同创建；`parentId` 缺省 = 不改、`""` = 移到顶层（根）、id = 移入该文件夹（须存在，且不能是自身或后代，否则 Err「不能把文件夹移动到自身或它的子文件夹」）；`order` 缺省且移动 = 追加末尾、否则 clamp 到 0..len；移动或排序对旧/新父级 dense 重排 0..n-1；不存在 Err「文件夹不存在」 |
 | `delete_folder` | `id` | `void` | 仅空文件夹可删（无条目 `folderId` 引用、无子文件夹），否则 Err「文件夹非空，请先移走其中的条目或子文件夹」；不存在 Err「文件夹不存在」 |
 | `list_kb_backups` | — | `KbBackupInfo[]` | 读 `notes.json.bak-1..5`；含不可读项（`readable:false` + 中文 error）；知识库损坏时恢复页也可用 |
 | `restore_kb_backup` | `slot`（`"1".."5"`） | `RestoreKbResult` | 备份 JSON 解析成功才恢复；恢复前把当前 `notes.json` 轮转进 `bak-1`；成功解除知识库损坏态 |
 | `rollback_schema_split` | — | `String` | **调试入口，不进 UI**（ADR-0005）：把 `data.pre-split.json` 复制回 `data.json` 并删 `runtime.json`，重启生效。回滚窗口期内新增提醒的 fired 键会丢 → 后果仅是可能重复响一次 |
 | `get_data_health` | — | `DataHealthV2` | 损坏恢复页数据源 |
-| `get_hotkey_status` | — | `HotkeyStatus` | 四个全局热键的**实际注册**快照 `{capture, main, sticky, todo}`（未绑上/已解绑为 `null`）；设置页与 `settings.*Hotkey` 比对，不一致即标「未生效」（qa-1）。运行期状态，不落盘 |
+| `get_hotkey_status` | — | `HotkeyStatus` | 五个全局热键的**实际注册**快照 `{capture, main, sticky, todo, kb}`（未绑上/已解绑为 `null`）；设置页与 `settings.*Hotkey` 比对，不一致即标「未生效」（qa-1）。运行期状态，不落盘 |
 | `clear_migration_report` | — | `MigrationReport \| null` | 前端展示完迁移报告后清账，避免每次启动重复提示 |
 | `reorder_tasks` | `idsInOrder: string[]` | `usize`（实际移动条数） | 同列表手动排序（便签规格 §12.2）：按传入顺序整表落 `sort_order`（v3/M3）；`sortOrder` 缺省 = 未手动排过，展示按 `createdAt` 兜底 |
 | `clear_events` | — | `void` | 清空本地统计（planned-settings B.5★）：重置 `events.jsonl` 为空并记一条 `events_cleared`；写线程在途一批（≤64 条）可随后落盘，属可接受残留 |
@@ -454,6 +478,12 @@ interface RestoreKbResult { restored: number }
 | `delete_sticky` | `id` | `void` | **显式删除**（设置页两步确认）：便签数据、窗口与 `note_pos` 记录一并回收，无确认无撤销，误删靠写前轮转备份兜底；记 `sticky_delete`。普通关闭（✕ / Alt+F4）已改为隐藏，不再删数据 |
 | `sticky_self` | — | `{ id, content, mini, kbRef? }` | 便签窗启动自述：label（`note:<id>`）→ 身份与形态；`kbRef` 非空 = 知识便签（视口指向 KB 条目，skip_if_none） |
 | `get_form_hints` | — | `{ categories, priorities, sources, repeat, defaultHotkey, defaultCap, retentionDays, today }` | 表单常量，避免前端硬编码 |
+| `list_reading_fonts` | — | `ReadingFontInfo[]`（`{name,sizeKb}`） | 列出 `<数据目录>/fonts/` 里用户上传的阅读字体；目录不存在 = 空列表（不报错） |
+| `save_reading_font` | `name`, `data`（base64） | `ReadingFontInfo[]` | 安装上传字体：文件名走 `is_safe_font_file_name`（禁路径/控制字符/点开头，扩展名 ttf/otf/woff/woff2），字节 ≤16 MB 且文件头须是 wOFF/wOF2/OTTO/0x00010000/`true`/`typ1`；先写 `.<name>.tmp` 再 rename；返回安装后的完整清单 |
+| `delete_reading_font` | `name` | `ReadingFontInfo[]` | 删除一个已上传字体文件（前端负责先把 `readingFont` 切回默认） |
+| `read_reading_font` | `name` | `String`（base64） | 读字体字节给前端 `FontFace` 注册；文件不存在 Err「字体文件不在了，请重新上传」 |
+| `export_backup` | — | `{ path, bytes, itemCount, assetCount, skipped }` | 手动导出单文件备份（kb-storage-backup D3）：写 `<数据目录>/backups/kettd-backup-<YYYYMMDD-HHmmss>.kettdbackup`；只打包正文引用到的图片资源，缺失/读失败计 `skipped` 不阻断；不轮转、不写 `data.json` / `notes.json` |
+| `import_backup` | `payload: string`, `dryRun: bool` | `{ added, updated, conflicts, skipped, assetAdded, assetReused, conflictTitles, dryRun }` | 手动导入（kb-storage-backup D4）：`dryRun=true` 只解析 + 预览，绝不写盘；apply 按 id 合并（备份较新覆盖、本地较新跳过、同刻不同内容保留本地并生成标题带「（导入冲突）」的副本；提醒 / 文件夹冲突降级 Skip），设置与便签不覆盖、本地独有绝不删；落盘顺序 assets → 正文 → folders → 索引 → data，应用后 emit `store-changed`（data + kb） |
 
 参数名映射：Rust 侧 `snake_case` 形参由 Tauri v1 宏自动转成 camelCase（`task_id` → `taskId`，`include_deleted` → `includeDeleted`）。结构体入参（`TaskPayload` 等）本身带 `rename_all = "camelCase"`。
 
@@ -461,18 +491,18 @@ interface RestoreKbResult { restored: number }
 
 - 时间字段传 `null` 或空串 = 清空；传字符串 = 归一后写入，归一失败 → Err（不会静默丢值）。
 - `title` 传空串 → Err「标题不能为空」。
-- `category` / `priority` / `stickyPaper` / `dnd.from` / `dnd.to` 非法值 → 中文 Err，不落库。
+- `category` / `priority` / `stickyPaper` 非法值 → 中文 Err，不落库。
 - `subtasks` / `notes` 传数组 = 整体替换（空标题项会被丢弃）。
 
 ## 3. 事件表（后端 → 前端）
 
 | 事件 | 负载 | 发出时机 |
 | --- | --- | --- |
-| `store-changed` | `{ id: string, kind: 'changed' \| 'fired' \| 'missed' }` | 任何写库成功后（id = 受影响实体 id；`settings` / `data` 表示全局）；提醒触发 `fired`；免打扰静默入账、超 24h 失效、启动补发清账为 `missed` |
+| `store-changed` | `{ id: string, kind: 'changed' \| 'fired' \| 'missed' }` | 任何写库成功后（id = 受影响实体 id；`settings` / `data` 表示全局）；提醒触发 `fired`；超 24h 失效、启动补发清账为 `missed` |
 | `capture-opened` | `null` | `open_capture_overlay` 显示捕获条后，前端收到即聚焦输入框 |
 | `theme-changed` | `string`（主题名） | `set_settings` 改 `theme` 成功后跨窗同步 |
-| `hotkey-state` | `HotkeyStatus` `{ capture, main }` | 每次热键注册尝试之后（启动线程 + 换绑/解绑），成败都发。注意：启动时主窗口是隐藏的，这条可能没人接收 —— 前端仍要在启动与进设置页时主动 `get_hotkey_status` 兜一次，广播只负责让已打开的页面即时更新 |
-| `navigate` | `string`（前端路由，如 `/planned/reminders`） | 托盘「管理提醒」「本周汇总导出」打开主窗后要求跳转 |
+| `hotkey-state` | `HotkeyStatus` `{ capture, main, sticky, todo, kb }` | 每次热键注册尝试之后（启动线程 + 换绑/解绑），成败都发。注意：启动时主窗口是隐藏的，这条可能没人接收 —— 前端仍要在启动与进设置页时主动 `get_hotkey_status` 兜一次，广播只负责让已打开的页面即时更新 |
+| `navigate` | `string`（前端路由，如 `/inbox`） | `show_main` 带 route 时要求主窗跳转（来源：快速记录降级路径跳到收件箱；直达知识库热键跳到 `/kb`，kb-storage-backup S4） |
 | `open-capture` | `null` | 降级路径：`capture.html` 资源不存在时，`open_capture_overlay`（含全局热键）改为全局广播该事件并唤起主窗，由前端自挂的快捷输入条接管；同时返回 Err「快速记录条没就绪，请用悬浮面板输入框」 |
 
 ## 4. 定时器与提醒规则（托盘常驻，A3 批复）
@@ -483,7 +513,7 @@ interface RestoreKbResult { restored: number }
 2. 稳定键去重：`r|<id>|<YYYY-MM-DDTHH:mm>` / `t|<id>|<原串>`，记在 `data.fired` → 跨重启不重复响。
 3. 到点 → 系统通知 title「待办提醒」body `<标题> · <YYYY-MM-DDTHH:mm>`（snooze 触发时后缀「（稍后提醒）」）；点击深链由前端窗口处理。
 4. 每小时上限 `settings.remindCapPerHour`（默认 3）：内存滑窗，超上限的排队，下个 tick 窗口放开再补。
-5. 免打扰 `settings.dnd`（默认 23:00–07:30，可关）：时段内静默入账（不清账），结束后合并成一条「免打扰期间有 N 条提醒」，事件仍按 `fired`/`missed` 上报。
+5. 不设免打扰时段（quiet-mode-removal）：任何时段到点都按上述规则通知，不静默入账、不出窗合并补发。
 6. 错过超过 24h：不再发通知，只记 `missed` 并清账。
 7. 应用未运行期间错过的：启动后第一次 tick 合并成一条「错过 N 条提醒」，不逐条轰炸。
 8. 每次落库（`lastFired` / 单次提醒的 `completed=true` 或 `remindAt` 清空 / `fired` 键）都走同一套原子写，并 emit `store-changed`。
@@ -499,8 +529,8 @@ interface RestoreKbResult { restored: number }
   - 该窗实际由 `runtime::create_capture_window` 用 `WindowBuilder` 创建，`tauri.conf.json` 的声明必须与 `inner_size` 手工对齐（宽度另有 `runtime::CAPTURE_W` 常量供 `capture_resize` 共用）；`center_capture` 已改为读窗口实际 `outer_size` 居中，不再重复写死尺寸常量。
 - 托盘在代码里创建，`id = "main"`（v1 的 `tauri.systemTray` 配置项只吃 `iconPath`，没有 `id` 字段，v1 运行时的托盘菜单必须由代码构建）。
 - 托盘菜单（术语表：便签 / 提醒 / 周汇总；sticky-separation 后不再有「悬浮面板」与置顶勾选）：
-  `打开主界面` · `快速记录`（等同 `open_capture_overlay`，前端也可监听 `capture-opened`）· 分隔 · `新建便签`（热键同款入口） / `显示全部便签` / `隐藏全部便签` · 分隔 · `管理提醒` / `本周汇总导出` / `打开数据文件夹` · 分隔 · `退出`。
-  - 便签托盘两项的语义：`显示全部便签` 只把 `visible=true` 的便签窗口恢复出来（不擅自把用户隐藏的便签改可见）；`隐藏全部便签` 把全部便签置 `visible=false` 并藏窗，数据与 `note_pos` 保留，之后可从设置页清单逐张 `open_sticky` 重开。
+  `打开主界面` / `待办悬浮窗`（勾选态＝悬浮窗当前可见，启动按持久化状态初始化）· 分隔 · `新建便签`（热键同款入口） / `打开数据文件夹` · 分隔 · `退出`。
+  快速记录、提醒管理、周汇总导出、便签显隐不再放托盘：分别走全局热键、计划视图、回顾视图、便签页（侧栏「便签」`#/sticky`，卡片墙统一管理可见/隐藏便签、搜索与两步删除）。设置页便签区保留纸色/花纹/移出淡化外观设置，并提供「管理便签」入口。
 
 ## 6. 错误文案表（前端可直接展示）
 
@@ -568,7 +598,7 @@ interface RestoreKbResult { restored: number }
 - **前端影响**：无感知。`Settings` 不再返回 `capturePos`（前端从未消费）；`get_bootstrap.migration` 改由运行态供给，契约字段不变。
 5. `Reminder.legacy`/`Task.legacy` 落盘为 `true` 时写出、`false` 时省略（`skip_serializing_if`），所以 `types.ts` 里的 `legacy?: boolean` 仍成立。
 6. `set_settings` 改 `captureHotkey` 失败时整次回滚（主题/形态一起回），保持「界面显示的热键 = 真实绑定的热键」。
-7. 系统通知 title 固定「待办提醒」，body 为 `<标题> · <YYYY-MM-DDTHH:mm>`；免打扰合并为「免打扰期间有 N 条提醒」，启动补发为「错过 N 条提醒」。深链 (`?open=`) 由前端在窗口内处理，通知不带 payload（契约允许省略）。
+7. 系统通知 title 固定「待办提醒」，body 为 `<标题> · <YYYY-MM-DDTHH:mm>`；启动补发为「错过 N 条提醒」。深链 (`?open=`) 由前端在窗口内处理，通知不带 payload（契约允许省略）。
 
 ## 10. 验证状态（如实声明 · v2.1 更新于 2026-09-03 真机）
 
@@ -580,7 +610,7 @@ interface RestoreKbResult { restored: number }
 | 项 | 手段 | 结果 |
 | --- | --- | --- |
 | 类型检查与链接 | `cargo check` / `cargo build`（debug） | **0 error**；7 条 `dead_code` warning（`models.rs:21/187/243/385/573/748`、`store.rs:688`） |
-| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **64 ↔ 64 ↔ 64**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + 方案B `capture_resize` + sticky-separation 4 项 + todo-float `register_todo_hotkey` / `hide_todo_float` + fix-known-defects 迭代 `open_sticky` / `set_todo_float_mini`（便签关闭改隐藏·可见合计上限 5·待办最小化）+ 批次4 知识库文件夹 `list_folders` / `create_folder` / `rename_folder` / `delete_folder` + 知识库备份 `list_kb_backups` / `restore_kb_backup` + 主窗常驻 `hide_main_window`（2026-11-09 主窗销毁缺陷修复）；Phase 3 AI 4 命令于 2026-11-07 随混合检索放弃整体摘除） |
+| 命令对账 | 脚本比对 `generate_handler![]` ↔ `#[tauri::command]` ↔ 本文档 §2 表格 | **71 ↔ 71 ↔ 71**（v2.1 40 项 + ADR-0005 调试命令 + frame H1b 知识库 5 项 + v3/M3 `reorder_tasks` / `clear_events` / `track_event` + 方案B `capture_resize` + sticky-separation 4 项 + todo-float `register_todo_hotkey` / `hide_todo_float` + fix-known-defects 迭代 `open_sticky` / `set_todo_float_mini`（便签关闭改隐藏·可见合计上限 5·待办最小化）+ 批次4 知识库文件夹 `list_folders` / `create_folder` / `update_folder` / `delete_folder` + 知识库备份 `list_kb_backups` / `restore_kb_backup` + 主窗常驻 `hide_main_window`（2026-11-09 主窗销毁缺陷修复）+ 阅读面字体 `list_reading_fonts` / `save_reading_font` / `delete_reading_font` / `read_reading_font`（2026-11-14 阅读字体切换与上传）+ 手动备份 `export_backup` / `import_backup`（2026-11-15 kb-storage-backup D3/D4）+ 直达知识库热键 `register_kb_hotkey`（kb-storage-backup S4）；Phase 3 AI 4 命令于 2026-11-07 随混合检索放弃整体摘除） |
 | 存储安全自查 | 人工 | 无 `unwrap_or_default()` 式空库回退；无 `toISOString`/`Utc`/`naive_utc` 混入；`tauri.conf.json` JSON 合法 |
 | 提醒编辑器逻辑 | `node test/rem-editor.test.mjs`（从 `index.html` 抽真实函数源码断言，17 项） | 全绿：多时刻 round-trip 四形态、模式收敛、渲染契约、aria-label、文案不含手输格式 |
 | 时间契约 + v1 迁移十规则 | `cargo test`（**30 项** = `models` 14 时间契约 + `store` 16 迁移规则，纯内存 fixture，不碰数据目录） | 全绿。过程逼出 `parse_clock` 两处加固：带秒输入归零（否则永不命中整分 tick = 到点不响）、接受裸 `HH:MM:SS` 与单位数小时 |
@@ -593,7 +623,7 @@ interface RestoreKbResult { restored: number }
 ### 未证（不要当成已通过）
 
 1. **真实 v1 历史样本的迁移回归**：§7 十条规则已被 16 个 fixture 单测覆盖（含多时刻原样保留、非法时间置 null、非列表必须走 Err），但真机数据目录里没有 `data.v1.json` —— **真实用户历史数据长什么样仍未验**，fixture 只能证明代码按规则走。
-2. **悬浮面板本体**：窗体标题与图标按钮已在同类控件上实证，面板本身需托盘「显示悬浮面板」目视一次。
+2. **悬浮面板本体**：窗体标题与图标按钮已在同类控件上实证，面板本体仍需真机从热键 / 设置页入口目视一次（托盘已不再提供悬浮面板项）。
 3. **`cargo clippy`**：未跑。
 4. **release 产物**：v2.1 冻结前统一重打（`nsis` 单包 + 版本号 2.1.0），过期 2.0.0 bundle 届时删除。
 5. **PRD 5 个成功指标**：目前**全不可测**（无埋点与统计口径），"达标"不可证伪。

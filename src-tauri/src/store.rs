@@ -7,6 +7,7 @@
 //!
 //! 数据目录沿用 v1 的 `%APPDATA%/todo-list`（兼容发现）。
 
+use crate::backup;
 use crate::infra::fs_store::{default_dir, FsBackend, ARCHIVE_FILE};
 use crate::models::{
   carry_days, clocks_of, fmt_day, fmt_dt, new_id, normalize_date_text, normalize_datetime, now_text, today,
@@ -19,6 +20,7 @@ use crate::models::{
 };
 use crate::ports::clock::{Clock, SystemClock};
 use crate::ports::store_backend::StoreBackend;
+use crate::store_notes;
 use chrono::{DateTime, Duration, Local};
 use serde_json::{json, Value};
 
@@ -618,6 +620,9 @@ pub struct Store {
   /// 知识库损坏错误态（D8）：None = 正常；Some(文案) = notes/folders 读或解析失败。
   /// 不走 data.json 的 corrupt 通道（KB 可整体降级），但读取命令必须 Err 而非空库。
   kb_error: Option<String>,
+  /// 索引相对内存的「可修复差异」待落盘标记（D1）：载入时 contentHash 以正文为准修正、
+  /// 或 folderId 失效回退未分类后置位，下一次 save_notes 成功后清零。绝不据此判损坏。
+  kb_index_dirty: bool,
   pub health: String,
   pub corrupt_file: Option<String>,
   pub last_error: Option<String>,
@@ -635,6 +640,7 @@ impl Store {
       kb: Vec::new(),
       folders: Vec::new(),
       kb_error: None,
+      kb_index_dirty: false,
       health: HEALTH_OK.to_string(),
       corrupt_file: None,
       last_error: None,
@@ -793,34 +799,196 @@ impl Store {
 
   /// 知识库加载（D8）：notes.json / folders.json 任一读失败或解析失败 → 置 kb_error，
   /// 两个集合都清空（不展示半截数据），读取命令转「可恢复」错误；缺失 / 空文件 = 空库。
+  /// 旧格式（内联 bodyMd）走一次性迁移（D7）：成功 = 索引 + 分文件正文；
+  /// 迁移失败 = KB_UPGRADE_FAILED（旧 notes.json 原样保留，下次启动重试，绝不假空态）。
   fn load_kb(&mut self) {
     self.kb = Vec::new();
     self.folders = Vec::new();
     self.kb_error = None;
-    let notes_ok = self.reload_kb_items();
+    self.kb_index_dirty = false;
+    let notes_result = self.reload_kb_items();
     let folders_ok = self.reload_folders();
-    if !notes_ok || !folders_ok {
-      self.kb = Vec::new();
-      self.folders = Vec::new();
-      self.kb_error = Some(KB_CORRUPT_MESSAGE.to_string());
+    match notes_result {
+      Ok(()) if folders_ok => {
+        // 迁移后的兼容（storage spec）：folderId 指向不存在的文件夹 → 回退未分类，条目绝不丢。
+        // 只在 folders.json 读成功时执行；folders 损坏时不能把条目误判成未分类。
+        self.fallback_missing_kb_folders();
+        // D2 回填（best-effort）：已迁移但正文仍含内联 data:image 的库，启动时顺手外置；
+        // 抽不动/写不进的单条保留内联，绝不丢图丢条目。
+        self.backfill_inline_images();
+        // 可修复差异（hash 被正文纠正 / folderId 回退 / 图片回填）：可写盘则顺手收敛索引；
+        // 写不进去不算损坏，下次保存再落盘（D1）。
+        if self.kb_index_dirty {
+          let _ = self.save_notes();
+        }
+      }
+      Ok(()) => {
+        self.kb = Vec::new();
+        self.folders = Vec::new();
+        self.kb_error = Some(KB_CORRUPT_MESSAGE.to_string());
+      }
+      Err(message) => {
+        self.kb = Vec::new();
+        self.folders = Vec::new();
+        self.kb_error = Some(message);
+      }
     }
   }
 
-  /// 读 notes.json 进内存；true = 正常（含文件缺失 / 空文件）
-  fn reload_kb_items(&mut self) -> bool {
-    match self.backend.read_notes() {
-      Ok(None) => true,
-      Ok(Some(text)) if text.trim().is_empty() => true,
-      Ok(Some(text)) => match parse_value(&text).and_then(|value| {
-        serde_json::from_value::<Vec<KbItem>>(value).map_err(|error| error.to_string())
-      }) {
-        Ok(items) => {
-          self.kb = items;
-          true
+  /// 读 notes.json 进内存；Ok = 正常（含文件缺失 / 空文件）。
+  /// - 旧格式（任一元素内联 bodyMd/body_md）→ 一次性迁移（D7），失败置 KB_UPGRADE_FAILED；
+  /// - 新格式 → 索引 meta + 逐条 notes/<id>.md 正文；正文缺失按空串（条目不丢、不判损坏）；
+  /// - contentHash 与正文不一致：以正文为准（D1，可修复），只改内存并标记待落盘。
+  fn reload_kb_items(&mut self) -> Result<(), String> {
+    let text = match self.backend.read_notes() {
+      Ok(None) => return Ok(()),
+      Ok(Some(text)) if text.trim().is_empty() => return Ok(()),
+      Ok(Some(text)) => text,
+      Err(_) => return Err(KB_CORRUPT_MESSAGE.to_string()),
+    };
+    let value = match parse_value(&text) {
+      Ok(value) => value,
+      Err(_) => return Err(KB_CORRUPT_MESSAGE.to_string()),
+    };
+    if store_notes::is_legacy_index(&value) {
+      return self.migrate_notes_legacy(&text);
+    }
+    let metas = match store_notes::parse_meta_index(value) {
+      Ok(metas) => metas,
+      Err(_) => return Err(KB_CORRUPT_MESSAGE.to_string()),
+    };
+    let mut items: Vec<KbItem> = Vec::with_capacity(metas.len());
+    let mut dirty = false;
+    for meta in metas {
+      let body = match self.backend.read_note_body(&meta.id) {
+        Ok(Some(body)) => body,
+        Ok(None) => String::new(),
+        Err(_) => return Err(KB_CORRUPT_MESSAGE.to_string()),
+      };
+      if store_notes::content_hash(&body) != meta.content_hash {
+        dirty = true;
+      }
+      // item_with_body 按实际正文重算 contentHash：不一致时正文为准（不判损坏）
+      items.push(store_notes::item_with_body(meta, body));
+    }
+    self.kb = items;
+    self.kb_index_dirty = dirty;
+    // 旧 notes.json 无 order：加载后按 updated_at 倒序补齐 dense，只改内存不改文件形态
+    self.backfill_kb_item_orders();
+    Ok(())
+  }
+
+  /// 旧格式 notes.json → 「索引 + notes/<id>.md」（D7 一次性迁移，幂等）。
+  ///
+  /// 顺序：① `notes.v1.json` 不存在才写（永久存档，回滚旧版本用）→ ② 轮转 5 份备份
+  /// （copy 不是 move，旧 notes.json 原样保留）→ ③ 正文先逐条落盘（D2：正文里的内联
+  /// data:image 同时外置到 assets/）→ ④ 最后原子写新索引。
+  /// 失败（只读盘 / 空间不足）：不写新索引、旧 notes.json 不动、错误态 KB_UPGRADE_FAILED，
+  /// 下次启动重试；绝不进入空库语义。
+  fn migrate_notes_legacy(&mut self, legacy_json: &str) -> Result<(), String> {
+    let value = parse_value(legacy_json).map_err(|_| KB_CORRUPT_MESSAGE.to_string())?;
+    let mut items =
+      store_notes::parse_legacy_items(&value).map_err(|_| KB_CORRUPT_MESSAGE.to_string())?;
+    let failed = || crate::kb_errors::KB_UPGRADE_FAILED.to_string();
+    if !self.backend.notes_v1_archive_exists() {
+      self
+        .backend
+        .write_notes_v1_archive(legacy_json)
+        .map_err(|_| failed())?;
+    }
+    self.backend.rotate_notes_backups().map_err(|_| failed())?;
+    for item in &mut items {
+      // D2：迁移时把旧正文里的内联图外置（先写 asset 再写正文）；抽不动的保留内联。
+      let report = crate::kb::extract_images_report(&item.body_md);
+      for asset in &report.assets {
+        self
+          .backend
+          .write_asset(&asset.sha256, &asset.ext, &asset.bytes)
+          .map_err(|_| failed())?;
+      }
+      if report.skipped > 0 {
+        crate::telemetry::record_str(
+          "kb_image_skipped",
+          &[("count", &report.skipped.to_string())],
+        );
+      }
+      if !report.assets.is_empty() {
+        item.body_md = report.body;
+        item.content_hash = Some(store_notes::content_hash(&item.body_md));
+      }
+      self
+        .backend
+        .write_note_body(&item.id, &item.body_md)
+        .map_err(|_| failed())?;
+    }
+    let json = store_notes::index_json(&items).map_err(|_| failed())?;
+    self.backend.write_notes(&json).map_err(|_| failed())?;
+    self.kb = items;
+    self.kb_index_dirty = false;
+    self.backfill_kb_item_orders();
+    Ok(())
+  }
+
+  /// folderId 指向不存在的文件夹 → 回退未分类（storage spec：MUST NOT 丢弃条目）。
+  /// 只在 notes/folders 都读成功后调用；有修正则标记索引待落盘。
+  fn fallback_missing_kb_folders(&mut self) {
+    use std::collections::HashSet;
+    let known: HashSet<String> = self
+      .folders
+      .iter()
+      .map(|folder| folder.id.clone())
+      .collect();
+    let mut changed = false;
+    for item in self.kb.iter_mut() {
+      if let Some(folder_id) = item.folder_id.clone() {
+        if !known.contains(&folder_id) {
+          item.folder_id = None;
+          changed = true;
         }
-        Err(_) => false,
-      },
-      Err(_) => false,
+      }
+    }
+    if changed {
+      self.backfill_kb_item_orders();
+      self.kb_index_dirty = true;
+    }
+  }
+
+  /// D2 回填（best-effort，幂等）：已迁移但正文里还留着内联 `data:image` 的条目，
+  /// 启动加载时顺手把图片外置到 `assets/`，正文改成相对引用。
+  ///
+  /// - 正文不含 `data:` 直接跳过（零 IO）；
+  /// - 写资源或写正文失败只跳过该条：正文保持内联，绝不丢图、绝不丢条目；
+  /// - 成功则重算 contentHash 并标记索引待落盘（调用方随后 save_notes 统一收口）。
+  fn backfill_inline_images(&mut self) {
+    let mut changed = false;
+    for item in self.kb.iter_mut() {
+      if !item.body_md.contains("data:") {
+        continue;
+      }
+      let (body, assets) = crate::kb::extract_images(&item.body_md);
+      if assets.is_empty() {
+        continue; // 没有可外置的图片（或全部抽不动）：正文原样保留
+      }
+      let mut assets_ok = true;
+      for asset in &assets {
+        if self
+          .backend
+          .write_asset(&asset.sha256, &asset.ext, &asset.bytes)
+          .is_err()
+        {
+          assets_ok = false;
+          break;
+        }
+      }
+      if !assets_ok || self.backend.write_note_body(&item.id, &body).is_err() {
+        continue; // 单条失败：保内联，不阻塞其它条目
+      }
+      item.body_md = body;
+      item.content_hash = Some(store_notes::content_hash(&item.body_md));
+      changed = true;
+    }
+    if changed {
+      self.kb_index_dirty = true;
     }
   }
 
@@ -1041,14 +1209,56 @@ impl Store {
     self.backend.write_runtime(&runtime_json)
   }
 
-  /// 只写知识库（notes.json，原子写；写前轮转 5 份备份，D8）
+  /// 只写知识库索引（notes.json，原子写；写前轮转 5 份备份，D8）。
+  /// D1：正文单独存 notes/<id>.md（命令层先 save_kb_item_body），索引只存元数据，不含正文/图片。
   pub fn save_notes(&mut self) -> Result<(), String> {
     self.ensure_writable()?;
     self.ensure_kb_ok()?;
-    let json = serde_json::to_string_pretty(&self.kb)
-      .map_err(|error| format!("知识条目序列化失败：{}", brief(&error.to_string())))?;
+    let json = store_notes::index_json(&self.kb)?;
     self.backend.rotate_notes_backups()?;
-    self.backend.write_notes(&json)
+    self.backend.write_notes(&json)?;
+    self.kb_index_dirty = false;
+    Ok(())
+  }
+
+  /// 写单条正文（D1：先正文后索引；索引由调用方随后 save_notes 落盘）。
+  /// D2：正文里的内联 Markdown 图片先外置到 `assets/<sha>.<ext>`（经 StoreBackend），
+  /// 正文只留相对引用；内存里的 bodyMd / contentHash 用改写后的正文。
+  pub fn save_kb_item_body(&mut self, id: &str, body: &str) -> Result<(), String> {
+    self.ensure_writable()?;
+    self.ensure_kb_ok()?;
+    let position = self
+      .kb
+      .iter()
+      .position(|item| item.id == id)
+      .ok_or_else(|| "找不到这条资料，可能已经被删除".to_string())?;
+    let report = crate::kb::extract_images_report(body);
+    // 顺序纪律：先写资源，再写正文（正文一旦指向 assets/，文件必须已经在）。
+    for asset in &report.assets {
+      self
+        .backend
+        .write_asset(&asset.sha256, &asset.ext, &asset.bytes)?;
+    }
+    if report.skipped > 0 {
+      crate::telemetry::record_str("kb_image_skipped", &[("count", &report.skipped.to_string())]);
+    }
+    let body = report.body;
+    self.backend.write_note_body(id, &body)?;
+    self.kb[position].body_md = body.clone();
+    self.kb[position].content_hash = Some(store_notes::content_hash(&body));
+    Ok(())
+  }
+
+  /// 资源目录绝对路径（Bootstrap.assetsDir：前端拼 `convertFileSrc` 路径用）。
+  pub fn assets_dir(&self) -> String {
+    self.backend.assets_dir_abs()
+  }
+
+  /// 删除单条正文（D1：删除顺序 = 先删正文、再写索引，索引不会长期指向缺失正文）
+  pub fn delete_kb_item_body(&mut self, id: &str) -> Result<(), String> {
+    self.ensure_writable()?;
+    self.ensure_kb_ok()?;
+    self.backend.delete_note_body(id)
   }
 
   /// 只写文件夹（folders.json，原子写；条目量小，不需要轮转）
@@ -1138,19 +1348,131 @@ impl Store {
     }
   }
 
-  /// 给条目设置文件夹（三态校验由调用方先做；返回更新后的条目）
-  pub fn set_kb_item_folder(
+  /// 旧数据排序补齐：凡 order 为 None 的同级条目，按 updated_at 倒序生成 dense 0..n-1。
+  /// 只在内存生成（notes.json 文件格式不变），下一次 save_notes 自然落盘。
+  fn backfill_kb_item_orders(&mut self) {
+    use std::collections::HashMap;
+    let mut groups: HashMap<Option<String>, Vec<usize>> = HashMap::new();
+    for (index, item) in self.kb.iter().enumerate() {
+      groups.entry(item.folder_id.clone()).or_default().push(index);
+    }
+    for indices in groups.values() {
+      if indices.iter().all(|&index| self.kb[index].order.is_some()) {
+        continue;
+      }
+      let mut sorted = indices.clone();
+      sorted.sort_by(|&left, &right| {
+        let first = &self.kb[left];
+        let second = &self.kb[right];
+        first
+          .order
+          .unwrap_or(i64::MAX)
+          .cmp(&second.order.unwrap_or(i64::MAX))
+          .then_with(|| second.updated_at.cmp(&first.updated_at))
+          .then_with(|| first.id.cmp(&second.id))
+      });
+      for (position, index) in sorted.iter().enumerate() {
+        self.kb[*index].order = Some(position as i64);
+      }
+    }
+  }
+
+  /// 同级文件夹 id（按 order 升序，order 相同按名称再按 id 兜底；exclude 排除正在移动的自身）
+  fn folder_sibling_ids(&self, parent_id: Option<&str>, exclude: Option<&str>) -> Vec<String> {
+    let mut siblings: Vec<&KbFolder> = self
+      .folders
+      .iter()
+      .filter(|folder| folder.parent_id.as_deref() == parent_id)
+      .filter(|folder| exclude != Some(folder.id.as_str()))
+      .collect();
+    siblings.sort_by(|first, second| {
+      first
+        .order
+        .cmp(&second.order)
+        .then_with(|| first.name.cmp(&second.name))
+        .then_with(|| first.id.cmp(&second.id))
+    });
+    siblings.into_iter().map(|folder| folder.id.clone()).collect()
+  }
+
+  /// 同级条目 id（未分类 = folder_id None；order 缺省排最后，同值按 updated_at 倒序）
+  fn kb_item_sibling_ids(&self, folder_id: Option<&str>, exclude: Option<&str>) -> Vec<String> {
+    let mut siblings: Vec<&KbItem> = self
+      .kb
+      .iter()
+      .filter(|item| item.folder_id.as_deref() == folder_id)
+      .filter(|item| exclude != Some(item.id.as_str()))
+      .collect();
+    siblings.sort_by(|first, second| {
+      first
+        .order
+        .unwrap_or(i64::MAX)
+        .cmp(&second.order.unwrap_or(i64::MAX))
+        .then_with(|| second.updated_at.cmp(&first.updated_at))
+        .then_with(|| first.id.cmp(&second.id))
+    });
+    siblings.into_iter().map(|item| item.id.clone()).collect()
+  }
+
+  /// 按给定 id 顺序把文件夹 order 写成 dense 0..n-1
+  fn set_folder_orders(&mut self, ids: &[String]) {
+    for (position, id) in ids.iter().enumerate() {
+      if let Some(folder) = self.folders.iter_mut().find(|folder| &folder.id == id) {
+        folder.order = position as i64;
+      }
+    }
+  }
+
+  /// 按给定 id 顺序把条目 order 写成 dense 0..n-1
+  fn set_kb_item_orders(&mut self, ids: &[String]) {
+    for (position, id) in ids.iter().enumerate() {
+      if let Some(item) = self.kb.iter_mut().find(|item| &item.id == id) {
+        item.order = Some(position as i64);
+      }
+    }
+  }
+
+  /// 条目落位（kb-file-tree D4）：folder 为 folder_target 的三态解析结果
+  /// （None = 不改；Some(None) = 未分类；Some(Some(id)) = 该文件夹）。
+  /// order = 目标同级索引（越界 clamp 到 0..len，缺省且发生移动时追加末尾），pinned 直接置位。
+  /// 归属或顺序变化时对旧父级与新父级做 dense 重排（0..n-1）。
+  pub fn place_kb_item(
     &mut self,
     id: &str,
-    folder_id: Option<String>,
+    folder: Option<Option<String>>,
+    order: Option<i64>,
+    pinned: Option<bool>,
   ) -> Result<KbItem, String> {
-    let item = self
+    let index = self
       .kb
-      .iter_mut()
-      .find(|item| item.id == id)
+      .iter()
+      .position(|item| item.id == id)
       .ok_or_else(|| "找不到这条资料，可能已经被删除".to_string())?;
-    item.folder_id = folder_id;
-    Ok(item.clone())
+    let old_folder = self.kb[index].folder_id.clone();
+    let new_folder = match folder {
+      None => old_folder.clone(),
+      Some(target) => target,
+    };
+    if let Some(flag) = pinned {
+      self.kb[index].pinned = flag;
+    }
+    if new_folder != old_folder || order.is_some() {
+      if new_folder != old_folder {
+        // 旧父级移除后 dense 重排
+        let old_ids = self.kb_item_sibling_ids(old_folder.as_deref(), Some(id));
+        self.set_kb_item_orders(&old_ids);
+        self.kb[index].folder_id = new_folder.clone();
+      }
+      // 新父级插入到目标索引后整体 dense 重排；缺省索引 = 追加末尾
+      let mut target_ids = self.kb_item_sibling_ids(new_folder.as_deref(), Some(id));
+      let position = match order {
+        Some(value) => value.clamp(0, target_ids.len() as i64) as usize,
+        None => target_ids.len(),
+      };
+      target_ids.insert(position, id.to_string());
+      self.set_kb_item_orders(&target_ids);
+    }
+    Ok(self.kb[index].clone())
   }
 
   fn folder_name(name: &str) -> Result<String, String> {
@@ -1177,33 +1499,101 @@ impl Store {
         return Err("文件夹不存在".to_string());
       }
     }
+    // 同级 dense 追加：order = 同级数量（空父级 = 0），新文件夹不置顶
     let order = self
       .folders
       .iter()
       .filter(|folder| folder.parent_id.as_deref() == parent)
-      .map(|folder| folder.order)
-      .max()
-      .unwrap_or(-1)
-      + 1;
+      .count() as i64;
     let folder = KbFolder {
       id: new_id("f"),
       name,
       parent_id: parent.map(|id| id.to_string()),
       order,
+      pinned: false,
     };
     self.folders.push(folder.clone());
     Ok(folder)
   }
 
-  pub fn rename_folder(&mut self, id: &str, name: &str) -> Result<KbFolder, String> {
-    let name = Self::folder_name(name)?;
-    let folder = self
+  /// 文件夹更新（kb-file-tree D4）：改名 / 移动 / 同级排序 / 置顶统一入口。
+  /// parent_id 三态：None = 不改；Some("") = 移到顶层（根）；Some(id) = 目标文件夹
+  /// （必须存在，且不能是自身或后代）。order = 目标同级索引（越界 clamp 到 0..len，
+  /// 缺省且发生移动时追加末尾）。移动或 order 变化后对旧父级与新父级做 dense 重排（0..n-1）。
+  pub fn update_folder(
+    &mut self,
+    id: &str,
+    name: Option<String>,
+    parent_id: Option<String>,
+    order: Option<i64>,
+    pinned: Option<bool>,
+  ) -> Result<KbFolder, String> {
+    let index = self
       .folders
-      .iter_mut()
-      .find(|folder| folder.id == id)
+      .iter()
+      .position(|folder| folder.id == id)
       .ok_or_else(|| "文件夹不存在".to_string())?;
-    folder.name = name;
-    Ok(folder.clone())
+    let name = match name {
+      Some(raw) => Some(Self::folder_name(&raw)?),
+      None => None,
+    };
+    let old_parent = self.folders[index].parent_id.clone();
+    let new_parent = match parent_id {
+      None => old_parent.clone(),
+      // 前端「移到顶层」传 ""（清空父级下拉框），按根处理
+      Some(raw) if raw.trim().is_empty() => None,
+      Some(raw) => {
+        let target = raw.trim().to_string();
+        if !self.folder_exists(&target) {
+          return Err("文件夹不存在".to_string());
+        }
+        // 环校验：沿目标父级的 parentId 链上溯，命中自身即拒绝（步数兜底防旧数据成环死循环）
+        let mut cursor = Some(target.clone());
+        let mut steps = 0usize;
+        while let Some(current) = cursor {
+          if current == id {
+            return Err("不能把文件夹移动到自身或它的子文件夹".to_string());
+          }
+          cursor = self
+            .folders
+            .iter()
+            .find(|folder| folder.id == current)
+            .and_then(|folder| folder.parent_id.clone());
+          steps += 1;
+          if steps > self.folders.len() {
+            break;
+          }
+        }
+        Some(target)
+      }
+    };
+    let moved = new_parent != old_parent;
+    {
+      let folder = &mut self.folders[index];
+      if let Some(value) = name {
+        folder.name = value;
+      }
+      if let Some(flag) = pinned {
+        folder.pinned = flag;
+      }
+    }
+    if moved || order.is_some() {
+      if moved {
+        // 旧父级移除后 dense 重排
+        let old_ids = self.folder_sibling_ids(old_parent.as_deref(), Some(id));
+        self.set_folder_orders(&old_ids);
+        self.folders[index].parent_id = new_parent.clone();
+      }
+      // 新父级插入到目标索引后整体 dense 重排；缺省索引 = 追加末尾
+      let mut target_ids = self.folder_sibling_ids(new_parent.as_deref(), Some(id));
+      let position = match order {
+        Some(value) => value.clamp(0, target_ids.len() as i64) as usize,
+        None => target_ids.len(),
+      };
+      target_ids.insert(position, id.to_string());
+      self.set_folder_orders(&target_ids);
+    }
+    Ok(self.folders[index].clone())
   }
 
   /// 删除空文件夹：仍有条目引用或有子文件夹时拒绝（D6 删空语义）
@@ -1231,7 +1621,10 @@ impl Store {
     self.backend.list_kb_backups()
   }
 
-  /// 从第 slot 份 notes 备份恢复：先轮转当前 notes.json（留档刚恢复前的状态）再原子写。
+  /// 从第 slot 份 notes 备份恢复（D8）。兼容两种备份格式（D7）：
+/// - 旧格式（元素内联 bodyMd）→ 先轮转当前 notes，再走与启动迁移同一个
+///   `migrate_notes_legacy`（其内部顺序 = 存档 → 轮转 → 正文 → 新索引，不重复轮转）；
+/// - 新格式索引 → 按索引逐条从当前 notes/<id>.md 取正文（缺失按空串），再轮转 + 原子写索引。
   /// 解析成功才动盘，失败返回可换一个备份的中文短句。
   pub fn restore_kb_backup(&mut self, slot: &str) -> Result<usize, String> {
     let digits: String = slot
@@ -1249,22 +1642,43 @@ impl Store {
       .backend
       .read_notes_backup(number as u32)
       .map_err(|_| "这个备份也读不了，换一个试试".to_string())?;
-    let restored = parse_value(&text)
-      .and_then(|value| {
-        serde_json::from_value::<Vec<KbItem>>(value).map_err(|error| error.to_string())
-      })
+    let value = parse_value(&text)
       .map_err(|_| "这个备份无法还原成可用的知识库".to_string())?;
-    let json = serde_json::to_string_pretty(&restored)
-      .map_err(|error| format!("知识条目序列化失败：{}", brief(&error.to_string())))?;
-    self.backend.rotate_notes_backups()?;
-    self.backend.write_notes(&json)?;
-    let count = restored.len();
-    self.kb = restored;
+    let count = if store_notes::is_legacy_index(&value) {
+      self
+        .migrate_notes_legacy(&text)
+        .map_err(|_| "这个备份无法还原成可用的知识库".to_string())?;
+      self.kb.len()
+    } else {
+      let metas = store_notes::parse_meta_index(value)
+        .map_err(|_| "这个备份无法还原成可用的知识库".to_string())?;
+      let mut items: Vec<KbItem> = Vec::with_capacity(metas.len());
+      for meta in metas {
+        let body = match self.backend.read_note_body(&meta.id) {
+          Ok(Some(body)) => body,
+          Ok(None) => String::new(),
+          Err(_) => return Err("这个备份无法还原成可用的知识库".to_string()),
+        };
+        items.push(store_notes::item_with_body(meta, body));
+      }
+      let json = store_notes::index_json(&items)
+        .map_err(|_| "这个备份无法还原成可用的知识库".to_string())?;
+      self.backend.rotate_notes_backups()?;
+      self.backend.write_notes(&json)?;
+      let count = items.len();
+      self.kb = items;
+      self.kb_index_dirty = false;
+      self.backfill_kb_item_orders();
+      count
+    };
     self.kb_error = None;
-    // folders.json 独立于 notes：若它仍损坏，保持错误态（绝不静默空文件夹）
+    // folders.json 独立于 notes：若它仍损坏，保持错误态（绝不静默空文件夹）。
+    // 读成功时再做 folderId 失效回退（恢复的旧备份可能引用已删除文件夹）。
     if !self.reload_folders() {
       self.folders = Vec::new();
       self.kb_error = Some(KB_CORRUPT_MESSAGE.to_string());
+    } else {
+      self.fallback_missing_kb_folders();
     }
     Ok(count)
   }
@@ -1677,6 +2091,9 @@ impl Store {
       if let Some(value) = patch.telemetry_enabled {
         settings.telemetry_enabled = value;
       }
+      if let Some(value) = &patch.reading_font {
+        settings.reading_font = crate::models::normalize_reading_font(value)?;
+      }
       if let Some(value) = &patch.capture_hotkey {
         let trimmed = value.trim();
         if trimmed.is_empty() {
@@ -1728,23 +2145,6 @@ impl Store {
           Some(trimmed.to_string())
         };
       }
-      if let Some(dnd) = &patch.dnd {
-        if let Some(value) = dnd.enabled {
-          settings.dnd.enabled = value;
-        }
-        if let Some(value) = &dnd.from {
-          if crate::models::parse_clock(value).is_none() {
-            return Err("免打扰开始时间格式不对，请用 HH:MM".to_string());
-          }
-          settings.dnd.from = value.trim().to_string();
-        }
-        if let Some(value) = &dnd.to {
-          if crate::models::parse_clock(value).is_none() {
-            return Err("免打扰结束时间格式不对，请用 HH:MM".to_string());
-          }
-          settings.dnd.to = value.trim().to_string();
-        }
-      }
       settings.coerce();
       if settings.capture_hotkey != default_capture && settings.capture_hotkey.trim().is_empty() {
         settings.capture_hotkey = default_capture.clone();
@@ -1786,6 +2186,170 @@ impl Store {
 
   pub fn retention_days(&self) -> i64 {
     TRASH_RETENTION_DAYS
+  }
+
+  // ---------------------------------------------------------------- 手动备份（D3 / D4）
+
+  /// 导出当前数据为单个 `.kettdbackup` 文件（design D3）。
+  ///
+  /// - 只导出知识条目正文引用到的图片资源：缺失 / 读失败的资源计入 `skipped`，不阻断导出；
+  /// - 导出不轮转、不写 `data.json` / `notes.json`（纯读），因此命令层无需 emit；
+  /// - `exported_at` 由命令层传入本地语义文本；文件名里的时间戳取 Store 时钟的本地时刻
+  ///   （`YYYYMMDD-HHmmss`，无 UTC 换算；固定时钟下可复现）。
+  pub fn export_backup_to_file(
+    &self,
+    app_version: &str,
+    exported_at: &str,
+  ) -> Result<backup::ExportResult, String> {
+    let mut assets: Vec<backup::ExportAsset> = Vec::new();
+    let mut skipped = 0usize;
+    for (sha256, ext) in backup::collect_asset_refs(&self.kb) {
+      if !self.backend.asset_exists(&sha256, &ext) {
+        skipped += 1;
+        continue;
+      }
+      match self.backend.read_asset(&sha256, &ext) {
+        Ok(bytes) => assets.push(backup::ExportAsset { sha256, ext, bytes }),
+        Err(_) => skipped += 1,
+      }
+    }
+    let item_count = self.data.tasks.len()
+      + self.data.reminders.len()
+      + self.data.stickies.len()
+      + self.kb.len();
+    let file = backup::build_backup(
+      app_version,
+      exported_at,
+      backup::ExportInputs {
+        data: self.data.clone(),
+        kb: self.kb.clone(),
+        folders: self.folders.clone(),
+        assets,
+        skipped,
+      },
+    );
+    let payload = backup::export_payload(&file)?;
+    let stamp = self.clock_now().format("%Y%m%d-%H%M%S").to_string();
+    self
+      .backend
+      .create_backups_dir()
+      .map_err(|_| crate::kb_errors::EXPORT_FAILED.to_string())?;
+    let path = self
+      .backend
+      .write_export_file(&backup::backup_file_name(&stamp), &payload)
+      .map_err(|_| crate::kb_errors::EXPORT_FAILED.to_string())?;
+    Ok(backup::ExportResult {
+      path,
+      bytes: payload.len(),
+      item_count,
+      asset_count: file.assets.len(),
+      skipped,
+    })
+  }
+
+  /// 从备份文本导入（design D4）。
+  ///
+  /// - `dry_run = true`：只解析 + 算合并计划，绝不写盘、不改内存；
+  /// - `dry_run = false`：按 D4 顺序落盘 —— 资源 → 正文 → 文件夹 → 索引 → data；
+  ///   轮转直接沿用既有 `save_folders` / `save_notes` / `save` 的写前轮转（每层各一次，
+  ///   不额外重复轮转），因此轮转发生在资源/正文写完之后，见交付报告偏离说明；
+  /// - 全量 Skip 的重复导入不触发任何写盘（幂等，无二次副作用）；
+  /// - `runtime.json` 内容不动；应用后由命令层 emit。
+  pub fn import_backup_from_payload(
+    &mut self,
+    payload: &str,
+    dry_run: bool,
+    stamp: &str,
+  ) -> Result<backup::ImportReport, String> {
+    self.ensure_kb_ok()?;
+    let parsed = backup::parse_backup(payload)?;
+    let local = backup::LocalSnapshot::new(
+      self.data.tasks.clone(),
+      self.data.reminders.clone(),
+      self.kb.clone(),
+      self.folders.clone(),
+    );
+    let plan = backup::plan_import(&local, &parsed);
+    let conflict_titles = backup::conflict_titles(&local, &plan);
+    // 冲突副本既计入 added 也计入 conflicts（口径见 backup::ImportReport 注释）。
+    let conflicts = plan.tasks.conflict + plan.kb.conflict;
+    let added = plan.tasks.add
+      + plan.reminders.add
+      + plan.kb.add
+      + plan.folders.add
+      + conflicts;
+    let updated = plan.tasks.update
+      + plan.reminders.update
+      + plan.kb.update
+      + plan.folders.update;
+    let invalid_assets = parsed
+      .assets()
+      .iter()
+      .filter(|asset| !asset.is_reusable())
+      .count();
+    let skipped = plan.tasks.skip
+      + plan.reminders.skip
+      + plan.kb.skip
+      + plan.folders.skip
+      + invalid_assets;
+    let mut asset_added = 0usize;
+    let mut asset_reused = 0usize;
+    for asset in parsed.assets().iter().filter(|asset| asset.is_reusable()) {
+      if self.backend.asset_exists(&asset.sha256, &asset.ext) {
+        asset_reused += 1;
+      } else {
+        asset_added += 1;
+      }
+    }
+    let report = backup::ImportReport {
+      added,
+      updated,
+      conflicts,
+      skipped,
+      asset_added,
+      asset_reused,
+      conflict_titles,
+      dry_run,
+    };
+    if dry_run {
+      return Ok(report);
+    }
+    // 先算目标状态（纯函数）：解析 / 覆盖失败时一行都不写。
+    let apply = backup::apply_import_plan(&local, &parsed, &plan, stamp)?;
+    self.ensure_writable()?;
+    // ① 资源：hash 校验失败跳过（已计入 skipped）；已存在则复用，不重复写。
+    for asset in parsed.assets().iter().filter(|asset| asset.is_reusable()) {
+      if self.backend.asset_exists(&asset.sha256, &asset.ext) {
+        continue;
+      }
+      self
+        .backend
+        .write_asset(&asset.sha256, &asset.ext, &asset.bytes)
+        .map_err(|_| crate::kb_errors::IMPORT_FAILED.to_string())?;
+    }
+    // ② 正文（先正文后索引，D1/D4）③ 文件夹 ④ 索引 ⑤ data —— runtime 不动。
+    for (id, body) in &apply.body_writes {
+      self
+        .backend
+        .write_note_body(id, body)
+        .map_err(|_| crate::kb_errors::IMPORT_FAILED.to_string())?;
+    }
+    if plan.changed() > 0 {
+      self.folders = apply.folders;
+      self
+        .save_folders()
+        .map_err(|_| crate::kb_errors::IMPORT_FAILED.to_string())?;
+      self.kb = apply.kb;
+      self
+        .save_notes()
+        .map_err(|_| crate::kb_errors::IMPORT_FAILED.to_string())?;
+      self.data.tasks = apply.tasks;
+      self.data.reminders = apply.reminders;
+      self
+        .save()
+        .map_err(|_| crate::kb_errors::IMPORT_FAILED.to_string())?;
+    }
+    Ok(report)
   }
 }
 
@@ -2382,7 +2946,7 @@ mod tests {
     assert_eq!(
       store.create_folder(&"字".repeat(40), None).unwrap().order,
       1,
-      "同级 order = max+1（40 字名合法）"
+      "同级 dense 追加 order = 同级数量（40 字名合法）"
     );
     let second = store.create_folder("学习", None).unwrap();
     assert_eq!(second.order, 2);
@@ -2398,13 +2962,19 @@ mod tests {
     let child2 = store.create_folder("子项2", Some(&second.id)).unwrap();
     assert_eq!(child2.order, 0);
 
-    let renamed = store.rename_folder(&root.id, "  工作区 ").unwrap();
+    let renamed = store
+      .update_folder(&root.id, Some("  工作区 ".to_string()), None, None, None)
+      .unwrap();
     assert_eq!(renamed.name, "工作区");
     assert_eq!(
-      store.rename_folder("missing", "x").unwrap_err(),
+      store
+        .update_folder("missing", Some("x".to_string()), None, None, None)
+        .unwrap_err(),
       "文件夹不存在"
     );
-    assert!(store.rename_folder(&root.id, "  ").is_err());
+    assert!(store
+      .update_folder(&root.id, Some("  ".to_string()), None, None, None)
+      .is_err());
 
     // 有子文件夹 → 拒绝删除
     assert_eq!(
@@ -2414,14 +2984,14 @@ mod tests {
     // 有条目引用 → 拒绝删除
     store.kb.push(kb_item("k1"));
     store
-      .set_kb_item_folder("k1", Some(second.id.clone()))
+      .place_kb_item("k1", Some(Some(second.id.clone())), None, None)
       .unwrap();
     assert_eq!(
       store.delete_folder(&second.id).unwrap_err(),
       "文件夹非空，请先移走其中的条目或子文件夹"
     );
     // 移到未分类后，空文件夹可删
-    store.set_kb_item_folder("k1", None).unwrap();
+    store.place_kb_item("k1", Some(None), None, None).unwrap();
     store.delete_folder(&child2.id).unwrap();
     store.delete_folder(&second.id).unwrap();
     assert!(!store.folder_exists(&second.id));
@@ -2451,16 +3021,312 @@ mod tests {
     );
     let target = store.folder_target(Some(&folder.id)).unwrap();
     assert_eq!(target, Some(folder.id.clone()));
-    let item = store.set_kb_item_folder("k1", target).unwrap();
+    let item = store.place_kb_item("k1", Some(target), None, None).unwrap();
     assert_eq!(item.folder_id.as_deref(), Some(folder.id.as_str()));
     assert_eq!(
       store.folder_target(Some("missing")).unwrap_err(),
       "文件夹不存在"
     );
     assert_eq!(
-      store.set_kb_item_folder("missing", None).unwrap_err(),
+      store
+        .place_kb_item("missing", Some(None), None, None)
+        .unwrap_err(),
       "找不到这条资料，可能已经被删除"
     );
+  }
+
+  // ---- kb-file-tree D4/D6：同级 dense 排序 / 移动环校验 / 置顶 ----
+
+  fn folder_order(store: &Store, id: &str) -> i64 {
+    store
+      .folders
+      .iter()
+      .find(|folder| folder.id == id)
+      .unwrap()
+      .order
+  }
+
+  fn item_order(store: &Store, id: &str) -> Option<i64> {
+    store.kb.iter().find(|item| item.id == id).unwrap().order
+  }
+
+  fn folder_by(store: &Store, id: &str) -> KbFolder {
+    store
+      .folders
+      .iter()
+      .find(|folder| folder.id == id)
+      .unwrap()
+      .clone()
+  }
+
+  #[test]
+  fn legacy_notes_without_order_backfill_dense_and_defaults_pinned() {
+    // 旧 notes.json：无 order / pinned；旧 folders.json：无 pinned
+    let notes = json!([
+      { "id": "k-old", "title": "旧", "bodyMd": "", "tags": [], "createdAt": "2026-09-01T09:00", "updatedAt": "2026-09-01T09:00" },
+      { "id": "k-new", "title": "新", "bodyMd": "", "tags": [], "createdAt": "2026-09-03T09:00", "updatedAt": "2026-09-03T09:00" },
+      { "id": "k-mid", "title": "中", "bodyMd": "", "tags": [], "createdAt": "2026-09-02T09:00", "updatedAt": "2026-09-02T09:00" },
+      { "id": "k-in-folder", "title": "夹内", "bodyMd": "", "tags": [], "createdAt": "2026-09-04T09:00", "updatedAt": "2026-09-04T09:00", "folderId": "f1" }
+    ]);
+    let folders = json!([
+      { "id": "f1", "name": "工作", "parentId": null, "order": 0 }
+    ]);
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some(serde_json::to_string(&notes).unwrap());
+    *backend.folders.borrow_mut() = Some(serde_json::to_string(&folders).unwrap());
+    let store = Store::load_with(Box::new(backend), Box::new(fixed_clock()));
+    assert_eq!(store.kb.len(), 4, "旧 notes 缺 order 仍能加载");
+    assert!(store.ensure_kb_ok().is_ok(), "旧数据不是损坏");
+    assert_eq!(item_order(&store, "k-new"), Some(0), "同级按 updated_at 倒序生成");
+    assert_eq!(item_order(&store, "k-mid"), Some(1));
+    assert_eq!(item_order(&store, "k-old"), Some(2));
+    assert_eq!(item_order(&store, "k-in-folder"), Some(0), "各父级独立从 0 开始");
+    assert!(store.kb.iter().all(|item| !item.pinned), "旧条目缺 pinned → false");
+    assert_eq!(store.folders[0].pinned, false, "旧文件夹缺 pinned → false");
+    // 内存补齐后序列化带 order 数字（下一次保存自然落盘；读路径不改文件）
+    let value = serde_json::to_value(&store.kb[0]).unwrap();
+    assert!(
+      value.get("order").map(|order| order.is_i64()).unwrap_or(false),
+      "order 序列化为数字：{value}"
+    );
+  }
+
+  #[test]
+  fn create_folder_appends_dense_order_and_starts_unpinned() {
+    let mut store = mem_store();
+    let first = store.create_folder("甲", None).unwrap();
+    let second = store.create_folder("乙", None).unwrap();
+    let third = store.create_folder("丙", None).unwrap();
+    assert_eq!(
+      vec![first.order, second.order, third.order],
+      vec![0, 1, 2],
+      "新文件夹同级 dense 追加"
+    );
+    assert!(store.folders.iter().all(|folder| !folder.pinned), "新建默认不置顶");
+    let child = store.create_folder("甲子", Some(&first.id)).unwrap();
+    assert_eq!(child.order, 0, "子级 order 独立从 0 开始");
+  }
+
+  #[test]
+  fn update_folder_rename_pin_and_dense_reorder() {
+    let mut store = mem_store();
+    let first = store.create_folder("甲", None).unwrap();
+    let second = store.create_folder("乙", None).unwrap();
+    let third = store.create_folder("丙", None).unwrap();
+
+    let renamed = store
+      .update_folder(&first.id, Some("  甲组 ".to_string()), None, None, Some(true))
+      .unwrap();
+    assert_eq!(renamed.name, "甲组", "改名 trim 后保存");
+    assert!(renamed.pinned, "置顶直接置位");
+    assert_eq!(renamed.order, 0, "只改名/置顶不重排");
+
+    // 同父级把丙拖到最前 → dense 0..n-1
+    store
+      .update_folder(&third.id, None, None, Some(0), None)
+      .unwrap();
+    assert_eq!(
+      (
+        folder_order(&store, &third.id),
+        folder_order(&store, &first.id),
+        folder_order(&store, &second.id)
+      ),
+      (0, 1, 2),
+      "拖动后整体 dense 重排"
+    );
+
+    // order 越界 → clamp 到 0..len
+    store
+      .update_folder(&first.id, None, None, Some(99), None)
+      .unwrap();
+    assert_eq!(
+      (
+        folder_order(&store, &third.id),
+        folder_order(&store, &second.id),
+        folder_order(&store, &first.id)
+      ),
+      (0, 1, 2),
+      "越界 order clamp 到末尾"
+    );
+
+    // 取消置顶；名称校验复用 folder_name
+    assert!(!store
+      .update_folder(&first.id, None, None, None, Some(false))
+      .unwrap()
+      .pinned);
+    assert_eq!(
+      store
+        .update_folder(&first.id, Some("  ".to_string()), None, None, None)
+        .unwrap_err(),
+      "文件夹名称不能为空"
+    );
+    assert_eq!(
+      store
+        .update_folder(&first.id, Some("字".repeat(41)), None, None, None)
+        .unwrap_err(),
+      "文件夹名称最多 40 个字"
+    );
+    assert_eq!(
+      store
+        .update_folder("missing", None, None, None, None)
+        .unwrap_err(),
+      "文件夹不存在"
+    );
+  }
+
+  #[test]
+  fn update_folder_move_densifies_old_and_new_parent() {
+    let mut store = mem_store();
+    let root_a = store.create_folder("甲", None).unwrap();
+    let root_b = store.create_folder("乙", None).unwrap();
+    let child_a = store.create_folder("甲子", Some(&root_a.id)).unwrap();
+    let child_a2 = store.create_folder("甲子二", Some(&root_a.id)).unwrap();
+    let child_b = store.create_folder("乙子", Some(&root_b.id)).unwrap();
+
+    // 移到乙的第 0 位：旧父级 dense 收缩，新父级插入并整体重排
+    store
+      .update_folder(&child_a.id, None, Some(root_b.id.clone()), Some(0), None)
+      .unwrap();
+    assert_eq!(folder_by(&store, &child_a.id).parent_id, Some(root_b.id.clone()));
+    assert_eq!(folder_order(&store, &child_a.id), 0, "插入位 0");
+    assert_eq!(folder_order(&store, &child_b.id), 1, "新父级原成员后移");
+    assert_eq!(folder_order(&store, &child_a2.id), 0, "旧父级只剩一个 → dense 0");
+
+    // parentId 传 "" = 移到顶层（根），缺省 order + 移动 → 追加根末尾
+    store
+      .update_folder(&child_a.id, None, Some(String::new()), None, None)
+      .unwrap();
+    assert_eq!(folder_by(&store, &child_a.id).parent_id, None);
+    assert_eq!(folder_order(&store, &child_a.id), 2);
+    assert_eq!(folder_order(&store, &root_a.id), 0);
+    assert_eq!(folder_order(&store, &root_b.id), 1);
+    assert_eq!(folder_order(&store, &child_b.id), 0, "乙只剩一个子级 → dense 0");
+  }
+
+  #[test]
+  fn update_folder_rejects_cycle_and_missing_target() {
+    let mut store = mem_store();
+    let root = store.create_folder("甲", None).unwrap();
+    let child = store.create_folder("乙", Some(&root.id)).unwrap();
+    let grandchild = store.create_folder("丙", Some(&child.id)).unwrap();
+
+    // 自身与后代都拒绝（沿 parentId 链校验）
+    assert_eq!(
+      store
+        .update_folder(&root.id, None, Some(root.id.clone()), None, None)
+        .unwrap_err(),
+      "不能把文件夹移动到自身或它的子文件夹"
+    );
+    assert_eq!(
+      store
+        .update_folder(&root.id, None, Some(grandchild.id.clone()), None, None)
+        .unwrap_err(),
+      "不能把文件夹移动到自身或它的子文件夹"
+    );
+    assert_eq!(
+      store
+        .update_folder(&root.id, None, Some("missing".to_string()), None, None)
+        .unwrap_err(),
+      "文件夹不存在"
+    );
+    // 拒绝后树结构不变
+    assert_eq!(folder_by(&store, &root.id).parent_id, None);
+    assert_eq!(folder_by(&store, &child.id).parent_id, Some(root.id.clone()));
+    assert_eq!(folder_by(&store, &grandchild.id).parent_id, Some(child.id.clone()));
+  }
+
+  #[test]
+  fn place_kb_item_reorders_and_pins_within_folder() {
+    let mut store = mem_store();
+    let folder = store.create_folder("工作", None).unwrap();
+    for (index, item) in [kb_item("k1"), kb_item("k2"), kb_item("k3")]
+      .into_iter()
+      .enumerate()
+    {
+      store.kb.push(KbItem {
+        folder_id: Some(folder.id.clone()),
+        order: Some(index as i64),
+        ..item
+      });
+    }
+
+    // 同夹内把 k3 拖到最前并置顶
+    let moved = store.place_kb_item("k3", None, Some(0), Some(true)).unwrap();
+    assert_eq!(moved.order, Some(0));
+    assert!(moved.pinned);
+    assert_eq!(
+      (
+        item_order(&store, "k3"),
+        item_order(&store, "k1"),
+        item_order(&store, "k2")
+      ),
+      (Some(0), Some(1), Some(2))
+    );
+
+    // 越界 order clamp 到末尾
+    store.place_kb_item("k1", None, Some(99), None).unwrap();
+    assert_eq!(
+      (
+        item_order(&store, "k3"),
+        item_order(&store, "k2"),
+        item_order(&store, "k1")
+      ),
+      (Some(0), Some(1), Some(2))
+    );
+
+    // 只改 pinned 不动顺序
+    store.place_kb_item("k2", None, None, Some(true)).unwrap();
+    assert_eq!(item_order(&store, "k2"), Some(1));
+  }
+
+  #[test]
+  fn place_kb_item_cross_folder_move_appends_and_densifies() {
+    let mut store = mem_store();
+    let first = store.create_folder("甲", None).unwrap();
+    let second = store.create_folder("乙", None).unwrap();
+    for (index, item) in [kb_item("a"), kb_item("b")].into_iter().enumerate() {
+      store.kb.push(KbItem {
+        folder_id: Some(first.id.clone()),
+        order: Some(index as i64),
+        ..item
+      });
+    }
+    store.kb.push(KbItem {
+      folder_id: Some(second.id.clone()),
+      order: Some(0),
+      ..kb_item("c")
+    });
+
+    // 跨夹且 order 缺省 → 追加到新父级末尾，旧父级 dense 收缩
+    let moved = store
+      .place_kb_item("a", Some(Some(second.id.clone())), None, None)
+      .unwrap();
+    assert_eq!(moved.folder_id, Some(second.id.clone()));
+    assert_eq!(item_order(&store, "c"), Some(0));
+    assert_eq!(item_order(&store, "a"), Some(1), "缺省 order 追加到新父级末尾");
+    assert_eq!(item_order(&store, "b"), Some(0), "旧父级移除后 dense 0");
+
+    // 移到未分类（Some(None)）
+    store.place_kb_item("a", Some(None), None, None).unwrap();
+    assert_eq!(
+      store
+        .kb
+        .iter()
+        .find(|item| item.id == "a")
+        .unwrap()
+        .folder_id,
+      None
+    );
+    assert_eq!(item_order(&store, "a"), Some(0), "未分类组首个 order = 0");
+    assert_eq!(item_order(&store, "c"), Some(0), "旧父级只剩一个 → dense 0");
+
+    // 显式 order 跨夹插入
+    store
+      .place_kb_item("a", Some(Some(first.id.clone())), Some(0), None)
+      .unwrap();
+    assert_eq!(item_order(&store, "a"), Some(0));
+    assert_eq!(item_order(&store, "b"), Some(1));
   }
 
   #[test]
@@ -2641,19 +3507,1108 @@ mod tests {
       store.save_notes().unwrap();
       assert!(dir.join("notes.json.bak-1").exists());
       assert!(dir.join("notes.json.bak-2").exists());
-      let bak1: Vec<KbItem> =
+      let bak1: Vec<crate::models::KbItemMeta> =
         serde_json::from_str(&std::fs::read_to_string(dir.join("notes.json.bak-1")).unwrap())
           .unwrap();
       assert_eq!(bak1[0].id, "k2", "bak-1 = 上一次写入");
       let restored = store.restore_kb_backup("2").unwrap();
       assert_eq!(restored, 1);
-      let current: Vec<KbItem> =
+      let current: Vec<crate::models::KbItemMeta> =
         serde_json::from_str(&std::fs::read_to_string(dir.join("notes.json")).unwrap()).unwrap();
       assert_eq!(current[0].id, "k1");
+      let raw_index: Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("notes.json")).unwrap()).unwrap();
+      for entry in raw_index.as_array().unwrap() {
+        assert!(
+          entry.get("bodyMd").is_none() && entry.get("body_md").is_none(),
+          "notes.json 必须是纯索引（不含正文）：{entry}"
+        );
+      }
       let backups = store.list_kb_backups();
       assert!(backups.iter().all(|item| item.readable));
     }));
     let _ = std::fs::remove_dir_all(&dir);
+    if let Err(panic) = result {
+      std::panic::resume_unwind(panic);
+    }
+  }
+
+  // ---- kb-storage-backup 批 2：索引/正文分离（D1）+ 旧格式迁移（D7） ----
+
+  fn kb_hash(body: &str) -> String {
+    crate::store_notes::content_hash(body)
+  }
+
+  /// 旧格式（内联 bodyMd）→ 分文件结构：条目数/标题/正文一致；幂等且 notes.v1.json 只写一次。
+  #[test]
+  fn legacy_notes_migrate_to_split_storage_idempotently() {
+    let legacy = json!([
+      {
+        "id": "k1",
+        "title": "  旧标题 ",
+        "bodyMd": "\n第一行\n正文 \n",
+        "tags": [" rust ", "", "rust"],
+        "folderId": "f1",
+        "order": 0,
+        "pinned": true,
+        "createdAt": "2026-09-01T09:00",
+        "updatedAt": "2026-09-02T09:00"
+      },
+      {
+        "id": "k2",
+        "title": "空正文",
+        "bodyMd": "",
+        "tags": [],
+        "createdAt": "2026-09-03T09:00",
+        "updatedAt": "2026-09-03T09:00"
+      }
+    ]);
+    let legacy_text = serde_json::to_string(&legacy).unwrap();
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some(legacy_text.clone());
+    *backend.folders.borrow_mut() = Some(
+      serde_json::to_string(&json!([
+        { "id": "f1", "name": "工作", "parentId": null, "order": 0 }
+      ]))
+      .unwrap(),
+    );
+    let mut store = Store::with_backend(Box::new(backend), Box::new(fixed_clock()));
+    store.load_kb();
+    assert!(store.ensure_kb_ok().is_ok(), "旧格式迁移成功不是损坏态");
+    assert_eq!(store.kb.len(), 2, "迁移后条目数一致");
+    assert_eq!(store.kb[0].title, "旧标题", "标题迁移时 trim");
+    assert_eq!(store.kb[0].body_md, "第一行\n正文 ", "正文只裁首尾换行");
+    assert_eq!(store.kb[0].tags, vec!["rust"], "标签去空去重");
+    assert_eq!(store.kb[0].folder_id.as_deref(), Some("f1"), "文件夹归属保留");
+    assert!(store.kb[0].pinned);
+    let expected_hash = kb_hash("第一行\n正文 ");
+    assert_eq!(store.kb[0].content_hash.as_deref(), Some(expected_hash.as_str()));
+    assert_eq!(store.kb[1].body_md, "");
+    // ① 永久存档 + ② 轮转：bak-1 = 旧 notes.json
+    assert_eq!(
+      store.backend.read_notes_v1_archive().unwrap(),
+      Some(legacy_text.clone()),
+      "notes.v1.json = 旧格式原文"
+    );
+    assert_eq!(store.list_kb_backups().len(), 1, "迁移前先把旧 notes.json 轮转进 bak-1");
+    // ③ notes.json 变纯索引（不含正文）
+    let index: Value =
+      serde_json::from_str(&store.backend.read_notes().unwrap().unwrap()).unwrap();
+    assert!(
+      index[0].get("bodyMd").is_none() && index[0].get("body_md").is_none(),
+      "索引 MUST NOT 内联正文：{index}"
+    );
+    assert_eq!(index[0]["contentHash"], expected_hash);
+    // ④ 正文逐条落盘
+    assert_eq!(
+      store.backend.read_note_body("k1").unwrap().as_deref(),
+      Some("第一行\n正文 ")
+    );
+    assert_eq!(store.backend.read_note_body("k2").unwrap().as_deref(), Some(""));
+    // 幂等：回滚后再次启动重跑迁移 → 正文覆盖、存档不重写、不产生重复条目
+    store.backend.write_note_body("k1", "被篡改的正文").unwrap();
+    store.backend.write_notes(&legacy_text).unwrap();
+    store.load_kb();
+    assert_eq!(
+      store.backend.read_notes_v1_archive().unwrap(),
+      Some(legacy_text.clone()),
+      "notes.v1.json 只写一次（保留最早原文）"
+    );
+    assert_eq!(
+      store.backend.read_note_body("k1").unwrap().as_deref(),
+      Some("第一行\n正文 "),
+      "重跑覆盖同 id 正文"
+    );
+    assert_eq!(store.kb.len(), 2, "重跑不产生重复条目");
+    assert_eq!(store.list_kb_backups().len(), 2, "重跑再轮转一次");
+    let index: Value =
+      serde_json::from_str(&store.backend.read_notes().unwrap().unwrap()).unwrap();
+    assert_eq!(index.as_array().unwrap().len(), 2);
+  }
+
+  /// 迁移失败（只读盘/空间不足）：KB_UPGRADE_FAILED、旧 notes.json 原样保留、下次启动可重试。
+  #[test]
+  fn legacy_migration_failure_keeps_original_notes_and_reports_upgrade_error() {
+    let legacy_text = serde_json::to_string(&json!([
+      { "id": "k1", "title": "旧", "bodyMd": "正文", "tags": [], "createdAt": "2026-09-01T09:00", "updatedAt": "2026-09-01T09:00" }
+    ]))
+    .unwrap();
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some(legacy_text.clone());
+    backend.set_fail_writes(true);
+    let mut store = Store::with_backend(Box::new(backend), Box::new(fixed_clock()));
+    store.load_kb();
+    assert_eq!(
+      store.ensure_kb_ok().unwrap_err(),
+      crate::kb_errors::KB_UPGRADE_FAILED,
+      "迁移失败是专属「升级失败」错误态（不是损坏、不是空库）"
+    );
+    assert_eq!(
+      store.backend.read_notes().unwrap(),
+      Some(legacy_text.clone()),
+      "失败时旧 notes.json 原样保留"
+    );
+    assert_eq!(
+      store.backend.read_notes_v1_archive().unwrap(),
+      None,
+      "失败时不留下半截新索引/存档之外的副作用"
+    );
+    // 下次启动重试：同一份旧 notes.json + 可写盘 → 迁移成功
+    let retry = InMemoryBackend::new();
+    *retry.data.borrow_mut() = Some(app_data_json());
+    *retry.notes.borrow_mut() = Some(legacy_text);
+    let mut store = Store::with_backend(Box::new(retry), Box::new(fixed_clock()));
+    store.load_kb();
+    assert!(store.ensure_kb_ok().is_ok(), "可写后下次启动重试成功");
+    assert_eq!(store.kb.len(), 1);
+    assert_eq!(store.kb[0].body_md, "正文");
+  }
+
+  /// 新格式索引 + 正文文件缺失：空串加载、条目不丢、不判损坏；hash 顺手修复并落盘。
+  #[test]
+  fn new_index_missing_body_loads_empty_and_repairs_hash() {
+    let index = json!([{
+      "id": "k1",
+      "title": "标题",
+      "tags": [],
+      "folderId": null,
+      "order": 0,
+      "pinned": false,
+      "createdAt": "2026-09-01T09:00",
+      "updatedAt": "2026-09-01T09:00",
+      "contentHash": "stale"
+    }]);
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some(serde_json::to_string(&index).unwrap());
+    let mut store = Store::with_backend(Box::new(backend), Box::new(fixed_clock()));
+    store.load_kb();
+    assert!(store.ensure_kb_ok().is_ok(), "正文缺失按空串，不判损坏");
+    assert_eq!(store.kb.len(), 1, "条目不丢");
+    assert_eq!(store.kb[0].body_md, "");
+    let empty_hash = kb_hash("");
+    assert_eq!(store.kb[0].content_hash.as_deref(), Some(empty_hash.as_str()));
+    let repaired: Value =
+      serde_json::from_str(&store.backend.read_notes().unwrap().unwrap()).unwrap();
+    assert_eq!(repaired[0]["contentHash"], empty_hash, "可修复差异顺手落盘修正索引");
+  }
+
+  /// contentHash 被篡改：以正文为准重算（D1 可修复，不判损坏）并落盘修正。
+  #[test]
+  fn new_index_tampered_hash_is_corrected_from_body() {
+    let index = json!([{
+      "id": "k1",
+      "title": "标题",
+      "tags": [],
+      "folderId": null,
+      "order": 0,
+      "pinned": false,
+      "createdAt": "2026-09-01T09:00",
+      "updatedAt": "2026-09-01T09:00",
+      "contentHash": "tampered"
+    }]);
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some(serde_json::to_string(&index).unwrap());
+    backend
+      .note_bodies
+      .borrow_mut()
+      .insert("k1".to_string(), "真实正文".to_string());
+    let mut store = Store::with_backend(Box::new(backend), Box::new(fixed_clock()));
+    store.load_kb();
+    assert!(store.ensure_kb_ok().is_ok(), "hash 不一致不是损坏");
+    assert_eq!(store.kb[0].body_md, "真实正文", "正文是唯一真相");
+    let actual_hash = kb_hash("真实正文");
+    assert_eq!(store.kb[0].content_hash.as_deref(), Some(actual_hash.as_str()));
+    let repaired: Value =
+      serde_json::from_str(&store.backend.read_notes().unwrap().unwrap()).unwrap();
+    assert_eq!(repaired[0]["contentHash"], actual_hash);
+  }
+
+  /// folderId 指向已删除文件夹：回退未分类、条目绝不丢（storage spec）。
+  #[test]
+  fn missing_folder_id_falls_back_to_unclassified_without_dropping_items() {
+    let index = json!([
+      { "id": "k1", "title": "孤儿", "tags": [], "folderId": "f-missing", "order": null, "pinned": false, "createdAt": "2026-09-01T09:00", "updatedAt": "2026-09-01T09:00", "contentHash": "x" },
+      { "id": "k2", "title": "正常", "tags": [], "folderId": "f1", "order": 0, "pinned": false, "createdAt": "2026-09-02T09:00", "updatedAt": "2026-09-02T09:00", "contentHash": "y" }
+    ]);
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some(serde_json::to_string(&index).unwrap());
+    *backend.folders.borrow_mut() = Some(
+      serde_json::to_string(&json!([
+        { "id": "f1", "name": "工作", "parentId": null, "order": 0 }
+      ]))
+      .unwrap(),
+    );
+    let mut store = Store::with_backend(Box::new(backend), Box::new(fixed_clock()));
+    store.load_kb();
+    assert!(store.ensure_kb_ok().is_ok());
+    assert_eq!(store.kb.len(), 2, "条目绝不因 folderId 失效丢弃");
+    assert_eq!(store.kb[0].id, "k1");
+    assert_eq!(store.kb[0].folder_id, None, "失效 folderId 回退未分类");
+    assert_eq!(store.kb[1].folder_id.as_deref(), Some("f1"), "有效归属保持不变");
+    let repaired: Value =
+      serde_json::from_str(&store.backend.read_notes().unwrap().unwrap()).unwrap();
+    assert!(matches!(repaired[0].get("folderId"), Some(Value::Null)), "回退结果落盘");
+  }
+
+  /// D1 写删顺序：先正文后索引；删除时先删正文再写索引（fail 时索引不指回缺失正文）。
+  #[test]
+  fn save_and_delete_body_keep_index_as_second_step() {
+    let mut store = mem_store();
+    store.kb.push(kb_item("k1"));
+    store.save_kb_item_body("k1", "\n正文\n").unwrap();
+    assert_eq!(
+      store.backend.read_note_body("k1").unwrap().as_deref(),
+      Some("\n正文\n"),
+      "命令层第一步：正文落盘"
+    );
+    assert_eq!(
+      store.backend.read_notes().unwrap(),
+      None,
+      "先正文后索引：save_kb_item_body 不写索引"
+    );
+    let body_hash = kb_hash("\n正文\n");
+    assert_eq!(store.kb[0].content_hash.as_deref(), Some(body_hash.as_str()));
+    assert_eq!(
+      store.save_kb_item_body("missing", "x").unwrap_err(),
+      "找不到这条资料，可能已经被删除"
+    );
+    store.save_notes().unwrap();
+    let index: Value =
+      serde_json::from_str(&store.backend.read_notes().unwrap().unwrap()).unwrap();
+    assert!(index[0].get("bodyMd").is_none(), "索引只存元数据");
+    // 删除顺序：先删正文（此刻旧索引仍在盘上）、再 save_notes 收敛索引
+    store.kb.clear();
+    store.delete_kb_item_body("k1").unwrap();
+    assert_eq!(store.backend.read_note_body("k1").unwrap(), None);
+    assert!(
+      store.backend.read_notes().unwrap().is_some(),
+      "正文先删、索引后写：此刻盘上仍是旧索引"
+    );
+    store.save_notes().unwrap();
+    let index: Value =
+      serde_json::from_str(&store.backend.read_notes().unwrap().unwrap()).unwrap();
+    assert_eq!(index, json!([]), "save_notes 后索引不再指向已删条目");
+  }
+
+  /// 恢复旧格式备份（含 bodyMd）：走同一迁移 → 分文件结构，且写 notes.v1.json 永久存档。
+  #[test]
+  fn restore_legacy_backup_migrates_through_same_path() {
+    let legacy_text = serde_json::to_string(&json!([
+      {
+        "id": "k-old",
+        "title": "旧备份条目",
+        "bodyMd": "备份正文",
+        "tags": ["a"],
+        "createdAt": "2026-09-01T09:00",
+        "updatedAt": "2026-09-01T09:00"
+      }
+    ]))
+    .unwrap();
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    backend.notes_backups.borrow_mut().push(legacy_text.clone());
+    let mut store = Store::with_backend(Box::new(backend), Box::new(fixed_clock()));
+    let restored = store.restore_kb_backup("1").unwrap();
+    assert_eq!(restored, 1);
+    assert!(store.ensure_kb_ok().is_ok());
+    assert_eq!(store.kb[0].id, "k-old");
+    assert_eq!(store.kb[0].body_md, "备份正文");
+    assert_eq!(
+      store.backend.read_note_body("k-old").unwrap().as_deref(),
+      Some("备份正文"),
+      "恢复旧备份也落成分文件正文"
+    );
+    assert_eq!(
+      store.backend.read_notes_v1_archive().unwrap(),
+      Some(legacy_text),
+      "旧备份也写永久存档（回滚兜底）"
+    );
+    let index: Value =
+      serde_json::from_str(&store.backend.read_notes().unwrap().unwrap()).unwrap();
+    assert!(index[0].get("bodyMd").is_none(), "恢复后直接是分文件索引");
+  }
+
+  /// 旧格式解析失败（缺 id / 顶层不是数组）：仍走 KB_CORRUPT_MESSAGE（损坏通道，不是升级失败）。
+  #[test]
+  fn legacy_notes_parse_failure_stays_corrupt_message() {
+    // 旧格式但条目缺 id → 迁移解析失败 = 损坏
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() =
+      Some(serde_json::to_string(&json!([{ "bodyMd": "正文" }])).unwrap());
+    let mut store = Store::with_backend(Box::new(backend), Box::new(fixed_clock()));
+    store.load_kb();
+    assert_eq!(store.ensure_kb_ok().unwrap_err(), KB_CORRUPT_MESSAGE);
+    assert!(store.kb.is_empty());
+
+    // 顶层不是数组（非旧格式）→ 索引解析失败 = 损坏
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some("\"字符串\"".to_string());
+    let mut store = Store::with_backend(Box::new(backend), Box::new(fixed_clock()));
+    store.load_kb();
+    assert_eq!(store.ensure_kb_ok().unwrap_err(), KB_CORRUPT_MESSAGE);
+  }
+
+  /// 真实文件系统端到端：旧 notes.json → notes/<id>.md + notes.v1.json + 纯索引；重跑幂等。
+  #[test]
+  fn fs_backend_migrates_legacy_notes_into_split_files() {
+    let dir = scratch_dir("kb-migrate");
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+      let legacy = json!([
+        { "id": "k1", "title": "旧标题", "bodyMd": "第一行\n第二行", "tags": ["x"], "createdAt": "2026-09-01T09:00", "updatedAt": "2026-09-01T09:00" }
+      ]);
+      let legacy_text = serde_json::to_string(&legacy).unwrap();
+      std::fs::write(dir.join("data.json"), app_data_json()).unwrap();
+      std::fs::write(dir.join("notes.json"), &legacy_text).unwrap();
+      std::fs::write(dir.join("folders.json"), "[]").unwrap();
+      let mut store = Store::with_backend(
+        Box::new(FsBackend::new(dir.clone())),
+        Box::new(fixed_clock()),
+      );
+      store.load_kb();
+      assert!(store.ensure_kb_ok().is_ok(), "旧格式文件迁移成功");
+      assert_eq!(store.kb.len(), 1);
+      assert_eq!(store.kb[0].body_md, "第一行\n第二行");
+      assert_eq!(
+        std::fs::read_to_string(dir.join("notes").join("k1.md")).unwrap(),
+        "第一行\n第二行",
+        "正文落 notes/<id>.md"
+      );
+      let index: Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("notes.json")).unwrap()).unwrap();
+      assert!(index[0].get("bodyMd").is_none(), "notes.json 变纯索引");
+      assert_eq!(index[0]["contentHash"], kb_hash("第一行\n第二行"));
+      assert_eq!(
+        std::fs::read_to_string(dir.join("notes.v1.json")).unwrap(),
+        legacy_text,
+        "notes.v1.json = 旧格式原文"
+      );
+      assert_eq!(
+        std::fs::read_to_string(dir.join("notes.json.bak-1")).unwrap(),
+        legacy_text,
+        "bak-1 = 迁移前旧 notes.json"
+      );
+      // 模拟「回滚旧版本后再启动」：旧 notes.json 放回 → 重跑迁移，正文覆盖、存档不重写
+      std::fs::write(dir.join("notes.json"), &legacy_text).unwrap();
+      let v1_before = std::fs::read_to_string(dir.join("notes.v1.json")).unwrap();
+      let mut store = Store::with_backend(
+        Box::new(FsBackend::new(dir.clone())),
+        Box::new(fixed_clock()),
+      );
+      store.load_kb();
+      assert_eq!(store.kb.len(), 1, "重跑幂等：不重复条目");
+      assert_eq!(
+        std::fs::read_to_string(dir.join("notes.v1.json")).unwrap(),
+        v1_before,
+        "notes.v1.json 只写一次"
+      );
+      assert!(
+        std::fs::read_to_string(dir.join("notes.json"))
+          .unwrap()
+          .contains("contentHash"),
+        "重跑后 notes.json 仍是新索引"
+      );
+    }));
+    let _ = std::fs::remove_dir_all(&dir);
+    if let Err(panic) = result {
+      std::panic::resume_unwind(panic);
+    }
+  }
+
+  // ---- kb-storage-backup 批 3：图片外置（D2）+ Bootstrap.assetsDir ----
+
+  fn image_data_url(mime: &str, bytes: &[u8]) -> String {
+    format!("data:{};base64,{}", mime, crate::digest::base64_encode(bytes))
+  }
+
+  /// 保存正文：内联图片先写 assets（经 StoreBackend），正文只留相对引用；内存索引同步。
+  #[test]
+  fn save_body_extracts_inline_images_to_assets() {
+    let mut store = mem_store();
+    store.kb.push(kb_item("k1"));
+    let payload = b"store-png-bytes".to_vec();
+    let url = image_data_url("image/png", &payload);
+    let sha = crate::digest::sha256_hex(&payload);
+    store
+      .save_kb_item_body("k1", &format!("看图\n![截图]({url})"))
+      .unwrap();
+    let expected = format!("看图\n![截图](assets/{sha}.png)");
+    assert_eq!(store.kb[0].body_md, expected, "内存正文同步成相对引用");
+    assert_eq!(
+      store.kb[0].content_hash.as_deref(),
+      Some(kb_hash(&expected).as_str()),
+      "contentHash 按改写后正文重算"
+    );
+    assert_eq!(
+      store.backend.read_note_body("k1").unwrap().as_deref(),
+      Some(expected.as_str()),
+      "先写资源再写正文"
+    );
+    assert_eq!(
+      store.backend.read_asset(&sha, "png").unwrap(),
+      payload,
+      "资源落到 assets/<sha>.png"
+    );
+  }
+
+  /// 旧格式迁移：正文里的内联图一并外置，索引 hash 按改写后正文重算，旧原文仍永久存档。
+  #[test]
+  fn legacy_notes_migration_extracts_inline_images() {
+    let payload = b"legacy-image-bytes".to_vec();
+    let url = image_data_url("image/jpeg", &payload);
+    let sha = crate::digest::sha256_hex(&payload);
+    let legacy = json!([{
+      "id": "k1",
+      "title": "旧图",
+      "bodyMd": format!("旧文\n![照片]({url})"),
+      "tags": [],
+      "createdAt": "2026-09-01T09:00",
+      "updatedAt": "2026-09-01T09:00"
+    }]);
+    let legacy_text = serde_json::to_string(&legacy).unwrap();
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some(legacy_text.clone());
+    let mut store = Store::with_backend(Box::new(backend), Box::new(fixed_clock()));
+    store.load_kb();
+    assert!(store.ensure_kb_ok().is_ok(), "带图旧库迁移成功");
+    let expected = format!("旧文\n![照片](assets/{sha}.jpg)");
+    assert_eq!(store.kb[0].body_md, expected, "内存正文已改写");
+    assert_eq!(
+      store.backend.read_note_body("k1").unwrap().as_deref(),
+      Some(expected.as_str()),
+      "notes/k1.md 落的是改写后正文"
+    );
+    assert_eq!(
+      store.backend.read_asset(&sha, "jpg").unwrap(),
+      payload,
+      "image/jpeg 落成 .jpg"
+    );
+    let index: Value =
+      serde_json::from_str(&store.backend.read_notes().unwrap().unwrap()).unwrap();
+    assert_eq!(index[0]["contentHash"], kb_hash(&expected), "索引 hash 按改写后正文");
+    assert_eq!(
+      store.backend.read_notes_v1_archive().unwrap(),
+      Some(legacy_text),
+      "旧原文仍进 notes.v1.json（回滚兜底）"
+    );
+  }
+
+  /// 已迁移但正文仍内联的库：load_kb best-effort 回填（幂等），索引 hash 顺手收敛。
+  #[test]
+  fn load_backfills_inline_images_in_migrated_library() {
+    let payload = b"backfill-bytes".to_vec();
+    let url = image_data_url("image/webp", &payload);
+    let sha = crate::digest::sha256_hex(&payload);
+    let inline_body = format!("正文\n![图]({url})");
+    let index = json!([{
+      "id": "k1",
+      "title": "带图",
+      "tags": [],
+      "folderId": null,
+      "order": 0,
+      "pinned": false,
+      "createdAt": "2026-09-01T09:00",
+      "updatedAt": "2026-09-01T09:00",
+      "contentHash": kb_hash(&inline_body)
+    }]);
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some(serde_json::to_string(&index).unwrap());
+    backend
+      .note_bodies
+      .borrow_mut()
+      .insert("k1".to_string(), inline_body.clone());
+    let mut store = Store::with_backend(Box::new(backend), Box::new(fixed_clock()));
+    store.load_kb();
+    assert!(store.ensure_kb_ok().is_ok(), "回填失败不算损坏");
+    let expected = format!("正文\n![图](assets/{sha}.webp)");
+    assert_eq!(store.kb[0].body_md, expected);
+    assert_eq!(
+      store.backend.read_note_body("k1").unwrap().as_deref(),
+      Some(expected.as_str())
+    );
+    assert_eq!(store.backend.read_asset(&sha, "webp").unwrap(), payload);
+    let repaired: Value =
+      serde_json::from_str(&store.backend.read_notes().unwrap().unwrap()).unwrap();
+    assert_eq!(repaired[0]["contentHash"], kb_hash(&expected), "回填后索引落盘");
+    // 幂等：再加载一遍不再有 data: 内含图，正文/资源都不变
+    store.load_kb();
+    assert_eq!(store.kb[0].body_md, expected);
+    assert_eq!(store.backend.read_asset(&sha, "webp").unwrap(), payload);
+  }
+
+  /// 回填写盘失败：该条保留内联（绝不丢图/丢条目），不把库判成损坏。
+  #[test]
+  fn backfill_failure_keeps_inline_body() {
+    let payload = b"fail-backfill".to_vec();
+    let url = image_data_url("image/png", &payload);
+    let sha = crate::digest::sha256_hex(&payload);
+    let inline_body = format!("正文\n![图]({url})");
+    let index = json!([{
+      "id": "k1",
+      "title": "带图",
+      "tags": [],
+      "folderId": null,
+      "order": 0,
+      "pinned": false,
+      "createdAt": "2026-09-01T09:00",
+      "updatedAt": "2026-09-01T09:00",
+      "contentHash": kb_hash(&inline_body)
+    }]);
+    let backend = InMemoryBackend::new();
+    *backend.data.borrow_mut() = Some(app_data_json());
+    *backend.notes.borrow_mut() = Some(serde_json::to_string(&index).unwrap());
+    backend
+      .note_bodies
+      .borrow_mut()
+      .insert("k1".to_string(), inline_body.clone());
+    backend.set_fail_writes(true);
+    let mut store = Store::with_backend(Box::new(backend), Box::new(fixed_clock()));
+    store.load_kb();
+    assert!(store.ensure_kb_ok().is_ok(), "写不进不是损坏");
+    assert_eq!(store.kb[0].body_md, inline_body, "正文保留内联，绝不丢图");
+    assert!(
+      store.backend.read_asset(&sha, "png").is_err(),
+      "失败时没有半截资源落盘"
+    );
+  }
+
+  /// Bootstrap.assetsDir：生产/文件后端 = 数据目录下 assets 的绝对路径；内存后端给临时占位。
+  #[test]
+  fn assets_dir_comes_from_backend() {
+    let mem = mem_store();
+    let placeholder = mem.assets_dir();
+    assert!(
+      placeholder.contains("kettd-assets"),
+      "内存后端给临时占位，不冒充真实目录：{placeholder}"
+    );
+
+    let dir = scratch_dir("kb-assets-dir");
+    let store = Store::with_backend(Box::new(FsBackend::new(dir.clone())), Box::new(fixed_clock()));
+    assert_eq!(
+      store.assets_dir(),
+      dir.join("assets").to_string_lossy(),
+      "文件后端给 <数据目录>/assets 的绝对路径"
+    );
+    assert!(std::path::Path::new(&store.assets_dir()).is_absolute());
+    let _ = std::fs::remove_dir_all(&dir);
+  }
+
+  // ---- kb-storage-backup 批 3：手动导出 / 导入（D3 / D4）往返演练 ----
+
+  use crate::models::StickyNote;
+  use std::collections::BTreeMap;
+
+  /// 备份源（导出方）与导入目标共用的两个资源：一个目标目录里已有（reused），
+  /// 一个没有（added）；另有一条正文引用指向缺失资源（导出跳过、导入不阻断）。
+  struct BackupFixture {
+    result: backup::ExportResult,
+    payload: String,
+    missing_sha: String,
+    reuse_sha: String,
+    new_sha: String,
+  }
+
+  fn sha_hex(bytes: &[u8]) -> String {
+    crate::digest::sha256_hex(bytes)
+  }
+
+  fn backup_assets() -> (Vec<u8>, String, Vec<u8>, String) {
+    let reuse = b"kettd-backup-reuse-png".to_vec();
+    let new = b"kettd-backup-new-webp".to_vec();
+    let reuse_sha = sha_hex(&reuse);
+    let new_sha = sha_hex(&new);
+    (reuse, reuse_sha, new, new_sha)
+  }
+
+  fn task_fixture(id: &str, title: &str, note: &str, updated_at: &str) -> Task {
+    Task {
+      id: id.to_string(),
+      title: title.to_string(),
+      note: note.to_string(),
+      created_at: "2026-09-01T08:00".to_string(),
+      updated_at: updated_at.to_string(),
+      ..Default::default()
+    }
+  }
+
+  fn reminder_fixture(id: &str, title: &str, time: &str) -> Reminder {
+    Reminder {
+      id: id.to_string(),
+      title: title.to_string(),
+      time: time.to_string(),
+      ..Default::default()
+    }
+  }
+
+  fn kb_fixture(id: &str, title: &str, body: &str, updated_at: &str) -> KbItem {
+    KbItem {
+      id: id.to_string(),
+      title: title.to_string(),
+      body_md: body.to_string(),
+      created_at: "2026-09-01T08:00".to_string(),
+      updated_at: updated_at.to_string(),
+      content_hash: Some(kb_hash(body)),
+      ..Default::default()
+    }
+  }
+
+  fn folder_fixture(id: &str, name: &str, order: i64) -> KbFolder {
+    KbFolder {
+      id: id.to_string(),
+      name: name.to_string(),
+      parent_id: None,
+      order,
+      pinned: false,
+    }
+  }
+
+  /// 备份源：在 `dir` 上搭 Store 并 `export_backup_to_file`。
+  /// 备份时间线设计（越新越靠后）：本地较旧 / 备份较新 / 同刻不同内容 / 本地独有 / 本地已删。
+  fn seed_backup_source(dir: &std::path::Path) -> BackupFixture {
+    let (reuse_bytes, reuse_sha, new_bytes, new_sha) = backup_assets();
+    let mut source = Store::with_backend(
+      Box::new(FsBackend::new(dir.to_path_buf())),
+      Box::new(fixed_clock()),
+    );
+    source
+      .backend
+      .write_asset(&reuse_sha, "png", &reuse_bytes)
+      .unwrap();
+    source
+      .backend
+      .write_asset(&new_sha, "webp", &new_bytes)
+      .unwrap();
+    let missing_sha = "a".repeat(64);
+    let body_assets = format!(
+      "配图 ![a](assets/{reuse_sha}.png)、![b](assets/{new_sha}.webp)、![m](assets/{missing_sha}.png)"
+    );
+    source.kb = vec![
+      kb_fixture("k-upd", "备份版本", "备份正文", "2026-09-05T10:00"),
+      kb_fixture("k-skip", "备份旧版", "备份旧正文", "2026-09-01T08:00"),
+      kb_fixture("k-conflict", "冲突条目", "备份冲突正文", "2026-09-02T08:00"),
+      kb_fixture("k-deleted", "本地已删", "备份里保留", "2026-09-04T08:00"),
+      kb_fixture("k-assets", "带图条目", &body_assets, "2026-09-03T08:00"),
+    ];
+    source.folders = vec![
+      folder_fixture("f-new", "新文件夹", 0),
+      folder_fixture("f-same", "相同文件夹", 0),
+      folder_fixture("f-conflict", "备份文件夹名", 0),
+    ];
+    source.data.tasks = vec![
+      task_fixture("t-upd", "备份标题", "备份备注", "2026-09-05T10:00"),
+      task_fixture("t-skip", "备份旧标题", "备份旧备注", "2026-09-01T08:00"),
+      task_fixture("t-conflict", "冲突任务", "备份备注", "2026-09-02T08:00"),
+    ];
+    source.data.reminders = vec![
+      reminder_fixture("r-new", "新提醒", "08:00"),
+      reminder_fixture("r-same", "相同提醒", "09:00"),
+      reminder_fixture("r-conflict", "备份提醒版本", "07:00"),
+    ];
+    let mut settings = Settings::default();
+    settings.theme = "dark".to_string();
+    source.data.settings = settings;
+    source.data.stickies = vec![StickyNote {
+      id: "s-backup".to_string(),
+      content: "备份便签".to_string(),
+      ..Default::default()
+    }];
+    let result = source
+      .export_backup_to_file("9.9.9-test", "2026-09-05T09:00")
+      .expect("导出不应失败");
+    let payload = std::fs::read_to_string(&result.path).expect("备份文件应可读");
+    BackupFixture {
+      result,
+      payload,
+      missing_sha,
+      reuse_sha,
+      new_sha,
+    }
+  }
+
+  /// 导入目标：本地状态完整落盘（data.json / notes.json / notes/<id>.md / folders.json / assets）。
+  fn seed_backup_target(dir: &std::path::Path) -> Store {
+    let (reuse_bytes, reuse_sha, _, _) = backup_assets();
+    let mut target = Store::with_backend(
+      Box::new(FsBackend::new(dir.to_path_buf())),
+      Box::new(fixed_clock()),
+    );
+    // 目标已存在其中一个资源：导入时计 asset_reused，不重写。
+    target
+      .backend
+      .write_asset(&reuse_sha, "png", &reuse_bytes)
+      .unwrap();
+    target.data.tasks = vec![
+      task_fixture("t-upd", "本地旧标题", "本地旧备注", "2026-09-01T08:00"),
+      task_fixture("t-skip", "本地较新", "本地较新备注", "2026-09-04T08:00"),
+      task_fixture("t-conflict", "冲突任务", "本地备注", "2026-09-02T08:00"),
+      task_fixture("t-local", "本地独有", "本地独有备注", "2026-09-03T08:00"),
+    ];
+    target.data.reminders = vec![
+      reminder_fixture("r-same", "相同提醒", "09:00"),
+      reminder_fixture("r-conflict", "本地提醒", "07:30"),
+    ];
+    target.data.stickies = vec![StickyNote {
+      id: "s-local".to_string(),
+      content: "本地便签".to_string(),
+      ..Default::default()
+    }];
+    target.kb = vec![
+      kb_fixture("k-upd", "本地旧版", "本地旧正文", "2026-09-01T08:00"),
+      kb_fixture("k-skip", "本地较新", "本地正文", "2026-09-03T08:00"),
+      kb_fixture("k-conflict", "冲突条目", "本地冲突正文", "2026-09-02T08:00"),
+      kb_fixture("k-local", "本地独有", "本地独有正文", "2026-09-04T08:00"),
+    ];
+    target.folders = vec![
+      folder_fixture("f-same", "相同文件夹", 0),
+      folder_fixture("f-conflict", "本地文件夹名", 0),
+      folder_fixture("f-local", "本地独有文件夹", 1),
+    ];
+    let entries: Vec<(String, String)> = target
+      .kb
+      .iter()
+      .map(|item| (item.id.clone(), item.body_md.clone()))
+      .collect();
+    for (id, body) in entries {
+      target.save_kb_item_body(&id, &body).unwrap();
+    }
+    target.save_notes().unwrap();
+    target.save_folders().unwrap();
+    target.save().unwrap();
+    target
+  }
+
+  /// 目录内容 + 大小 + mtime 快照：dry-run / 幂等断言「一个字节都没写、mtime 都没变」。
+  fn snapshot_dir(
+    dir: &std::path::Path,
+  ) -> BTreeMap<std::path::PathBuf, (u128, u64, Vec<u8>)> {
+    fn walk(
+      base: &std::path::Path,
+      current: &std::path::Path,
+      out: &mut BTreeMap<std::path::PathBuf, (u128, u64, Vec<u8>)>,
+    ) {
+      let mut entries: Vec<_> = std::fs::read_dir(current)
+        .unwrap()
+        .map(|entry| entry.unwrap())
+        .collect();
+      entries.sort_by_key(|entry| entry.path());
+      for entry in entries {
+        let path = entry.path();
+        if path.is_dir() {
+          walk(base, &path, out);
+        } else {
+          let metadata = std::fs::metadata(&path).unwrap();
+          let modified = metadata
+            .modified()
+            .unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+          let bytes = std::fs::read(&path).unwrap();
+          out.insert(
+            path.strip_prefix(base).unwrap().to_path_buf(),
+            (modified, metadata.len(), bytes),
+          );
+        }
+      }
+    }
+    let mut out = BTreeMap::new();
+    walk(dir, dir, &mut out);
+    out
+  }
+
+  #[test]
+  fn backup_export_writes_single_file_and_counts_skipped_assets() {
+    let dir = scratch_dir("backup-export");
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+      let fixture = seed_backup_source(&dir);
+      // 单文件：<数据目录>/backups/kettd-backup-<本地时间戳>.kettdbackup
+      let backup_dir = dir.join("backups");
+      let names: Vec<String> = std::fs::read_dir(&backup_dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+      assert_eq!(names, vec!["kettd-backup-20260905-090000.kettdbackup"]);
+      let path = backup_dir.join(&names[0]);
+      assert!(path.is_absolute());
+      assert_eq!(fixture.result.path, path.to_string_lossy());
+      assert_eq!(fixture.result.bytes, fixture.payload.len());
+      assert_eq!(std::fs::read(&path).unwrap().len(), fixture.result.bytes);
+      // 组装计数：任务 3 + 提醒 3 + 便签 1 + 知识条目 5 = 12；文件夹不计数
+      assert_eq!(fixture.result.item_count, 12);
+      assert_eq!(fixture.result.asset_count, 2);
+      assert_eq!(fixture.result.skipped, 1, "缺失资源只计 skipped，不阻断导出");
+
+      // 备份包可被 parse_backup 回读，结构 / 头字段 / 内容齐全
+      let parsed = backup::parse_backup(&fixture.payload).expect("导出的备份应能回读");
+      assert_eq!(parsed.file.format, "kettd-backup");
+      assert_eq!(parsed.file.format_version, 1);
+      assert_eq!(parsed.file.app_version, "9.9.9-test");
+      assert_eq!(parsed.file.exported_at, "2026-09-05T09:00");
+      assert_eq!(parsed.file.data.tasks.len(), 3);
+      assert_eq!(parsed.file.data.reminders.len(), 3);
+      assert_eq!(parsed.file.data.stickies.len(), 1);
+      assert_eq!(parsed.file.data.settings["theme"], "dark");
+      assert_eq!(parsed.file.kb.items.len(), 5);
+      assert_eq!(parsed.file.kb.folders.len(), 3);
+      // 只导出正文引用到的资源；缺失引用不出现、也不算坏包
+      assert_eq!(parsed.asset_count(), 2);
+      assert_eq!(parsed.reusable_asset_count(), 2);
+      assert!(parsed.asset(&fixture.reuse_sha, "png").is_some());
+      assert!(parsed.asset(&fixture.new_sha, "webp").is_some());
+      assert!(parsed.asset(&fixture.missing_sha, "png").is_none());
+      // 导出是纯读：不写 data.json / notes.json，也不轮转
+      assert!(!dir.join("data.json").exists());
+      assert!(!dir.join("notes.json").exists());
+      assert!(!dir.join("notes").exists());
+      assert!(!dir.join("data.json.bak-1").exists());
+    }));
+    let _ = std::fs::remove_dir_all(&dir);
+    if let Err(panic) = result {
+      std::panic::resume_unwind(panic);
+    }
+  }
+
+  #[test]
+  fn backup_import_dry_run_reports_without_writing() {
+    let source_dir = scratch_dir("backup-dry-src");
+    let target_dir = scratch_dir("backup-dry-dst");
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+      let fixture = seed_backup_source(&source_dir);
+      let mut target = seed_backup_target(&target_dir);
+      let files_before = snapshot_dir(&target_dir);
+      let tasks_before = target.data.tasks.clone();
+      let reminders_before = target.data.reminders.clone();
+      let kb_before = target.kb.clone();
+      let folders_before = target.folders.clone();
+      let settings_before = target.data.settings.clone();
+      let stickies_before = target.data.stickies.clone();
+
+      let report = target
+        .import_backup_from_payload(&fixture.payload, true, "2026-09-05T09:00")
+        .expect("dry-run 不应失败");
+      assert!(report.dry_run, "dry-run 必须在报告里标记");
+      assert_eq!(
+        report.added, 6,
+        "新增 = 四类 Add（提醒 1 + 知识 2 + 文件夹 1）+ 2 个冲突副本"
+      );
+      assert_eq!(report.updated, 2, "备份较新的任务 / 知识条目各一条覆盖");
+      assert_eq!(report.conflicts, 2, "同刻不同内容 = 任务 1 + 知识条目 1");
+      assert_eq!(report.skipped, 6, "本地较新 / 指纹相同 / 提醒与文件夹冲突降级");
+      assert_eq!(report.asset_added, 1);
+      assert_eq!(report.asset_reused, 1);
+      assert_eq!(
+        report.conflict_titles,
+        vec!["冲突任务".to_string(), "冲突条目".to_string()],
+        "冲突标题按本地顺序：任务在前、知识条目在后"
+      );
+
+      // dry-run 一个文件都不许写（内容 + 大小 + mtime 全等），内存也不许动
+      assert_eq!(
+        snapshot_dir(&target_dir),
+        files_before,
+        "dry-run 必须零写盘（含 mtime）"
+      );
+      assert_eq!(target.data.tasks, tasks_before);
+      assert_eq!(target.data.reminders, reminders_before);
+      assert_eq!(target.kb, kb_before);
+      assert_eq!(target.folders, folders_before);
+      assert_eq!(target.data.settings, settings_before);
+      assert_eq!(target.data.stickies, stickies_before);
+    }));
+    let _ = std::fs::remove_dir_all(&source_dir);
+    let _ = std::fs::remove_dir_all(&target_dir);
+    if let Err(panic) = result {
+      std::panic::resume_unwind(panic);
+    }
+  }
+
+  #[test]
+  fn backup_import_applies_merge_matrix_on_disk() {
+    let source_dir = scratch_dir("backup-apply-src");
+    let target_dir = scratch_dir("backup-apply-dst");
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+      let fixture = seed_backup_source(&source_dir);
+      let mut target = seed_backup_target(&target_dir);
+      let settings_before = target.data.settings.clone();
+      let stickies_before = target.data.stickies.clone();
+
+      let report = target
+        .import_backup_from_payload(&fixture.payload, false, "2026-09-05T09:00")
+        .expect("导入不应失败");
+      assert!(!report.dry_run);
+      assert_eq!(
+        (report.added, report.updated, report.conflicts, report.skipped),
+        (6, 2, 2, 6)
+      );
+      assert_eq!((report.asset_added, report.asset_reused), (1, 1));
+
+      // 任务：较新覆盖 / 本地较新跳过 / 冲突保留本地并生成副本 / 本地独有不删
+      let task = |id: &str| target.data.tasks.iter().find(|task| task.id == id).unwrap();
+      assert_eq!(task("t-upd").title, "备份标题", "备份较新 → 覆盖");
+      assert_eq!(task("t-skip").title, "本地较新", "本地较新 → 跳过");
+      assert_eq!(task("t-conflict").title, "冲突任务", "冲突保留本地");
+      assert_eq!(task("t-conflict").note, "本地备注");
+      assert_eq!(task("t-local").title, "本地独有", "本地独有不删");
+      let task_copy = target
+        .data
+        .tasks
+        .iter()
+        .find(|task| task.title == "冲突任务（导入冲突）")
+        .expect("冲突任务应生成副本");
+      assert_ne!(task_copy.id, "t-conflict");
+      assert_eq!(task_copy.updated_at, "2026-09-05T09:00");
+      assert_eq!(target.data.tasks.len(), 5);
+
+      // 提醒：新增；提醒冲突只保留本地（skip）
+      assert_eq!(target.data.reminders.len(), 3);
+      assert!(target.data.reminders.iter().any(|item| item.id == "r-new"));
+      let reminder_conflict = target
+        .data
+        .reminders
+        .iter()
+        .find(|item| item.id == "r-conflict")
+        .unwrap();
+      assert_eq!(reminder_conflict.title, "本地提醒", "提醒冲突保留本地");
+
+      // 知识条目：覆盖 / 跳过 / 冲突副本 / 本地已删补回 / 带图条目新增
+      let kb = |id: &str| target.kb.iter().find(|item| item.id == id).unwrap();
+      assert_eq!(kb("k-upd").title, "备份版本");
+      assert_eq!(kb("k-upd").body_md, "备份正文");
+      assert_eq!(
+        kb("k-upd").content_hash.as_deref(),
+        Some(kb_hash("备份正文").as_str())
+      );
+      assert_eq!(kb("k-skip").title, "本地较新");
+      assert_eq!(kb("k-conflict").body_md, "本地冲突正文");
+      assert_eq!(kb("k-local").title, "本地独有");
+      assert_eq!(kb("k-deleted").title, "本地已删");
+      assert_eq!(kb("k-assets").title, "带图条目");
+      let kb_copy = target
+        .kb
+        .iter()
+        .find(|item| item.title == "冲突条目（导入冲突）")
+        .expect("冲突条目应生成副本");
+      assert_eq!(kb_copy.body_md, "备份冲突正文");
+      assert_eq!(target.kb.len(), 7);
+
+      // 文件夹：新增 / 相同跳过 / 冲突降级 Skip 保留本地 / 本地独有不删
+      let folder = |id: &str| target.folders.iter().find(|folder| folder.id == id).unwrap();
+      assert_eq!(folder("f-new").name, "新文件夹");
+      assert_eq!(folder("f-same").name, "相同文件夹");
+      assert_eq!(folder("f-conflict").name, "本地文件夹名");
+      assert_eq!(folder("f-local").name, "本地独有文件夹");
+      assert_eq!(target.folders.len(), 4);
+
+      // 设置与便签不参与合并，导入一律不覆盖
+      assert_eq!(target.data.settings, settings_before, "设置不覆盖");
+      assert_eq!(target.data.stickies, stickies_before, "便签不覆盖");
+
+      // 落盘顺序可观察结果：正文文件、索引（无内联正文）、资源、data.json 都在
+      let body = std::fs::read_to_string(target_dir.join("notes").join("k-upd.md")).unwrap();
+      assert_eq!(body, "备份正文");
+      assert!(target_dir.join("notes").join("k-deleted.md").exists());
+      let index: Value =
+        serde_json::from_str(&std::fs::read_to_string(target_dir.join("notes.json")).unwrap())
+          .unwrap();
+      let entry = index
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["id"] == "k-upd")
+        .unwrap();
+      assert_eq!(entry["title"], "备份版本");
+      assert_eq!(entry["contentHash"].as_str(), Some(kb_hash("备份正文").as_str()));
+      assert!(
+        entry.get("bodyMd").is_none() && entry.get("body_md").is_none(),
+        "索引不得内联正文"
+      );
+      assert!(target_dir
+        .join("assets")
+        .join(format!("{}.webp", fixture.new_sha))
+        .exists());
+      assert!(target_dir
+        .join("assets")
+        .join(format!("{}.png", fixture.reuse_sha))
+        .exists());
+      assert!(target_dir.join("data.json").exists());
+      // 导入不产生新的备份包（备份文件只在导出一侧）
+      let extra_backups = std::fs::read_dir(target_dir.join("backups"))
+        .map(|entries| entries.count())
+        .unwrap_or(0);
+      assert_eq!(extra_backups, 0);
+    }));
+    let _ = std::fs::remove_dir_all(&source_dir);
+    let _ = std::fs::remove_dir_all(&target_dir);
+    if let Err(panic) = result {
+      std::panic::resume_unwind(panic);
+    }
+  }
+
+  #[test]
+  fn backup_import_is_idempotent_on_second_run() {
+    let source_dir = scratch_dir("backup-idem-src");
+    let target_dir = scratch_dir("backup-idem-dst");
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+      let fixture = seed_backup_source(&source_dir);
+      let mut target = seed_backup_target(&target_dir);
+      let first = target
+        .import_backup_from_payload(&fixture.payload, false, "2026-09-05T09:00")
+        .expect("首次导入不应失败");
+      assert_eq!((first.added, first.updated, first.conflicts), (6, 2, 2));
+      let files_after_first = snapshot_dir(&target_dir);
+      let tasks_after_first = target.data.tasks.clone();
+      let kb_after_first = target.kb.clone();
+
+      let second = target
+        .import_backup_from_payload(&fixture.payload, false, "2026-09-05T09:00")
+        .expect("第二次导入不应失败");
+      assert_eq!(
+        (second.added, second.updated, second.conflicts),
+        (0, 0, 0),
+        "同 payload 第二次导入全部 Skip（冲突副本不再生成）"
+      );
+      assert_eq!(second.skipped, 14, "备份内 14 条条目第二次全部计入 skipped");
+      assert_eq!((second.asset_added, second.asset_reused), (0, 2));
+      assert!(!second.dry_run);
+
+      // 零写盘：目录内容 / 大小 / mtime 与首次应用后完全一致
+      assert_eq!(
+        snapshot_dir(&target_dir),
+        files_after_first,
+        "第二次导入不得产生二次副作用"
+      );
+      assert_eq!(target.data.tasks, tasks_after_first);
+      assert_eq!(target.kb, kb_after_first);
+      assert_eq!(
+        target
+          .data
+          .tasks
+          .iter()
+          .filter(|task| task.title == "冲突任务（导入冲突）")
+          .count(),
+        1,
+        "冲突副本不得重复生成"
+      );
+      assert_eq!(
+        target
+          .kb
+          .iter()
+          .filter(|item| item.title == "冲突条目（导入冲突）")
+          .count(),
+        1,
+        "知识条目冲突副本不得重复生成"
+      );
+    }));
+    let _ = std::fs::remove_dir_all(&source_dir);
+    let _ = std::fs::remove_dir_all(&target_dir);
     if let Err(panic) = result {
       std::panic::resume_unwind(panic);
     }

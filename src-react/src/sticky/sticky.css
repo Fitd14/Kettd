@@ -1,7 +1,7 @@
-/* 便签视觉（便签规格 §5 + §12.1）：现代便签——暖纸、圆角、柔和阴影、小图钉、右下折角。
-   纸色只改 --sticky-paper / --sticky-strip / --sticky-ink 三个变量；
-   分类色 --cat-* 与强调 --sticky-accent 不随纸色变（信息一致）。
-   暗色保持暖纸调不转冷灰；paper=ink 为暗色默认，亮色下也可手选。 */
+﻿/* 渚跨瑙嗚锛堜究绛捐鏍?搂5 + 搂12.1锛夛細鐜颁唬渚跨鈥斺€旀殩绾搞€佸渾瑙掋€佹煍鍜岄槾褰便€佸皬鍥鹃拤銆佸彸涓嬫姌瑙掋€?
+   绾歌壊鍙敼 --sticky-paper / --sticky-strip / --sticky-ink 涓変釜鍙橀噺锛?
+   鍒嗙被鑹?--cat-* 涓庡己璋?--sticky-accent 涓嶉殢绾歌壊鍙橈紙淇℃伅涓€鑷达級銆?
+   鏆楄壊淇濇寔鏆栫焊璋冧笉杞喎鐏帮紱paper=ink 涓烘殫鑹查粯璁わ紝浜壊涓嬩篃鍙墜閫夈€?*/
 
 .sticky-note {
   --sticky-accent: hsl(38 62% 55%);
@@ -19,13 +19,13 @@
   background: var(--sticky-paper);
   color: var(--sticky-ink);
   box-shadow: 0 6px 24px hsl(30 10% 20% / 0.18), 0 1px 3px hsl(30 10% 20% / 0.12);
-  font-family: 'Microsoft YaHei', system-ui, sans-serif;
+  font-family: var(--font-ui);
   overflow: hidden;
   transition: opacity 180ms ease-out;
 }
 
-/* 移出淡化（AC4）：不透明度由设置 stickyFadeOpacity 驱动（CSS 变量注入，默认 38%），
-   仍可扫读、不拦截语义——窗口整体弱化。设置 sticky_fade=false 时前端不加 .faded */
+/* 绉诲嚭娣″寲锛圓C4锛夛細涓嶉€忔槑搴︾敱璁剧疆 stickyFadeOpacity 椹卞姩锛圕SS 鍙橀噺娉ㄥ叆锛岄粯璁?38%锛夛紝
+   浠嶅彲鎵銆佷笉鎷︽埅璇箟鈥斺€旂獥鍙ｆ暣浣撳急鍖栥€傝缃?sticky_fade=false 鏃跺墠绔笉鍔?.faded */
 .sticky-note.faded {
   opacity: var(--sticky-fade-opacity, 38%);
 }
@@ -35,7 +35,7 @@
   }
 }
 
-/* 四套预设纸色（规格 §12.1） */
+/* 鍥涘棰勮绾歌壊锛堣鏍?搂12.1锛?*/
 .sticky-note.paper-kraft {
   --sticky-paper: hsl(34 45% 78%);
   --sticky-strip: hsl(33 38% 72%);
@@ -46,7 +46,7 @@
   --sticky-strip: hsl(190 32% 82%);
   --sticky-ink: hsl(200 25% 18%);
 }
-/* 暗墨：低光/夜间，文字转浅（独立于 light/dark 系统主题） */
+/* 鏆楀ⅷ锛氫綆鍏?澶滈棿锛屾枃瀛楄浆娴咃紙鐙珛浜?light/dark 绯荤粺涓婚锛?*/
 .sticky-note.paper-ink {
   --sticky-paper: hsl(40 12% 16%);
   --sticky-strip: hsl(40 10% 21%);
@@ -62,8 +62,8 @@
   --sticky-muted: hsl(40 12% 62%);
 }
 
-/* Bug① 修复：透明窗内点击后按钮失效的根因 —— 交互层与装饰层的事件归属。
-   显式声明：容器/按钮/输入 auto，花纹与折角层 none，杜绝兄弟层吞 mousedown。 */
+/* Bug鈶?淇锛氶€忔槑绐楀唴鐐瑰嚮鍚庢寜閽け鏁堢殑鏍瑰洜 鈥斺€?浜や簰灞備笌瑁呴グ灞傜殑浜嬩欢褰掑睘銆?
+   鏄惧紡澹版槑锛氬鍣?鎸夐挳/杈撳叆 auto锛岃姳绾逛笌鎶樿灞?none锛屾潨缁濆厔寮熷眰鍚?mousedown銆?*/
 .sticky-note,
 .sticky-strip,
 .sticky-body,
@@ -76,7 +76,7 @@
   pointer-events: auto;
 }
 
-/* 纸面花纹（sticky-background-pattern.md）：水印级 SVG，贴纸面、不随列表滚动、永不抢文字 */
+/* 绾搁潰鑺辩汗锛坰ticky-background-pattern.md锛夛細姘村嵃绾?SVG锛岃创绾搁潰銆佷笉闅忓垪琛ㄦ粴鍔ㄣ€佹案涓嶆姠鏂囧瓧 */
 .sticky-pattern {
   position: absolute;
   inset: 0;
@@ -117,7 +117,7 @@
 .dark .sticky-note {
   --sticky-seal: hsl(4 72% 62%);
 }
-/* 列表层抬到花纹之上 */
+/* 鍒楄〃灞傛姮鍒拌姳绾逛箣涓?*/
 .sticky-strip,
 .sticky-body {
   position: relative;
@@ -128,7 +128,7 @@
   pointer-events: none;
 }
 
-/* 顶部胶条：自绘标题（无边框窗），可拖拽 */
+/* 椤堕儴鑳舵潯锛氳嚜缁樻爣棰橈紙鏃犺竟妗嗙獥锛夛紝鍙嫋鎷?*/
 .sticky-strip {
   display: flex;
   align-items: center;
@@ -141,7 +141,7 @@
 .sticky-head {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-sub);
   color: var(--sticky-muted);
   letter-spacing: 0.02em;
 }
@@ -156,7 +156,7 @@
   color: var(--sticky-muted);
   border-radius: 8px;
   padding: 3px 7px;
-  font-size: 13px;
+  font-size: var(--fs-body);
   cursor: pointer;
 }
 .sticky-btn:hover {
@@ -164,7 +164,7 @@
   color: var(--sticky-ink);
 }
 .sticky-btn.pin.on {
-  /* 固定态：琥珀底 chip + 墨色图标——纯琥珀 icon 对暖纸仅 ~2.2:1，不达 1.4.11 */
+  /* 鍥哄畾鎬侊細鐞ョ弨搴?chip + 澧ㄨ壊鍥炬爣鈥斺€旂函鐞ョ弨 icon 瀵规殩绾镐粎 ~2.2:1锛屼笉杈?1.4.11 */
   color: var(--sticky-ink);
   background: color-mix(in srgb, var(--sticky-accent) 38%, transparent);
 }
@@ -188,11 +188,11 @@
 .sticky-row:hover {
   background: hsl(0 0% 50% / 0.10);
 }
-/* 行间发丝线（sticky-row-ui-polish 方案 A）：相邻行才有，首上/末下自然无线 */
+/* 琛岄棿鍙戜笣绾匡紙sticky-row-ui-polish 鏂规 A锛夛細鐩搁偦琛屾墠鏈夛紝棣栦笂/鏈笅鑷劧鏃犵嚎 */
 .sticky-row + .sticky-row {
   border-top: 1px solid color-mix(in srgb, var(--sticky-ink) 9%, transparent);
 }
-/* 完成态行的分割线淡至 6%：已完成行整体更「退后」（两侧任一为完成态即生效） */
+/* 瀹屾垚鎬佽鐨勫垎鍓茬嚎娣¤嚦 6%锛氬凡瀹屾垚琛屾暣浣撴洿銆岄€€鍚庛€嶏紙涓や晶浠讳竴涓哄畬鎴愭€佸嵆鐢熸晥锛?*/
 .sticky-row:has(.tcheck:checked) + .sticky-row,
 .sticky-row + .sticky-row:has(.tcheck:checked) {
   border-top-color: color-mix(in srgb, var(--sticky-ink) 6%, transparent);
@@ -212,7 +212,7 @@
   border: 0;
   background: transparent;
   padding: 0;
-  font-size: 13px;
+  font-size: var(--fs-body);
   color: var(--sticky-ink);
   cursor: pointer;
   overflow: hidden;
@@ -220,13 +220,13 @@
   white-space: nowrap;
 }
 .sticky-title:hover {
-  /* hover 反馈由整行淡底色承担；下划线与「现代便签」纸面语言不符，已移除 */
+  /* hover 鍙嶉鐢辨暣琛屾贰搴曡壊鎵挎媴锛涗笅鍒掔嚎涓庛€岀幇浠ｄ究绛俱€嶇焊闈㈣瑷€涓嶇锛屽凡绉婚櫎 */
   text-decoration: none;
 }
 .sticky-carry {
   margin-left: 6px;
-  font-size: 11px;
-  /* 琥珀文字对纸面最低仅 1.5:1 → 文字用墨色 + 琥珀浅底徽章（1.4.3） */
+  font-size: var(--fs-meta);
+  /* 鐞ョ弨鏂囧瓧瀵圭焊闈㈡渶浣庝粎 1.5:1 鈫?鏂囧瓧鐢ㄥⅷ鑹?+ 鐞ョ弨娴呭簳寰界珷锛?.4.3锛?*/
   color: var(--sticky-ink);
   background: color-mix(in srgb, var(--sticky-accent) 26%, transparent);
   border: 1px solid color-mix(in srgb, var(--sticky-accent) 55%, transparent);
@@ -239,7 +239,7 @@
   background: transparent;
   color: var(--sticky-muted);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-body);
   border-radius: 6px;
   padding: 0 5px;
 }
@@ -256,7 +256,7 @@
 .sticky-empty {
   margin: auto;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--fs-body);
   color: var(--sticky-muted);
   line-height: 1.9;
 }
@@ -267,7 +267,7 @@
   background: hsl(0 0% 50% / 0.08);
 }
 
-/* 右下折角：轻隐喻（规格 §5），非复古铺陈；折角阴影用 strip 深一档而非白 */
+/* 鍙充笅鎶樿锛氳交闅愬柣锛堣鏍?搂5锛夛紝闈炲鍙ら摵闄堬紱鎶樿闃村奖鐢?strip 娣变竴妗ｈ€岄潪鐧?*/
 .sticky-fold {
   position: absolute;
   right: 0;
@@ -278,21 +278,21 @@
   border-bottom-right-radius: var(--r-lg, 12px);
 }
 
-/* 完成 = 置灰删除线（规格 §4） */
+/* 瀹屾垚 = 缃伆鍒犻櫎绾匡紙瑙勬牸 搂4锛?*/
 .sticky-row:has(.tcheck:checked) .sticky-title {
   color: var(--sticky-muted);
   text-decoration: line-through;
 }
 
-/* Bug② 修复：html 必须同 body 一起透明 —— WebView 默认白底会透过
-   圆角外缘露出，暗色模式下就是一圈白边框（与 capture.css 写法对齐） */
+/* Bug鈶?淇锛歨tml 蹇呴』鍚?body 涓€璧烽€忔槑 鈥斺€?WebView 榛樿鐧藉簳浼氶€忚繃
+   鍦嗚澶栫紭闇插嚭锛屾殫鑹叉ā寮忎笅灏辨槸涓€鍦堢櫧杈规锛堜笌 capture.css 鍐欐硶瀵归綈锛?*/
 html,
 body {
   margin: 0;
   background: transparent;
 }
 
-/* 自由便签：一张纸，点击即写（multi-sticky-spec §2） */
+/* 鑷敱渚跨锛氫竴寮犵焊锛岀偣鍑诲嵆鍐欙紙multi-sticky-spec 搂2锛?*/
 .sticky-free {
   width: 100%;
   min-height: 300px;
@@ -301,7 +301,7 @@ body {
   resize: none;
   padding: 4px 2px;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-body);
   line-height: 1.8;
   color: var(--sticky-ink);
   outline: none;
@@ -309,7 +309,7 @@ body {
 .sticky-free::placeholder {
   color: var(--sticky-muted);
 }
-/* 点击文本区外部 = 先 blur 再放行给按钮：编辑后按钮立即可点 */
+/* 鐐瑰嚮鏂囨湰鍖哄閮?= 鍏?blur 鍐嶆斁琛岀粰鎸夐挳锛氱紪杈戝悗鎸夐挳绔嬪嵆鍙偣 */
 .sticky-free:focus {
   outline: 1px solid color-mix(in srgb, var(--sticky-accent) 55%, transparent);
   outline-offset: -1px;
@@ -320,9 +320,9 @@ body {
   color: var(--sticky-muted);
 }
 
-/* ---- 缩小态：置顶悬浮文本条（sticky-separation）----
-   380×40 一条纸：⠿ 拖动 + 正文第一行（点击展开）+ ✕ 销毁。
-   圆角略收、阴影保持悬浮感；is-mini 不参与移出淡化（一条 40px 的条淡到 38% 就找不到了）。 */
+/* ---- 缂╁皬鎬侊細缃《鎮诞鏂囨湰鏉★紙sticky-separation锛?---
+   380脳40 涓€鏉＄焊锛氣牽 鎷栧姩 + 姝ｆ枃绗竴琛岋紙鐐瑰嚮灞曞紑锛? 鉁?閿€姣併€?
+   鍦嗚鐣ユ敹銆侀槾褰变繚鎸佹偓娴劅锛沬s-mini 涓嶅弬涓庣Щ鍑烘贰鍖栵紙涓€鏉?40px 鐨勬潯娣″埌 38% 灏辨壘涓嶅埌浜嗭級銆?*/
 .sticky-note.is-mini {
   flex-direction: row;
   align-items: center;
@@ -354,7 +354,7 @@ body {
   border-radius: 8px;
   background: transparent;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-sub);
   text-align: left;
   color: var(--sticky-ink);
   white-space: nowrap;
@@ -369,7 +369,7 @@ body {
   outline: 1px solid color-mix(in srgb, var(--sticky-accent) 55%, transparent);
 }
 
-/* ─── 知识便签失效态（qa-14：便签窗 bundle 无 kb.css，自带居中样式）─────────── */
+/* 鈹€鈹€鈹€ 鐭ヨ瘑渚跨澶辨晥鎬侊紙qa-14锛氫究绛剧獥 bundle 鏃?kb.css锛岃嚜甯﹀眳涓牱寮忥級鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 .sticky-invalid-body {
   flex: 1;
   display: flex;
@@ -382,10 +382,10 @@ body {
 .sticky-invalid-body .sticky-md-btn {
   height: 28px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: var(--fs-sub);
 }
 
-/* ─── MD 渲染开关（真机修复：便签窗无 app.css，btn 类不生效 → 自带样式）──────── */
+/* 鈹€鈹€鈹€ MD 娓叉煋寮€鍏筹紙鐪熸満淇锛氫究绛剧獥鏃?app.css锛宐tn 绫讳笉鐢熸晥 鈫?鑷甫鏍峰紡锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 .sticky-md-btn {
   height: 22px;
   padding: 0 7px;
@@ -393,7 +393,7 @@ body {
   border-radius: 5px;
   background: transparent;
   color: var(--sticky-muted);
-  font-size: 10px;
+  font-size: var(--fs-meta);
   font-weight: 700;
   letter-spacing: 0.5px;
   cursor: pointer;
@@ -411,8 +411,8 @@ body {
   color: #fff;
 }
 
-/* ─── 知识便签（Phase 2）─────────────────────────────────────────────────── */.sticky-note.knowledge-sticky {
-  /* 知识便签纸色略深一档（视觉暗示「这是知识」） */
+/* 鈹€鈹€鈹€ 鐭ヨ瘑渚跨锛圥hase 2锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */.sticky-note.knowledge-sticky {
+  /* 鐭ヨ瘑渚跨绾歌壊鐣ユ繁涓€妗ｏ紙瑙嗚鏆楃ず銆岃繖鏄煡璇嗐€嶏級 */
   --sticky-paper: hsl(44 35% 93%);
   --sticky-strip: hsl(44 28% 88%);
 }
@@ -426,7 +426,7 @@ body {
 .sticky-note.knowledge-sticky .sticky-head {
   font-weight: 500;
 }
-/* 知识便签编辑器填满可用空间 */
+/* 鐭ヨ瘑渚跨缂栬緫鍣ㄥ～婊″彲鐢ㄧ┖闂?*/
 .sticky-note.knowledge-sticky .sticky-body {
   flex: 1;
   overflow-y: auto;

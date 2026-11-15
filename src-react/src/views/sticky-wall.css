@@ -1,0 +1,174 @@
+/* 便签卡片墙（OpenSpec sticky-shell-polish D1 / tasks 2.8）。
+   只用全局语义令牌：亮暗两主题自动跟随，不呈现纸色/花纹（那是便签窗的事）。
+   卡片仅在 hover / :focus-within 浮起，动效 140ms（≤160ms）。 */
+
+.sticky-wall {
+  font-size: var(--fs-body, 14px);
+}
+
+.sticky-wall .view-title {
+  font-size: var(--fs-masthead, 22px);
+}
+
+.sticky-wall .view-sub {
+  font-size: var(--fs-sub, 12.5px);
+}
+
+.sticky-wall-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.sticky-wall-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.sticky-wall-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.sticky-wall-search {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 0 1 280px;
+  min-width: 180px;
+  color: hsl(var(--muted-foreground));
+}
+
+.sticky-wall-search .input {
+  flex: 1 1 auto;
+}
+
+.sticky-wall-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--sp-3);
+}
+
+.sticky-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-4);
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--r-lg);
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  transition: transform 140ms ease-out, box-shadow 140ms ease-out, border-color 140ms ease-out;
+}
+
+.sticky-card:hover,
+.sticky-card:focus-within {
+  transform: translateY(-2px);
+  border-color: hsl(var(--ring) / 0.4);
+  box-shadow: var(--shadow-md);
+}
+
+.sticky-card.is-hidden {
+  background: hsl(var(--muted) / 0.35);
+}
+
+.sticky-card-top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+}
+
+.sticky-card-top .badge {
+  font-size: var(--fs-meta, 11px);
+}
+
+.sticky-status-hidden {
+  color: hsl(var(--pri-med));
+  border-color: hsl(var(--pri-med) / 0.45);
+}
+
+.sticky-status-mini {
+  color: hsl(var(--pri-low));
+}
+
+.sticky-card-time {
+  margin-left: auto;
+  font-size: var(--fs-meta, 11px);
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+.sticky-card-preview {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: var(--fs-body, 14px);
+  line-height: 1.55;
+  color: hsl(var(--foreground));
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.sticky-card-source {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  font-size: var(--fs-sub, 12.5px);
+  color: hsl(var(--muted-foreground));
+}
+
+.sticky-card-source-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sticky-card-source.is-missing {
+  color: hsl(var(--destructive));
+}
+
+.sticky-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+}
+
+.sticky-card-actions .btn {
+  font-size: var(--fs-meta, 11px);
+}
+
+.sticky-wall .empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.sticky-wall .empty > .btn {
+  margin-top: var(--sp-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sticky-card {
+    transition: none;
+  }
+
+  .sticky-card:hover,
+  .sticky-card:focus-within {
+    transform: none;
+  }
+}

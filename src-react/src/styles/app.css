@@ -1,6 +1,6 @@
-/* M3 五视图共享样式。全部走 token（index.css 单一来源），组件层禁裸 hex。 */
+/* M3 娴滄棁顫嬮崶鎯у彙娴滎偅鐗卞蹇嬧偓鍌氬弿闁劏铔?token閿涘潟ndex.css 閸楁洑绔撮弶銉︾爱閿涘绱濈紒鍕鐏炲倻顩︾憗?hex閵?*/
 
-/* ---------------- 统一行组件（today-list-ui-spec §A） ---------------- */
+/* ---------------- 缂佺喍绔寸悰宀€绮嶆禒璁圭礄today-list-ui-spec 鎼侫閿?---------------- */
 .trow {
   display: flex;
   align-items: center;
@@ -9,11 +9,26 @@
   border-radius: var(--r-md);
   border: 1px solid transparent;
   position: relative;
+  background: transparent;
+  box-shadow: none;
+  transition: background 150ms ease-out, border-color 150ms ease-out, box-shadow 150ms ease-out, transform 150ms ease-out;
 }
+/* 骞宠创鎬侊細榛樿閫忔槑銆佹棤杈规棤褰憋紱娴捣鍙粰褰撳墠鎸囬拡鎵€鍦?/ 鐒︾偣鎵€鍦ㄧ殑閭ｄ竴琛岋紙浠讳竴甯ц嚦澶氫竴琛岋級銆?*/
 .trow:hover,
-.trow:focus-visible {
-  background: hsl(var(--muted));
+.trow:focus-within {
+  background: hsl(var(--card));
   border-color: hsl(var(--border));
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .trow {
+    transition: none;
+  }
+  .trow:hover,
+  .trow:focus-within {
+    transform: none;
+  }
 }
 .trow:focus-visible {
   outline: 2px solid hsl(var(--ring));
@@ -26,7 +41,7 @@
   accent-color: hsl(var(--muted-foreground));
 }
 
-/* 顺延/滞留：琥珀竖条 + badge，非红 */
+/* 妞ゅ搫娆?濠婄偟鏆€閿涙氨鎯€閻濃偓缁旀牗娼?+ badge閿涘矂娼痪?*/
 .trow-aged::before {
   content: '';
   position: absolute;
@@ -43,10 +58,10 @@
   color: hsl(var(--pri-med));
   border-radius: 999px;
   padding: 1px 6px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
 }
 
-/* ---------------- 基础控件族（vanilla styles.css 移植补齐——M3 React 移植时遗漏，2026-09-08 真机暴露） ---------------- */
+/* ---------------- 閸╄櫣顢呴幒褌娆㈤弮蹇ョ礄vanilla styles.css 缁夌粯顦茬悰銉╃秷閳ユ柡鈧摤3 React 缁夌粯顦查弮鍫曚粣濠曞骏绱?026-09-08 閻喐婧€閺嗘挳婀堕敍?---------------- */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -57,7 +72,7 @@
   background: transparent;
   color: hsl(var(--foreground));
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-sub);
   padding: 3px 9px;
   cursor: pointer;
   transition: background 150ms ease-out, box-shadow 150ms ease-out;
@@ -69,8 +84,8 @@
 .btn.ghost:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
 .btn.danger { color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.4); }
 .btn.danger:hover { background: hsl(var(--destructive) / 0.08); }
-.btn.sm { font-size: 11px; padding: 3px 9px; }
-.btn.xs { font-size: 11px; padding: 2px 7px; }
+.btn.sm { font-size: var(--fs-meta); padding: 3px 9px; }
+.btn.xs { font-size: var(--fs-meta); padding: 2px 7px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 :where(button, [tabindex]):focus-visible {
   outline: 2px solid hsl(var(--ring));
@@ -80,7 +95,7 @@
 
 .input {
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-body);
   min-width: 0;
   padding: 6px 9px;
   border-radius: var(--r-sm);
@@ -96,15 +111,15 @@
   box-shadow: 0 0 0 2px hsl(var(--ring) / 0.18);
 }
 .input.invalid { border-color: hsl(var(--destructive)); box-shadow: 0 0 0 2px hsl(var(--destructive) / 0.18); }
-.input.xs { font-size: 12px; padding: 3px 7px; }
-.input.sm { font-size: 13px; padding: 6px 10px; }
+.input.xs { font-size: var(--fs-sub); padding: 3px 7px; }
+.input.sm { font-size: var(--fs-body); padding: 6px 10px; }
 
-.inline-err { color: hsl(var(--destructive)); font-size: 11px; margin-top: var(--sp-1); }
+.inline-err { color: hsl(var(--destructive)); font-size: var(--fs-meta); margin-top: var(--sp-1); }
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   border-radius: var(--r-pill);
   padding: 1px 8px;
   border: 1px solid hsl(var(--input));
@@ -112,15 +127,15 @@
   background: transparent;
   white-space: nowrap;
 }
-.tiny { font-size: 11px; }
-.sm { font-size: 12px; }
-.mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace; }
-.tmeta { font-size: 11px; color: hsl(var(--muted-foreground)); flex: none; }
+.tiny { font-size: var(--fs-meta); }
+.sm { font-size: var(--fs-sub); }
+.mono { font-family: var(--font-mono); }
+.tmeta { font-size: var(--fs-meta); color: hsl(var(--muted-foreground)); flex: none; }
 .text-muted { color: hsl(var(--muted-foreground)); }
 .row-flex { display: flex; align-items: center; gap: var(--sp-3); }
 kbd {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
   border: 1px solid hsl(var(--input));
   background: hsl(var(--muted));
   border-radius: var(--r-sm);
@@ -140,24 +155,20 @@ kbd {
   flex: none;
   border-radius: 999px;
   padding: 1px 8px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
 }
 
-/* hover 动作浮出：键盘 focus-within 等价 */
+/* hover 閸斻劋缍斿ù顔煎毉閿涙岸鏁惄?focus-within 缁涘鐜?*/
+/* 行尾动作常驻：固定 25px 宽的动作列，常显「⋯」，次要动作在同一列里展开——
+   展开前后行宽不变（列宽恒定），也不再有 opacity: 0 的隐身动作（tasks 4.2）。 */
 .row-actions {
   display: inline-flex;
   gap: 2px;
-  opacity: 0;
-  transition: opacity 120ms ease-out;
-}
-.trow:hover .row-actions,
-.trow:focus-within .row-actions {
+  flex: none;
+  width: 25px;
+  justify-content: center;
   opacity: 1;
-}
-@media (prefers-reduced-motion: reduce) {
-  .row-actions {
-    transition: none;
-  }
+  transition: none;
 }
 
 .schedule-pop {
@@ -167,7 +178,7 @@ kbd {
   padding: 2px 0 2px 8px;
 }
 .input.xs {
-  font-size: 12px;
+  font-size: var(--fs-sub);
   padding: 2px 6px;
   border: 1px solid hsl(var(--border));
   border-radius: var(--r-sm);
@@ -175,7 +186,7 @@ kbd {
   color: hsl(var(--foreground));
 }
 
-/* ---------------- 视图骨架 ---------------- */
+/* ---------------- 鐟欏棗娴樻銊︾仸 ---------------- */
 .view {
   display: flex;
   flex-direction: column;
@@ -184,12 +195,14 @@ kbd {
   overflow-y: auto;
 }
 .view-title {
-  font-size: 18px;
+  font-family: var(--font-serif);
+  font-size: var(--fs-masthead);
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
 }
 .view-sub {
-  font-size: 12px;
+  font-size: var(--fs-sub);
   color: hsl(var(--muted-foreground));
 }
 .section {
@@ -201,12 +214,12 @@ kbd {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-body);
   color: hsl(var(--muted-foreground));
 }
 .section-head b {
   color: hsl(var(--foreground));
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .empty {
@@ -224,14 +237,14 @@ kbd {
   background: hsl(var(--muted));
 }
 
-/* 完成庆祝（今日最后一条完成，轻量 ≤1s） */
+/* 鐎瑰本鍨氭惔鍡欘殺閿涘牅绮栭弮銉︽付閸氬簼绔撮弶鈥崇暚閹存劧绱濇潪濠氬櫤 閳?s閿?*/
 .celebrate {
   padding: var(--sp-8) var(--sp-4);
   text-align: center;
   animation: celebrate-in 600ms ease-out;
 }
 .celebrate .mark {
-  font-size: 34px;
+  font-size: 34px; /* 瑁呴グ绗﹀彿锛堚湏锛夛紝涓嶆槸鏂囧瓧妗ｄ綅锛歵asks 3.1 鏄庣‘淇濈暀 */
 }
 @keyframes celebrate-in {
   from { transform: scale(0.92); opacity: 0; }
@@ -243,7 +256,7 @@ kbd {
   }
 }
 
-/* 逾期折叠行：琥珀温和压力（today-list §B.3/AC3——非红、可见、不隐身） */
+/* 闁偓婀￠幎妯哄綌鐞涘矉绱伴悶銉у绩濞撯晛鎷伴崢瀣閿涘澅oday-list 鎼侭.3/AC3閳ユ柡鈧棃娼痪顫偓浣稿讲鐟欎降鈧椒绗夐梾鎰煩閿?*/
 details.overdue {
   border: 1px solid hsl(var(--pri-med) / 0.45);
   border-radius: var(--r-lg);
@@ -252,17 +265,17 @@ details.overdue {
 details.overdue summary {
   cursor: pointer;
   color: hsl(var(--pri-med));
-  font-size: 13px;
+  font-size: var(--fs-body);
   list-style: none;
 }
 details.overdue summary::before {
-  content: '▸ ';
+  content: '閳?';
 }
 details.overdue[open] summary::before {
-  content: '▾ ';
+  content: '閳?';
 }
 
-/* ---------------- 收件箱：批量栏 + 拖拽落点 ---------------- */
+/* ---------------- 閺€鏈垫缁犳唻绱伴幍褰掑櫤閺?+ 閹锋牗瀚块拃鐣屽仯 ---------------- */
 .batch-bar {
   position: sticky;
   top: 0;
@@ -286,7 +299,7 @@ details.overdue[open] summary::before {
   padding: var(--sp-4);
   text-align: center;
   color: hsl(var(--muted-foreground));
-  font-size: 13px;
+  font-size: var(--fs-body);
   transition: border-color 120ms ease-out, background 120ms ease-out;
 }
 .drop-today.over {
@@ -295,7 +308,7 @@ details.overdue[open] summary::before {
   color: hsl(var(--accent-foreground));
 }
 
-/* ---------------- 撤销 Toast（PRD 6.6 软删 10s） ---------------- */
+/* ---------------- 閹俱倝鏀?Toast閿涘湧RD 6.6 鏉烆垰鍨?10s閿?---------------- */
 .undo-toast {
   position: fixed;
   left: 50%;
@@ -309,7 +322,7 @@ details.overdue[open] summary::before {
   border: 1px solid hsl(var(--border));
   background: hsl(var(--card));
   box-shadow: var(--shadow-lg);
-  font-size: 13px;
+  font-size: var(--fs-body);
   z-index: 50;
 }
 .undo-toast .undo-btn {
@@ -322,7 +335,7 @@ details.overdue[open] summary::before {
 }
 .undo-toast .undo-err {
   color: hsl(var(--destructive));
-  font-size: 12px;
+  font-size: var(--fs-sub);
 }
 .undo-toast .undo-x {
   background: transparent;
@@ -331,10 +344,10 @@ details.overdue[open] summary::before {
   cursor: pointer;
 }
 
-/* ---------------- 应用外壳 ---------------- */
-/* 自定义标题栏（方案B）：main 窗 decorations:false，栏归前端令牌管 ——
-   暗色即时跟随 .dark 类，根除原生栏「系统黑 ≠ 应用暖黑」的色差。
-   拖动/双击最大化靠 data-tauri-drag-region；圆角归 DWM（runtime::watch_main_window_frame）。 */
+/* ---------------- 鎼存梻鏁ゆ径鏍э紦 ---------------- */
+/* 閼奉亜鐣炬稊澶嬬垼妫版ɑ鐖敍鍫熸煙濡楀湐閿涘绱癿ain 缁?decorations:false閿涘本鐖ぐ鎺戝缁旑垯鎶ら悧宀€顓?閳ユ柡鈧?
+   閺嗘澹婇崡铏鐠虹喖娈?.dark 缁紮绱濋弽褰掓珟閸樼喓鏁撻弽蹇嬧偓宀€閮寸紒鐔肩拨 閳?鎼存梻鏁ら弳鏍拨閵嗗秶娈戦懝鎻掓▕閵?
+   閹锋牕濮?閸欏苯鍤張鈧径褍瀵查棃?data-tauri-drag-region閿涙稑娓剧憴鎺戠秺 DWM閿涘澁untime::watch_main_window_frame閿涘鈧?*/
 .app-frame {
   display: flex;
   flex-direction: column;
@@ -354,7 +367,7 @@ details.overdue[open] summary::before {
   display: flex;
   align-items: center;
   padding: 0 var(--sp-3);
-  font-size: 12px;
+  font-size: var(--fs-sub);
   font-weight: 600;
   color: hsl(var(--muted-foreground));
 }
@@ -370,7 +383,7 @@ details.overdue[open] summary::before {
   border: none;
   background: transparent;
   color: hsl(var(--foreground));
-  font-size: 13px;
+  font-size: var(--fs-body);
   line-height: 1;
   cursor: default;
 }
@@ -399,8 +412,10 @@ details.overdue[open] summary::before {
   overflow-y: auto;
 }
 .shell-side .brand {
-  font-size: 15px;
-  font-weight: 700;
+  font-family: var(--font-serif);
+  font-size: var(--fs-body); /* 鎶ュご灏忎竴鍙风殑涓绘爣棰橈紙渚ф爮鍝佺墝瀛楋級 */
+  font-weight: 600;
+  letter-spacing: 0.01em;
   padding: 6px 10px var(--sp-3);
 }
 .side-item {
@@ -409,7 +424,7 @@ details.overdue[open] summary::before {
   gap: 8px;
   padding: 6px 10px;
   border-radius: var(--r-md);
-  font-size: 13px;
+  font-size: var(--fs-body);
   color: hsl(var(--muted-foreground));
   cursor: pointer;
   border: 0;
@@ -428,16 +443,16 @@ details.overdue[open] summary::before {
 }
 .side-item .count {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: hsl(var(--muted-foreground));
 }
-/* 视图图标（#13）：lucide，仅靠图标时 title 提供悬浮提示 */
+/* 鐟欏棗娴橀崶鐐垼閿?13閿涘绱發ucide閿涘奔绮庨棃鐘叉禈閺嶅洦妞?title 閹绘劒绶甸幃顒佽癁閹绘劗銇?*/
 .side-item .side-icon {
   flex: none;
   width: 16px;
   height: 16px;
 }
-/* 收起/展开按钮吸底 */
+/* 閺€鎯版崳/鐏炴洖绱戦幐澶愭尦閸氱绨?*/
 .side-toggle {
   margin-top: auto;
   opacity: 0.8;
@@ -445,12 +460,12 @@ details.overdue[open] summary::before {
 .side-toggle:hover {
   opacity: 1;
 }
-/* 折叠态（#13）：窄轨 56px 仅图标，展开恢复 168px；状态存 localStorage('shell.sideCollapsed') */
+/* 閹舵ê褰旈幀渚婄礄#13閿涘绱扮粣鍕缓 56px 娴犲懎娴橀弽鍥风礉鐏炴洖绱戦幁銏狀槻 168px閿涙稓濮搁幀浣哥摠 localStorage('shell.sideCollapsed') */
 .shell-side.is-collapsed {
   width: 56px;
 }
 .shell-side.is-collapsed .brand {
-  font-size: 13px;
+  font-size: var(--fs-body);
   text-align: center;
   padding: 6px 0 var(--sp-3);
 }
@@ -470,7 +485,7 @@ details.overdue[open] summary::before {
   flex-direction: column;
 }
 
-/* 仅在贴近最小窗宽（minWidth 1024）时才收侧栏（story-7 AC）；原 1280 会在常规窗口宽吞掉菜单文字 */
+/* 娴犲懎婀拹纾嬬箮閺堚偓鐏忓繒鐛ョ€规枻绱檓inWidth 1024閿涘妞傞幍宥嗘暪娓氀勭埉閿涘澃tory-7 AC閿涘绱遍崢?1280 娴兼艾婀敮姝岊潐缁愭褰涚€硅棄鎮堕幒澶庡綅閸楁洘鏋冪€?*/
 @media (max-width: 1040px) {
   .shell-side {
     width: 56px;
@@ -483,7 +498,7 @@ details.overdue[open] summary::before {
   .side-item .count {
     display: none;
   }
-  /* 自动收窄与手动折叠等价，按钮此时无意义 → 隐藏，避免无视觉变化的空点击 */
+  /* 閼奉亜濮╅弨鍓佺崕娑撳孩澧滈崝銊﹀閸欑姷鐡戞禒鍑ょ礉閹稿鎸冲銈嗘閺冪姵鍓版稊?閳?闂呮劘妫岄敍宀勪缉閸忓秵妫ょ憴鍡氼潕閸欐ê瀵查惃鍕敄閻愮懓鍤?*/
   .side-toggle {
     display: none;
   }
@@ -494,7 +509,7 @@ details.overdue[open] summary::before {
   }
 }
 
-/* ---------------- 设置页控件（planned-settings-ui-spec） ---------------- */
+/* ---------------- 鐠佸墽鐤嗘い鍨付娴犺绱檖lanned-settings-ui-spec閿?---------------- */
 .set-row {
   display: flex;
   align-items: center;
@@ -506,7 +521,7 @@ details.overdue[open] summary::before {
   background: hsl(var(--card));
 }
 .set-row > span:first-child {
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .seg {
   display: inline-flex;
@@ -523,7 +538,7 @@ details.overdue[open] summary::before {
   background: transparent;
   border-radius: var(--r-sm);
   padding: 4px 10px;
-  font-size: 12px;
+  font-size: var(--fs-sub);
   color: hsl(var(--muted-foreground));
   cursor: pointer;
   display: inline-flex;
@@ -545,7 +560,7 @@ details.overdue[open] summary::before {
 .paper-cyan { background: hsl(190 45% 88%); }
 .paper-ink { background: hsl(40 12% 16%); }
 
-/* ---------------- 回顾：KPI + 热力图 ---------------- */
+/* ---------------- 閸ョ偤銆愰敍娆縋I + 閻戭厼濮忛崶?---------------- */
 .kpi {
   border: 1px solid hsl(var(--border));
   border-radius: var(--r-lg);
@@ -554,7 +569,7 @@ details.overdue[open] summary::before {
   min-width: 120px;
 }
 .kpi-n {
-  font-size: 22px;
+  font-size: var(--fs-masthead);
   font-weight: 700;
 }
 .heatmap {
@@ -578,13 +593,13 @@ details.overdue[open] summary::before {
   background: hsl(var(--muted));
 }
 .heat-cell.lv-0 { background: hsl(var(--muted)); }
-/* 热力 5 档绿（review-redesign-spec §7 定稿口径）：0 灰底 + 四档绿 */
+/* 閻戭厼濮?5 濡楋絿璞㈤敍鍧甧view-redesign-spec 鎼? 鐎规氨顭堥崣锝呯窞閿涘绱? 閻忔澘绨?+ 閸ユ稒銆傜紒?*/
 .heat-cell.lv-1 { background: var(--heat-1); }
 .heat-cell.lv-2 { background: var(--heat-2); }
 .heat-cell.lv-3 { background: var(--heat-3); }
 .heat-cell.lv-4 { background: var(--heat-4); }
 
-/* ---------------- 计划页 Tabs + 提醒编辑（planned-settings §A） ---------------- */
+/* ---------------- 鐠佲€冲灊妞?Tabs + 閹绘劙鍟嬬紓鏍帆閿涘潷lanned-settings 鎼侫閿?---------------- */
 .tabs {
   display: inline-flex;
   gap: 2px;
@@ -594,7 +609,7 @@ details.overdue[open] summary::before {
   border: 0;
   background: transparent;
   color: hsl(var(--muted-foreground));
-  font-size: 13px;
+  font-size: var(--fs-body);
   padding: 6px 14px;
   cursor: pointer;
   border-bottom: 2px solid transparent;
@@ -609,7 +624,7 @@ details.overdue[open] summary::before {
 }
 .add-rem summary {
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-body);
   color: hsl(var(--muted-foreground));
   padding: 6px 0;
 }
@@ -622,13 +637,13 @@ details.overdue[open] summary::before {
   gap: 8px;
 }
 
-/* 时刻输入：非法值红边（TimeText） */
+/* 閺冭泛鍩㈡潏鎾冲弳閿涙岸娼▔鏇炩偓鑲╁鏉堢櫢绱橳imeText閿?*/
 .time-text.bad {
   border-color: hsl(var(--destructive));
   color: hsl(var(--destructive));
 }
 
-/* ---------------- 行尾「⋯」菜单 + 任务详情层（today-list §A.2） ---------------- */
+/* ---------------- 鐞涘苯鐔妴灞稿閵嗗秷褰嶉崡?+ 娴犺濮熺拠锔藉剰鐏炲偊绱檛oday-list 鎼侫.2閿?---------------- */
 .menu-pop {
   position: absolute;
   right: 8px;
@@ -646,6 +661,18 @@ details.overdue[open] summary::before {
 }
 .trow .menu-pop .btn {
   justify-content: flex-start;
+}
+
+/* 行尾动作列：常驻「⋯」（25px 固定列），次要动作在同一列里展开——
+   展开前后行宽恒定，任一时刻可见的次要动作至多多一行、且互斥（tasks 4.2 / spec §A.2）。 */
+.row-actions-trigger {
+  flex: none;
+  min-width: 25px;
+  justify-content: center;
+}
+.row-actions-secondary {
+  flex: none;
+  white-space: nowrap;
 }
 .row-icon-btn {
   display: inline-flex;
@@ -680,20 +707,20 @@ details.overdue[open] summary::before {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 15px;
+  font-size: var(--fs-body); /* 璇︽儏鏍囬锛屼笌琛屾爣棰樺悓妗?*/
 }
 .detail-grid {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 6px 14px;
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .detail-grid > span:first-child {
   color: hsl(var(--muted-foreground));
 }
 .detail-note {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-body);
   line-height: 1.7;
   border-top: 1px dashed hsl(var(--border));
   padding-top: 8px;
@@ -702,7 +729,7 @@ details.overdue[open] summary::before {
 .detail-list {
   margin: 0;
   padding-left: 18px;
-  font-size: 13px;
+  font-size: var(--fs-body);
   line-height: 1.8;
 }
 .detail-list .did {
@@ -710,7 +737,7 @@ details.overdue[open] summary::before {
   text-decoration: line-through;
 }
 .detail-meta {
-  font-size: 12px;
+  font-size: var(--fs-sub);
 }
 .detail-actions {
   display: flex;
@@ -718,7 +745,7 @@ details.overdue[open] summary::before {
   gap: 8px;
 }
 
-/* ---------------- 今天：捕获入口 + 下一条提醒（today-list §B.1/§B.4） ---------------- */
+/* ---------------- 娴犲﹤銇夐敍姘礋閼惧嘲鍙嗛崣?+ 娑撳绔撮弶鈩冨絹闁辨帪绱檛oday-list 鎼侭.1/鎼侭.4閿?---------------- */
 .capture-bar {
   display: flex;
   align-items: center;
@@ -727,7 +754,7 @@ details.overdue[open] summary::before {
 }
 .next-remind {
   margin-top: 4px;
-  font-size: 13px;
+  font-size: var(--fs-body);
   color: hsl(var(--muted-foreground));
 }
 .next-remind b {
@@ -738,7 +765,7 @@ details.overdue[open] summary::before {
   color: hsl(var(--pri-med));
   border-radius: var(--r-md);
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: var(--fs-body);
   margin: 6px 0;
 }
 .btn.danger {
@@ -747,13 +774,13 @@ details.overdue[open] summary::before {
 }
 .version-line {
   margin-top: 18px;
-  font-size: 12px;
+  font-size: var(--fs-sub);
 }
 
-/* ---------------- 回顾：横向完成时间轴（timeline-component-spec · 卡片化定稿） ----------------
-   每个节点一张 mini 卡（--card 底 + --border 边 + --r-md 圆角），与统计卡同视觉语言；
-   轨道线用容器背景画（attachment:local 随滚动展开、跨全部内容宽），卡片底色遮住、
-   卡片缝隙里露出，圆点骑在卡片顶边正中——缝隙线段 + 顶边圆点即成时间轴序列。 */
+/* ---------------- 閸ョ偤銆愰敍姘崥鎴濈暚閹存劖妞傞梻纾嬮叡閿涘澅imeline-component-spec 璺?閸楋紕澧栭崠鏍х暰缁嬪尅绱?----------------
+   濮ｅ繋閲滈懞鍌滃仯娑撯偓瀵?mini 閸椻槄绱?-card 鎼?+ --border 鏉?+ --r-md 閸﹀棜顫楅敍澶涚礉娑撳海绮虹拋鈥冲幢閸氬矁顫嬬憴澶庮嚔鐟封偓閿?
+   鏉炪劑浜剧痪璺ㄦ暏鐎圭懓娅掗懗灞炬珯閻紮绱檃ttachment:local 闂呭繑绮撮崝銊ョ潔瀵偓閵嗕浇娉曢崗銊╁劥閸愬懎顔愮€规枻绱氶敍灞藉幢閻楀洤绨抽懝鏌ヤ紕娴ｅ繈鈧?
+   閸楋紕澧栫紓婵嬫闁插矂婀堕崙鐚寸礉閸﹀棛鍋ｆ鎴濇躬閸楋紕澧栨い鎯扮珶濮濓絼鑵戦垾鏂衡偓鏃傜闯闂呮瑧鍤庡▓?+ 妞ゆ儼绔熼崷鍡欏仯閸楄櫕鍨氶弮鍫曟？鏉炴潙绨崚妞尖偓?*/
 .ctl {
   display: flex;
   align-items: stretch;
@@ -782,10 +809,10 @@ details.overdue[open] summary::before {
 .ctl-item:hover {
   border-color: hsl(var(--input));
   box-shadow: var(--shadow-sm);
-  transform: translateY(-1px);
+  transform: translateY(-1px); /* 提醒时间轴是横向卡片流，不适用「任一帧至多一张纸」；真机按 4.3 复核 */
 }
 .ctl-time {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: hsl(var(--muted-foreground));
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -797,7 +824,7 @@ details.overdue[open] summary::before {
   width: 12px;
   height: 12px;
   border-radius: 999px;
-  /* 卡片色描边把圆点从轨道线上「摘」出来 */
+  /* 閸楋紕澧栭懝鍙夊伎鏉堣濡搁崷鍡欏仯娴犲氦寤洪柆鎾跺殠娑撳鈧本鎲抽妴宥呭毉閺?*/
   border: 2px solid hsl(var(--card));
   padding: 0;
   cursor: pointer;
@@ -815,14 +842,14 @@ details.overdue[open] summary::before {
   background: hsl(var(--muted));
   border-color: hsl(var(--border));
 }
-/* 分类色圆点：cat-chip 的底色变量（工作红/学习绿/生活蓝） */
+/* 閸掑棛琚懝鎻掓妇閻愮櫢绱癱at-chip 閻ㄥ嫬绨抽懝鎻掑綁闁插骏绱欏銉ょ稊缁?鐎涳缚绡勭紒?閻㈢喐妞块拑婵撶礆 */
 .ctl-dot.cat-work { background: hsl(var(--cat-work)); }
 .ctl-dot.cat-study { background: hsl(var(--cat-study)); }
 .ctl-dot.cat-life { background: hsl(var(--cat-life)); }
 .ctl-title {
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
-/* 「更早」分页卡：虚线边框幽灵卡，与实卡区分 */
+/* 閵嗗本娲块弮鈹库偓宥呭瀻妞ら潧宕遍敍姘虫珓缁捐儻绔熷鍡楄弴閻忛潧宕遍敍灞肩瑢鐎圭偛宕遍崠鍝勫瀻 */
 .ctl-more {
   border-style: dashed;
   justify-content: center;
@@ -837,20 +864,20 @@ details.overdue[open] summary::before {
   }
 }
 
-/* 淡化透明度滑杆（设置页便签卡） */
+/* 濞ｂ€冲闁繑妲戞惔锔界拨閺夊棴绱欑拋鍓х枂妞ゅ吀绌剁粵鎯у幢閿?*/
 .fade-slider {
   width: 120px;
   accent-color: hsl(var(--primary));
 }
 
-/* 清单徽章实底变体（便签清单：待办/自由） */
+/* 濞撳懎宕熷鐣岀彿鐎圭偛绨抽崣妯圭秼閿涘牅绌剁粵鐐閸楁洩绱板鍛/閼奉亞鏁遍敍?*/
 .badge.badge-solid {
   background: hsl(var(--secondary));
   border-color: transparent;
   color: hsl(var(--secondary-foreground));
 }
 
-/* ─── AI 配置表单（Phase 3 + 真机修复）────────────────────────────────── */
+/* 閳光偓閳光偓閳光偓 AI 闁板秶鐤嗙悰銊ュ礋閿涘湧hase 3 + 閻喐婧€娣囶喖顦查敍澶嗘敘閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓 */
 .ai-track {
   display: flex;
   flex-direction: column;
@@ -879,7 +906,7 @@ details.overdue[open] summary::before {
   border-radius: 6px;
   background: hsl(var(--card));
   color: hsl(var(--foreground));
-  font-size: 0.85em;
+  font-size: var(--fs-sub); /* 鍙楁帶杈撳叆妗嗗唴鏂囧瓧锛屼笌 chrome 璇存槑鍚屾。 */
   min-width: 0;
 }
 .ai-grid select:focus,

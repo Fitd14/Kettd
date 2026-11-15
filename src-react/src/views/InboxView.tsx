@@ -123,7 +123,7 @@ export function InboxView({ boot, refresh, undo }: Props) {
     <div className="view">
       <div>
         <div className="view-title">收件箱 · {inboxCount} 条未整理</div>
-        <div className="view-sub">还没安排的事 · 拖到右侧「今天」或用行尾动作处理 · 越久滞留越醒目（琥珀，非红）</div>
+        <div className="view-sub">还没安排的事 · 拖到右侧「今天」或用行尾动作处理 · 越久滞留越醒目</div>
       </div>
 
       {saveErr && <div className="inline-err" role="alert">{saveErr}</div>}

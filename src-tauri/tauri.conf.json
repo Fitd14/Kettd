@@ -23,6 +23,12 @@
       "path": {
         "all": true
       },
+      "protocol": {
+        "asset": true,
+        "assetScope": [
+          "$APPDATA/todo-list/assets/**"
+        ]
+      },
       "window": {
         "all": true
       }

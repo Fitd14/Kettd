@@ -1,23 +1,23 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
-import type { KbFolder, KbItem } from '@/lib/api'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import type { KbItem } from '@/lib/api'
 import { updateKbItem, trackEvent } from '@/lib/api'
-import { Folder, Pin, ClipboardList, Trash2, X, Plus } from 'lucide-react'
+import { Pin, Trash2, X, Plus } from 'lucide-react'
 import { TipTapEditor } from '@/rendering/tiptap-editor'
-import { flattenFolders } from '@/components/kb/kb-folder-tree'
 
 interface Props {
   item: KbItem
   /** 被任务引用数（删除确认提示用，qa-8） */
   refCount?: number
-  /** 文件夹树（任务 #4「所属文件夹」下拉用；缺失时只显示「未分类」） */
-  folders?: KbFolder[]
   onDeleted: (id: string) => void
   /** 可选：贴到桌面 */
   onPin?: (item: KbItem) => void
-  /** 可选：转为待办 */
-  onCreateTask?: (item: KbItem) => void
   /** 保存成功回填：父级就地更新 items，不触发全量重拉（#1 保存闪烁） */
   onSaved?: (item: KbItem) => void
+  /**
+   * 新建即命名 / 右键「打开·重命名」的焦点信号（tasks 2.6）：
+   * 每次自增即请求把焦点放进标题并全选；只消费大于已消费值的信号，不抢用户后续焦点。
+   */
+  focusTitleSignal?: number
 }
 
 /** 本地日期时间戳（YYYY-MM-DDTHH:mm；全链路本地语义字符串，禁止 UTC/ISO-Z，见 AGENTS.md 4.1） */
@@ -34,46 +34,31 @@ function withLocalPatch(base: KbItem, patch: Partial<KbItem>): KbItem {
 
 /**
  * KB 右详情面板（editor-polish-spec：单一即时渲染画布，无阅读/编辑模式）。
- * 布局：动作栏（贴桌面/转待办/删除）→ 标题就地编辑 + 保存指示 + 标签增删 → 常驻 WYSIWYG 画布。
+ * 布局：动作栏（贴桌面/删除）→ 标题就地编辑 + 保存指示 + 标签增删 → 常驻 WYSIWYG 画布。
  * bodyMd 仍是唯一真相——输入防抖 800ms 写回 updateKbItem；保存回包经 onSaved 局部回填父列表。
+ * 动作收敛（tasks 2.7）：「所属文件夹」下拉与「转为待办」已移除，移动走左树右键菜单。
  */
-export function KbItemDetail({ item, refCount = 0, folders = [], onDeleted, onPin, onCreateTask, onSaved }: Props) {
+export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, focusTitleSignal }: Props) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [saveState, setSaveState] = useState<{ saved: boolean; time: string }>({
     saved: true,
     time: formatTime(item.updatedAt),
   })
 
-  // 所属文件夹（任务 #4 条目归属）：选中即时写回；失败显示局部错误，select 由受控值回弹
-  const [folderSaving, setFolderSaving] = useState(false)
-  const [folderError, setFolderError] = useState<string | null>(null)
-  const currentFolderId = item.folderId ?? ''
-  const folderOptions = useMemo(() => flattenFolders(folders), [folders])
-  const currentFolderKnown =
-    currentFolderId === '' || folderOptions.some((f) => f.id === currentFolderId)
-
-  const saveFolder = useCallback(
-    async (folderId: string) => {
-      if (folderSaving) return
-      setFolderSaving(true)
-      setFolderError(null)
-      const result = await updateKbItem(item.id, { folderId })
-      if (result.err) {
-        setFolderSaving(false)
-        setFolderError(result.err)
-        return
-      }
-      setFolderSaving(false)
-      onSaved?.(
-        result.data ?? withLocalPatch(item, { folderId: folderId === '' ? null : folderId }),
-      )
-    },
-    [folderSaving, item, onSaved],
-  )
-
   // 标题就地编辑
   const [title, setTitle] = useState(item.title)
+  const titleInputRef = useRef<HTMLInputElement>(null)
+  /** 已消费的焦点信号：只在信号前进时聚焦，避免重渲染/切条目时抢焦点（初始值=挂载时的信号） */
+  const consumedFocusSignal = useRef(focusTitleSignal ?? 0)
   useEffect(() => { setTitle(item.title) }, [item.id, item.title])
+  useEffect(() => {
+    if (!focusTitleSignal || focusTitleSignal <= consumedFocusSignal.current) return
+    consumedFocusSignal.current = focusTitleSignal
+    const input = titleInputRef.current
+    if (!input) return
+    input.focus()
+    input.select()
+  }, [focusTitleSignal])
 
   const saveTitle = useCallback(async () => {
     const next = title.trim()
@@ -124,17 +109,13 @@ export function KbItemDetail({ item, refCount = 0, folders = [], onDeleted, onPi
   }, [item.id, onDeleted])
 
   return (
-    <div className="kb-detail">
+    // S3 写作区布局：外层 .kb-detail 是纸面与唯一滚动容器，本层是居中手稿栏（宽度/留白见 kb.css）
+    <div className="kb-detail-inner">
       {/* 动作栏 */}
       <div className="kb-detail-toolbar">
         {onPin && (
           <button className="btn xs ghost" onClick={() => onPin(item)} title="贴到桌面">
             <Pin size={13} strokeWidth={1.7} /> 贴到桌面
-          </button>
-        )}
-        {onCreateTask && (
-          <button className="btn xs ghost" onClick={() => onCreateTask(item)} title="转为待办">
-            <ClipboardList size={13} strokeWidth={1.7} /> 转为待办
           </button>
         )}
         <span style={{ flex: 1 }} />
@@ -158,6 +139,7 @@ export function KbItemDetail({ item, refCount = 0, folders = [], onDeleted, onPi
         <div className="kb-title-row">
           <input
             className="kb-title-input"
+            ref={titleInputRef}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={saveTitle}
@@ -206,37 +188,6 @@ export function KbItemDetail({ item, refCount = 0, folders = [], onDeleted, onPi
             </button>
           )}
         </div>
-
-        {/* 所属文件夹（任务 #4：条目归属；"" = 未分类，选中即写回） */}
-        <div className="kb-folder-field">
-          <span className="kb-folder-field-label">
-            <Folder size={12} strokeWidth={1.7} aria-hidden="true" />
-            所属文件夹
-          </span>
-          <select
-            className="kb-folder-select"
-            value={currentFolderId}
-            disabled={folderSaving}
-            aria-label="所属文件夹"
-            onChange={(e) => { void saveFolder(e.target.value) }}
-          >
-            <option value="">未分类</option>
-            {!currentFolderKnown && (
-              <option value={currentFolderId} disabled>
-                未知文件夹
-              </option>
-            )}
-            {folderOptions.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {'\u3000'.repeat(opt.depth) + opt.name}
-              </option>
-            ))}
-          </select>
-          {folderSaving && <span className="kb-folder-saving">保存中…</span>}
-        </div>
-        {folderError && (
-          <div className="kb-folder-field-err" role="alert">{folderError}</div>
-        )}
 
         <div className="kb-meta-sep" />
       </div>

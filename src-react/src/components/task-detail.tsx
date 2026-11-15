@@ -105,7 +105,7 @@ export function TaskDetail({ task, today, onClose, onDelete }: Props) {
 
         {/* KB 挂载资料区 */}
         <div className="detail-section">
-          <span className="detail-label">挂载资料 {kbRefs.length > 0 && `(${kbRefs.length})`}</span>
+          <span className="detail-label">关联资料 {kbRefs.length > 0 && `(${kbRefs.length})`}</span>
           <div className="detail-kb-refs">
             {kbRefs.map((ref) => {
               const item = kbItems.get(ref)
@@ -138,7 +138,7 @@ export function TaskDetail({ task, today, onClose, onDelete }: Props) {
               className="btn xs ghost"
               onClick={() => setShowAttachPicker(true)}
             >
-              + 挂载
+              + 关联条目
             </button>
           </div>
         </div>

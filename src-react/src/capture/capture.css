@@ -1,6 +1,6 @@
-/* capture 快速记录条 · 窗口级样式（M1 React 版）。
-   材质一律走 --vellum-* 令牌（index.css，与 vanilla styles.css 逐字对齐）；
-   窗口专属布局样式在此，组件层禁裸 hex。 */
+﻿/* capture 蹇€熻褰曟潯 路 绐楀彛绾ф牱寮忥紙M1 React 鐗堬級銆?
+   鏉愯川涓€寰嬭蛋 --vellum-* 浠ょ墝锛坕ndex.css锛屼笌 vanilla styles.css 閫愬瓧瀵归綈锛夛紱
+   绐楀彛涓撳睘甯冨眬鏍峰紡鍦ㄦ锛岀粍浠跺眰绂佽８ hex銆?*/
 
 html,
 body,
@@ -8,12 +8,12 @@ body,
   margin: 0;
   padding: 0;
   background: transparent;
-  /* 内容长高先于窗口 set_size 落地（IPC 一帧差），禁滚动条防抖动 */
+  /* 鍐呭闀块珮鍏堜簬绐楀彛 set_size 钀藉湴锛圛PC 涓€甯у樊锛夛紝绂佹粴鍔ㄦ潯闃叉姈鍔?*/
   overflow: hidden;
 }
 
-/* 圆角由 DWM 做（runtime::apply_capture_rounding）：OS 磨砂画在整窗矩形上，
-   CSS 自绘 radius 裁不动它，反而在四角露出方形磨砂斑（vanilla 时代「黑边」教训） */
+/* 鍦嗚鐢?DWM 鍋氾紙runtime::apply_capture_rounding锛夛細OS 纾ㄧ爞鐢诲湪鏁寸獥鐭╁舰涓婏紝
+   CSS 鑷粯 radius 瑁佷笉鍔ㄥ畠锛屽弽鑰屽湪鍥涜闇插嚭鏂瑰舰纾ㄧ爞鏂戯紙vanilla 鏃朵唬銆岄粦杈广€嶆暀璁級 */
 .cap-frame {
   display: flex;
   flex-direction: column;
@@ -38,7 +38,7 @@ body,
 }
 
 .cap-hint {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   flex: none;
   padding-right: 8px;
   color: hsl(var(--foreground) / 0.62);
@@ -52,14 +52,14 @@ body,
   border: 0;
   background: transparent;
   padding: 2px 0;
-  font-size: 14px;
+  font-size: var(--fs-body);
   color: hsl(var(--foreground));
   outline: none;
 }
 
 .cap-row .input:focus {
   box-shadow: none;
-  /* 2.4.7：无边框输入的可见焦点指示（底边琥珀线；outline:none 仅移除默认环） */
+  /* 2.4.7锛氭棤杈规杈撳叆鐨勫彲瑙佺劍鐐规寚绀猴紙搴曡竟鐞ョ弨绾匡紱outline:none 浠呯Щ闄ら粯璁ょ幆锛?*/
   border-bottom: 2px solid hsl(var(--pri-med));
 }
 
@@ -72,14 +72,14 @@ body,
   color: hsl(var(--destructive));
 }
 
-/* 按钮压暗分离：亮色下 --card 是白、白片压白板等于隐形（真机截图实测） */
+/* 鎸夐挳鍘嬫殫鍒嗙锛氫寒鑹蹭笅 --card 鏄櫧銆佺櫧鐗囧帇鐧芥澘绛変簬闅愬舰锛堢湡鏈烘埅鍥惧疄娴嬶級 */
 .cap-frame .btn {
   flex: none;
   border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
   padding: 4px 8px;
-  font-size: 12px;
+  font-size: var(--fs-sub);
   line-height: 1;
   color: hsl(var(--foreground));
   cursor: pointer;
@@ -130,7 +130,7 @@ body,
   gap: 3px;
   border-radius: 999px;
   padding: 2px 8px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   border: 1px solid hsl(var(--foreground) / 0.14);
   background: hsl(var(--foreground) / 0.07);
   color: hsl(var(--foreground));
@@ -146,7 +146,7 @@ body,
   align-self: center;
   border-radius: 999px;
   padding: 2px 8px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: hsl(var(--muted-foreground));
   border: 1px dashed hsl(var(--foreground) / 0.2);
 }
@@ -155,7 +155,7 @@ body,
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-body);
   color: hsl(var(--foreground));
 }
 
@@ -166,17 +166,17 @@ body,
 }
 
 .cap-receipt .tiny {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: hsl(var(--muted-foreground));
 }
 
 .inline-err {
   margin-top: 5px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: hsl(var(--destructive));
 }
 
-/* reduce-motion：去掉按压形变（对齐 vanilla） */
+/* reduce-motion锛氬幓鎺夋寜鍘嬪舰鍙橈紙瀵归綈 vanilla锛?*/
 @media (prefers-reduced-motion: reduce) {
   .cap-frame .btn.icon,
   .cap-frame .btn.icon:active {

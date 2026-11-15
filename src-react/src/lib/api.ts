@@ -104,8 +104,17 @@ export interface KbItem {
   tags: string[]
   /** 所属文件夹 id；null = 未分类（旧数据无该字段按 null 处理） */
   folderId: string | null
+  /** 同级排序（dense 整数，越小越靠前）；旧数据为 null，后端首次写入时生成 */
+  order: number | null
+  /** 置顶：置顶项在树顶部快捷区展示，原位置保留 */
+  pinned: boolean
   createdAt: string
   updatedAt: string
+  /**
+   * 正文内容哈希（kb-storage-backup D1）：元数据索引与 notes/<id>.md 的一致性校验用；
+   * 前端不参与计算，旧数据/无正文条目可能缺省，只读不写。
+   */
+  contentHash?: string | null
 }
 
 /** 知识库文件夹（folders.json 树；parentId=null 为顶层，order 为同级排序） */
@@ -114,6 +123,8 @@ export interface KbFolder {
   name: string
   parentId: string | null
   order: number
+  /** 置顶（文件夹同样可置顶；快捷区展示、原位置保留） */
+  pinned: boolean
 }
 
 export interface KbPayload {
@@ -122,12 +133,21 @@ export interface KbPayload {
   tags?: string[]
   /** 所属文件夹 id；"" = 移到未分类，缺省 = 不改 */
   folderId?: string
+  /** 同级排序目标索引（0 起）；缺省 = 不改（父级变化时追加到末尾） */
+  order?: number
+  /** 置顶；缺省 = 不改 */
+  pinned?: boolean
 }
 
-export interface Dnd {
-  enabled: boolean
-  from: string
-  to: string
+/** update_folder 载荷：改名 / 移动 / 同级排序 / 置顶 统一入口 */
+export interface FolderPatch {
+  name?: string
+  /** "" = 移到顶层（根），缺省 = 不改；非空 id 必须是已存在的文件夹 */
+  parentId?: string
+  /** 同级排序目标索引（0 起）；缺省 = 不改（父级变化时追加到末尾） */
+  order?: number
+  /** 置顶；缺省 = 不改 */
+  pinned?: boolean
 }
 
 export interface Settings {
@@ -147,11 +167,14 @@ export interface Settings {
   todoFloatPinned: boolean
   /** 待办悬浮窗呼出/隐藏热键；null = 已解绑 */
   todoHotkey: string | null
-  dnd: Dnd
+  /** 直达知识库热键（kb-storage-backup D6，默认 Alt+Shift+K）；null = 已解绑；旧配置缺字段由后端补默认 */
+  kbHotkey?: string | null
   remindCapPerHour: number
   onboarded: boolean
   exportDir?: string | null
   telemetryEnabled: boolean
+  /** 阅读面字族："" = 跟随正文；`system:<键>` = 系统字体；`file:<文件名>` = 用户上传 */
+  readingFont: string
 }
 
 export interface SettingsPayload {
@@ -165,11 +188,13 @@ export interface SettingsPayload {
   stickyHotkey?: string | null
   todoFloatPinned?: boolean
   todoHotkey?: string | null
-  dnd?: Partial<Dnd>
+  // kbHotkey 不走 set_settings 事务（后端 apply_with_hotkeys 只覆盖前四槽），
+  // 换绑请用 registerKbHotkey（专用命令，含互斥校验与失败回滚）。
   remindCapPerHour?: number
   onboarded?: boolean
   exportDir?: string | null
   telemetryEnabled?: boolean
+  readingFont?: string
 }
 
 export interface BackupInfo {
@@ -226,6 +251,8 @@ export interface Bootstrap {
   version: string
   /** 待办悬浮窗最小化态（380×40 单行条 / 380×456 完整面板），启动时据此渲染 */
   todoFloatMini: boolean
+  /** 知识库图片的绝对 assets 目录（后端数据目录/assets）；前端用 convertFileSrc 拼图片地址 */
+  assetsDir: string
 }
 
 export interface HotkeyStatus {
@@ -233,6 +260,8 @@ export interface HotkeyStatus {
   main: string | null
   sticky: string | null
   todo: string | null
+  /** 直达知识库（kb-storage-backup D6；null = 未绑上/已解绑） */
+  kb: string | null
 }
 
 export interface RestoreResult {
@@ -335,6 +364,25 @@ export const clearEvents = () => call<void>('clear_events')
 export const trackEvent = (name: string, props?: Record<string, unknown>) =>
   call<void>('track_event', { name, props: props ? JSON.stringify(props) : null })
 
+/* ---------------------------------------------------------------- 阅读面字体（reading-font） */
+
+export interface ReadingFontInfo {
+  /** 数据目录 fonts/ 下的文件名；设置里存成 `file:<name>` */
+  name: string
+  sizeKb: number
+}
+
+/** 列出已安装的上传字体（<数据目录>/fonts/） */
+export const listReadingFonts = () => call<ReadingFontInfo[]>('list_reading_fonts')
+/** data 为 base64（前端 FileReader 读出），返回安装后的完整列表 */
+export const saveReadingFont = (name: string, data: string) =>
+  call<ReadingFontInfo[]>('save_reading_font', { name, data })
+/** 删除已上传字体（前端负责先切回默认再调） */
+export const deleteReadingFont = (name: string) =>
+  call<ReadingFontInfo[]>('delete_reading_font', { name })
+/** 读字体文件为 base64，供 FontFace 注册 */
+export const readReadingFont = (name: string) => call<string>('read_reading_font', { name })
+
 /* ---------------------------------------------------------------- 便签（sticky-separation：纯自由便签，多开） */
 
 export interface StickyNoteItem {
@@ -383,7 +431,8 @@ export const openSticky = (id: string) => call<StickyNoteItem>('open_sticky', { 
 export const deleteSticky = (id: string) => call<void>('delete_sticky', { id })
 /** 便签窗启动时调一次：拿到自己是谁（label → id/内容/形态） */
 export const stickySelf = () => call<StickySelf>('sticky_self')
-export const openMainWindow = (route?: string) => call<void>('open_main_window', route ? { route } : undefined)
+/** 打开/唤起主窗；route 形如 '/kb'（不带 #），后端转成 hash 导航（D6 修掉死参数，未传落默认视图） */
+export const openMainWindow = (route?: string) => call<void>('open_main_window', route ? { route } : {})
 export const openDataFolder = () => call<void>('open_data_folder')
 export const registerCaptureHotkey = (combo: string) => call<void>('register_capture_hotkey', { combo })
 export const registerMainHotkey = (combo: string | null) => call<void>('register_main_hotkey', { combo })
@@ -391,6 +440,12 @@ export const registerMainHotkey = (combo: string | null) => call<void>('register
 export const registerStickyHotkey = (combo: string | null) => call<void>('register_sticky_hotkey', { combo })
 /** 待办悬浮窗呼出/隐藏热键（默认 Alt+Shift+T，可解绑）；空串 = 解绑 */
 export const registerTodoHotkey = (combo: string | null) => call<void>('register_todo_hotkey', { combo })
+/**
+ * 直达知识库热键（kb-storage-backup D6，默认 Alt+Shift+K）：null/空串 = 解绑；
+ * 后端参数名为 combo（空串即解绑），返回落库后的 Settings；失败保留旧绑定并给中文错误。
+ */
+export const registerKbHotkey = (hotkey: string | null) =>
+  call<Settings>('register_kb_hotkey', { combo: hotkey ?? '' })
 /** 隐藏待办悬浮窗（✕ 同款）：只藏窗，显隐状态落盘 */
 export const hideTodoFloat = () => call<void>('hide_todo_float')
 /** 主窗 ✕ = 收进托盘：必须走后端 hide，前端 close() 会销毁窗口且再也呼不回来 */
@@ -421,20 +476,70 @@ export const getFormHints = () => call<{ examples: string[]; categories: string[
 export const rollbackSchemaSplit = () => call<string>('rollback_schema_split')
 
 /* 知识库（frame H1b：库 + 搜索 + 任务单向引用；链接/unlink 走 updateTask 的 kbRefs 补丁） */
-export const getKbItems = () => call<KbItem[]>('get_kb_items')
+/**
+ * 知识条目（kb-storage-backup 2.6 契约）：
+ * - 不传 ids → 全量条目的**元数据**（bodyMd 恒为空串，列表用）；
+ * - 传 ids → 只回这些 id 的**完整条目**（含正文），不存在的 id 忽略（详情/知识便签用）。
+ * 参数名 ids 直接作为 Tauri v1 invoke 顶层字段（camelCase 单段，无需转换）。
+ */
+export const getKbItems = (ids?: string[]) =>
+  call<KbItem[]>('get_kb_items', ids ? { ids } : {})
 export const addKbItem = (args: KbPayload) => call<KbItem>('add_kb_item', { args })
 export const updateKbItem = (id: string, patch: KbPayload) => call<KbItem>('update_kb_item', { id, patch })
 export const deleteKbItem = (id: string) => call<void>('delete_kb_item', { id })
-export const searchKb = (query?: string) => call<KbItem[]>('search_kb', { query: query ?? null })
+/**
+ * 搜索知识库（D5 收窄口径）：只匹配「标题 + 祖先文件夹名」，不读正文/标签。
+ * 返回 **id 数组**（已按相关度排序），前端据此过滤并保留 rank 顺序；空查询返回全量（updatedAt 倒序）。
+ */
+export const searchKb = (query?: string) => call<string[]>('search_kb', { query: query ?? null })
 
 /* 知识库文件夹与备份（fix-known-defects 批次 4）：文件夹树 + notes.json 轮转备份 */
 export const listFolders = () => call<KbFolder[]>('list_folders')
 export const createFolder = (name: string, parentId?: string | null) =>
   call<KbFolder>('create_folder', { name, parentId: parentId ?? null })
-export const renameFolder = (id: string, name: string) => call<KbFolder>('rename_folder', { id, name })
+/** 文件夹改名 / 移动 / 排序 / 置顶（kb-file-tree；取代旧 rename_folder，命令总数不变） */
+export const updateFolder = (id: string, patch: FolderPatch) =>
+  call<KbFolder>('update_folder', { id, ...patch })
 export const deleteFolder = (id: string) => call<void>('delete_folder', { id })
 export const listKbBackups = () => call<KbBackupInfo[]>('list_kb_backups')
 export const restoreKbBackup = (slot: string) => call<{ restored: number }>('restore_kb_backup', { slot })
+
+/* 手动备份与增量恢复（kb-storage-backup D3/D4）：单文件 .kettdbackup，导出/导入各一条命令 */
+/**
+ * 导出结果（D3）：path 为 `<数据目录>/backups/kettd-backup-<YYYYMMDD-HHmmss>.kettdbackup`（本地语义时间）；
+ * bytes 为文件字节数，itemCount / assetCount 为包内知识条目 / 引用资源数，skipped 为组装时跳过的项数。
+ */
+export interface BackupExportResult {
+  path: string
+  bytes: number
+  itemCount: number
+  assetCount: number
+  skipped: number
+}
+
+/**
+ * 导入报告（D4）：dryRun=true 只是计划、绝不写盘；false 才按同一计划落盘。
+ * 计数为任务 / 提醒 / 知识条目 / 文件夹的合计；conflictTitles 为冲突条目（保留本地）的标题清单。
+ */
+export interface BackupImportReport {
+  added: number
+  updated: number
+  conflicts: number
+  skipped: number
+  assetAdded: number
+  assetReused: number
+  conflictTitles: string[]
+  dryRun: boolean
+}
+
+/** 导出单文件备份：不写当前数据、不触发写前轮转（D3） */
+export const exportBackup = () => call<BackupExportResult>('export_backup', {})
+/**
+ * 导入 .kettdbackup 文本（D4）：先 `importBackup(text, true)` 预览，确认后用同一份 text 走 `false` 落盘。
+ * 前端负责读文件与 256MB 上限拦截；格式/版本校验由后端做（错误为中文短句）。
+ */
+export const importBackup = (payload: string, dryRun: boolean) =>
+  call<BackupImportReport>('import_backup', { payload, dryRun })
 
 /* ---------------------------------------------------------------- 跨窗导航（E14 localStorage 兜底，原样保留） */
 

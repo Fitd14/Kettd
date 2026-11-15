@@ -2,6 +2,8 @@
 //! 这里是唯一允许直调 OS/IO/Tauri 的地方之一（另一处是 ui/runtime）。
 
 pub mod env;
+pub mod fonts;
 pub mod fs_store;
 pub mod tauri_hotkeys;
 pub mod tauri_notifier;
+pub mod text_codec;

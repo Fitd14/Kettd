@@ -1,4 +1,4 @@
-/* ─── 编辑器格式工具栏 ─────────────────────────────────────────────────── */
+/* 鈹€鈹€鈹€ 缂栬緫鍣ㄦ牸寮忓伐鍏锋爮 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-editor {
   display: flex;
@@ -24,7 +24,7 @@
   border-radius: 4px;
   background: transparent;
   color: var(--muted-foreground, hsl(var(--muted-foreground)));
-  font-size: 0.78em;
+  font-size: var(--fs-sub);
   font-weight: 600;
   cursor: pointer;
   line-height: 1;
@@ -49,48 +49,78 @@
 
 .kb-tool-sep { width: 1px; height: 16px; background: hsl(var(--muted-foreground) / 0.2); margin: 0 6px; }
 
-/* 标题级别下拉（正文 / H1–H4）：与 .kb-editor-tool 同高、同为无边框浅底 */
+/* 鏍囬绾у埆涓嬫媺锛堟鏂?/ H1鈥揌6锛宼asks 3.2鈥?.4锛夛細瑙﹀彂鎸夐挳娌跨敤宸ュ叿鏍?24px 楂樻祬搴曞瑙傦紝
+   Caret 鐢?lucide ChevronDown锛涙诞灞傜敱 radix-ui Select锛坧osition="popper"锛塸ortal 鍒?body锛?   瀹氫綅涓庣炕杞氦缁?floating-ui锛岃繖閲屽彧绠＄毊鑲わ紙鍏ㄩ儴璧?token锛?*/
 .kb-editor-heading {
   position: relative;
   display: inline-flex;
   align-items: center;
+  gap: 2px;
   height: 24px;
-  padding: 0 14px 0 6px;
+  padding: 0 6px;
+  border: 0;
   border-radius: 4px;
-  color: var(--muted-foreground, hsl(var(--muted-foreground)));
-}
-.kb-editor-heading:hover { background: var(--muted, hsl(var(--muted))); color: hsl(var(--foreground)); }
-.kb-editor-heading.on { background: hsl(var(--primary) / 0.1); color: hsl(var(--foreground)); }
-.kb-editor-heading-select {
-  appearance: none;
-  -webkit-appearance: none;
-  height: 100%;
-  border: none;
   background: transparent;
-  color: inherit;
+  color: hsl(var(--muted-foreground));
   font-family: inherit;
-  font-size: 0.78em;
+  font-size: var(--fs-sub, 12.5px);
   font-weight: 600;
   line-height: 1;
-  padding: 0;
-  margin: 0;
   cursor: pointer;
+  user-select: none;
 }
-.kb-editor-heading-select:focus-visible { outline: 1px solid hsl(var(--muted-foreground) / 0.4); outline-offset: 1px; }
-.kb-editor-heading::after {
-  content: "";
-  position: absolute;
-  right: 5px;
-  top: 50%;
-  margin-top: -1px;
-  border-left: 3px solid transparent;
-  border-right: 3px solid transparent;
-  border-top: 4px solid currentColor;
-  opacity: .65;
-  pointer-events: none;
-}
+.kb-editor-heading:hover,
+.kb-editor-heading[data-state='open'] { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.kb-editor-heading.on { background: hsl(var(--primary) / 0.1); color: hsl(var(--foreground)); }
+.kb-editor-heading:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+.kb-editor-heading[data-disabled] { opacity: .45; cursor: default; }
+.kb-editor-heading[data-disabled]:hover { background: transparent; color: hsl(var(--muted-foreground)); }
+.kb-editor-heading-caret { flex: none; opacity: .65; }
 
-/* 表格网格选择器（Typora Ctrl+T 同款交互） */
+/* 涓嬫媺娴眰锛氬畾浣嶏紙popper / 缈昏浆 / 鍥涜竟 8px collisionPadding锛夌敱 radix-ui 绠楀ソ锛?   杩欓噷鍙礋璐ｇ毊鑲ゃ€倆-index 121 楂樹簬鐭ヨ瘑搴撳彸閿彍鍗曪紙120锛変笌璇︽儏寮圭獥锛?00锛夛紱
+   鏈€澶ч珮搴﹁蛋 floating-ui 缁欏嚭鐨勫彲鐢ㄩ珮搴﹀彉閲忥紝鏆楄壊涓婚涓嬩笉浼氬嚭鐜?OS 鐧藉簳鍒楄〃銆?*/
+.kb-editor-heading-menu {
+  z-index: 121;
+  min-width: 96px;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  box-shadow: var(--shadow-lg);
+  font-size: var(--fs-sub, 12.5px);
+}
+.kb-editor-heading-viewport {
+  padding: 4px;
+  max-height: var(--radix-select-content-available-height, calc(100vh - 16px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.kb-editor-heading-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 4px;
+  /* 棰勭暀 2px 楂樹寒鏉★紝閿洏涓婁笅绉诲姩鏃舵枃瀛椾笉妯烦 */
+  box-shadow: inset 2px 0 0 transparent;
+  line-height: 1.4;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+/* 閿洏楂樹寒 / 鎮仠鍏辩敤锛坮adix 鐨?data-highlighted 瀵逛袱鑰呴兘鐢熸晥锛夛細娴呭簳 + 宸︿晶楂樹寒鏉°€?   楂樹寒鏉＄敤 hsl(var(--primary))锛屼寒鏆椾富棰樹笅涓庢诞灞傚簳锛坔sl(var(--popover))锛夊姣斿害鍧?鈮?:1锛坱asks 3.4锛?*/
+.kb-editor-heading-option[data-highlighted] {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  box-shadow: inset 2px 0 0 hsl(var(--primary));
+}
+.kb-editor-heading-option[data-state='checked'] .kb-editor-heading-option-label { font-weight: 600; }
+.kb-editor-heading-option-label { flex: 1; min-width: 0; }
+.kb-editor-heading-check { display: flex; flex: none; color: hsl(var(--muted-foreground)); }
+
+/* 琛ㄦ牸缃戞牸閫夋嫨鍣紙Typora Ctrl+T 鍚屾浜や簰锛?*/
 .kb-editor-gridwrap { position: relative; }
 .kb-grid-picker {
   position: absolute; top: 30px; left: 0; z-index: 30;
@@ -106,31 +136,31 @@
   border-radius: 2px; cursor: pointer;
 }
 .kb-grid-picker .grid-cell.on { background: var(--seal, hsl(var(--primary))); border-color: var(--seal, hsl(var(--primary))); }
-.kb-grid-picker .grid-hint { margin-top: 6px; font-size: 10px; color: hsl(var(--muted-foreground)); text-align: center; }
+.kb-grid-picker .grid-hint { margin-top: 6px; font-size: var(--fs-meta); color: hsl(var(--muted-foreground)); text-align: center; }
 
-/* ─── TipTap / ProseMirror 编辑器基础样式 ─────────────────────────────── */
+/* 鈹€鈹€鈹€ TipTap / ProseMirror 缂栬緫鍣ㄥ熀纭€鏍峰紡 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-editor-content {
   outline: none;
   min-height: 200px;
-  font-family: var(--paper-font, system-ui, sans-serif);
+  font-family: var(--paper-font, var(--font-reading));
   line-height: 1.85;
 }
 
-/* 排版阶梯 + 阅读宽度（editor-polish-spec §5；scope 纸面详情，便签窄窗不受限） */
-.kb-detail .kb-editor-content { max-width: 76ch; font-size: 16px; }
-.kb-detail .kb-editor-content h1 { font-size: 1.35em; margin: 1.5em 0 .5em; letter-spacing: .4px; }
-.kb-detail .kb-editor-content h2 { font-size: 1.2em; margin: 1.3em 0 .45em; }
-.kb-detail .kb-editor-content h3 { font-size: 1.05em; margin: 1.1em 0 .4em; }
+/* 鎺掔増闃舵 + 闃呰瀹藉害锛坋ditor-polish-spec 搂5锛泂cope 绾搁潰璇︽儏锛屼究绛剧獎绐椾笉鍙楅檺锛?   闃呰瀹藉害鏀圭敱 .kb-detail-inner 鐨?--kb-measure 缁熶竴鎺у埗锛坱asks 4.1锛夛細姝ｆ枃鑷韩涓嶅啀闄愬锛?   鍚﹀垯鏍囬/鏍囩/宸ュ叿鏍忎笌姝ｆ枃宸︾紭浼氶敊浣嶏紱姝ｆ枃瀛楀彿涓庤楂橀樁姊繚鎸佸師鏍枫€?*/
+.kb-detail .kb-editor-content { max-width: none; width: 100%; font-size: var(--fs-reading); }
+.kb-detail .kb-editor-content h1 { font-size: calc(var(--fs-reading) * 1.35); margin: 1.5em 0 .5em; letter-spacing: .4px; }
+.kb-detail .kb-editor-content h2 { font-size: calc(var(--fs-reading) * 1.2); margin: 1.3em 0 .45em; }
+.kb-detail .kb-editor-content h3 { font-size: calc(var(--fs-reading) * 1.05); margin: 1.1em 0 .4em; }
 .kb-detail .kb-editor-content p { margin: .65em 0; }
 
-/* H4–H6（工具栏「标题」下拉新增）：kb-detail 与便签窄窗编辑态共用，
-   字号/间距延续上面的层级阶梯，浅底稿纸风格不额外加粗。 */
-.kb-editor-content h4 { font-size: 1em; margin: 1em 0 .35em; letter-spacing: .2px; }
-.kb-editor-content h5 { font-size: .93em; margin: .9em 0 .3em; }
-.kb-editor-content h6 { font-size: .88em; margin: .85em 0 .25em; letter-spacing: .3px; color: var(--text-secondary, hsl(var(--muted-foreground))); }
+/* H4鈥揌6锛堝伐鍏锋爮銆屾爣棰樸€嶄笅鎷夋柊澧烇級锛歬b-detail 涓庝究绛剧獎绐楃紪杈戞€佸叡鐢紝
+   瀛楀彿/闂磋窛寤剁画涓婇潰鐨勫眰绾ч樁姊紝娴呭簳绋跨焊椋庢牸涓嶉澶栧姞绮椼€?*/
+.kb-editor-content h4 { font-size: var(--fs-reading); margin: 1em 0 .35em; letter-spacing: .2px; }
+.kb-editor-content h5 { font-size: calc(var(--fs-reading) * .93); margin: .9em 0 .3em; }
+.kb-editor-content h6 { font-size: calc(var(--fs-reading) * .88); margin: .85em 0 .25em; letter-spacing: .3px; color: var(--text-secondary, hsl(var(--muted-foreground))); }
 
-/* 真机反馈：contenteditable 默认 focus 黑框刺眼 → 全状态去 outline */
+/* 鐪熸満鍙嶉锛歝ontenteditable 榛樿 focus 榛戞鍒虹溂 鈫?鍏ㄧ姸鎬佸幓 outline */
 .kb-editor-content:focus,
 .kb-editor-content:focus-visible,
 .ProseMirror:focus,
@@ -154,19 +184,19 @@
   border-radius: 2px;
 }
 
-/* 代码块 */
+/* 浠ｇ爜鍧?*/
 .kb-editor-content pre {
   background: var(--code-bg, rgba(0, 0, 0, 0.04));
   padding: 0.75em 1em;
   border-radius: 6px;
   overflow-x: auto;
-  font-size: 0.9em;
+  font-size: var(--fs-body);
   margin: 0.5em 0;
 }
 
 .kb-editor-content code {
-  font-family: var(--font-mono, 'SF Mono', Consolas, monospace);
-  font-size: 0.9em;
+  font-family: var(--font-mono, var(--paper-font, var(--font-reading)));
+  font-size: var(--fs-body);
   background: var(--code-bg, rgba(0, 0, 0, 0.04));
   padding: 0.15em 0.35em;
   border-radius: 3px;
@@ -178,7 +208,7 @@
   border-radius: 0;
 }
 
-/* 引用块 */
+/* 寮曠敤鍧?*/
 .kb-editor-content blockquote {
   border-left: 3px solid var(--text-muted, #ccc);
   padding-left: 1em;
@@ -186,7 +216,7 @@
   color: var(--text-secondary, #666);
 }
 
-/* 表格 */
+/* 琛ㄦ牸 */
 .kb-editor-content table {
   border-collapse: collapse;
   width: 100%;
@@ -201,11 +231,11 @@
 
 .kb-editor-content th {
   font-weight: 600;
-  background: var(--seal-soft, hsl(var(--secondary)));
+  background: var(--seal-soft, hsl(var(--seal) / 0.12));
 }
 
-/* 表格（编辑态）：选中表格高亮工具栏、单元格最小宽 */
-.kb-editor-content table { border-collapse: collapse; width: 100%; margin: .8em 0; font-size: .93em; }
+/* 琛ㄦ牸锛堢紪杈戞€侊級锛氶€変腑琛ㄦ牸楂樹寒宸ュ叿鏍忋€佸崟鍏冩牸鏈€灏忓 */
+.kb-editor-content table { border-collapse: collapse; width: 100%; margin: .8em 0; font-size: var(--fs-body); }
 .kb-editor-content th, .kb-editor-content td {
   border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / .25));
   padding: .45em .8em; text-align: left; min-width: 4em;
@@ -214,19 +244,36 @@
   content: ""; position: absolute; inset: 0;
   background: var(--seal, #C0574F); opacity: .12; pointer-events: none;
 }
+
+/* 鈹€鈹€鈹€ 鍐欎綔鍖哄垪鍐呮孩鍑猴紙tasks 4.1锛夛細瀹借〃鏍?/ 闀夸覆鍦ㄦ鏂囧垪鍐呰嚜琛屾粴鍔ㄦ垨鎶樿锛?   涓嶆拺鐮磋鎯呴潰鏉匡紙鍒楀涓婇檺鐢?.kb-detail-inner 鐨?--kb-measure 鎺у埗锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€ */
+
+/* tiptap Table 榛樿 TableView 鐢熸垚 div.tableWrapper > table锛?   瀹借〃鍦ㄦ鏂囧垪鍐呮í鍚戞粴鍔紝璇︽儏闈㈡澘鏈韩涓嶅嚭鐜版í鍚戞粴鍔ㄦ潯銆?*/
+.kb-detail .kb-editor-content .tableWrapper {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* 闀?URL / 鏃犵┖鏍奸暱涓插彧瀵规鏂囨枃鏈厓绱犳姌琛岋紙鏍囬 h1鈥揾6 涓嶆姌锛屼繚鎸佹爣棰樿妭濂忥級銆?*/
+.kb-detail .kb-editor-content p,
+.kb-detail .kb-editor-content li,
+.kb-detail .kb-editor-content td,
+.kb-detail .kb-editor-content th,
+.kb-detail .kb-editor-content blockquote {
+  overflow-wrap: anywhere;
+}
 .kb-editor-content pre { position: relative; }
 .kb-editor-content pre[data-language]::after {
   content: attr(data-language);
   position: absolute; top: 6px; right: 10px;
-  font-size: 10px; letter-spacing: 1px; color: var(--ink-3, #A59089);
+  font-size: var(--fs-meta); letter-spacing: 1px; color: var(--ink-3, hsl(var(--muted-foreground) / 0.75));
   text-transform: uppercase; pointer-events: none;
 }
 
-/* 任务清单（可勾选） */
+/* 浠诲姟娓呭崟锛堝彲鍕鹃€夛級 */
 .kb-editor-content ul[data-type="taskList"] li > label { margin-top: .3em; }
-.kb-editor-content ul[data-type="taskList"] li[data-checked="true"] > div { color: var(--ink-3, #A59089); text-decoration: line-through; }
+.kb-editor-content ul[data-type="taskList"] li[data-checked="true"] > div { color: var(--ink-3, hsl(var(--muted-foreground) / 0.75)); text-decoration: line-through; }
 
-/* 任务列表 */
+/* 浠诲姟鍒楄〃 */
 .kb-editor-content ul[data-type="taskList"] {
   list-style: none;
   padding-left: 0;
@@ -238,8 +285,7 @@
   gap: 0.5em;
 }
 
-/* 有序 / 无序列表：Tailwind preflight 会把 ul/ol 的 marker 清掉，这里按层级显式恢复，
-   否则通过 / 菜单或工具栏插入的列表看起来和普通段落一样（"像没创建"）。 */
+/* 鏈夊簭 / 鏃犲簭鍒楄〃锛歍ailwind preflight 浼氭妸 ul/ol 鐨?marker 娓呮帀锛岃繖閲屾寜灞傜骇鏄惧紡鎭㈠锛?   鍚﹀垯閫氳繃 / 鑿滃崟鎴栧伐鍏锋爮鎻掑叆鐨勫垪琛ㄧ湅璧锋潵鍜屾櫘閫氭钀戒竴鏍凤紙"鍍忔病鍒涘缓"锛夈€?*/
 .kb-editor-content ul:not([data-type="taskList"]),
 .kb-editor-content ol {
   padding-left: 1.4em;
@@ -251,13 +297,13 @@
 .kb-editor-content ol ol { list-style: lower-alpha; }
 .kb-editor-content li { margin: .15em 0; }
 .kb-editor-content li > p { margin: .2em 0; }
-.kb-editor-content li::marker { color: var(--ink-3, #A59089); }
+.kb-editor-content li::marker { color: var(--ink-3, hsl(var(--muted-foreground) / 0.75)); }
 
-/* ─── 阅读态 MD 渲染 ─────────────────────────────────────────────────── */
+/* 鈹€鈹€鈹€ 闃呰鎬?MD 娓叉煋 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-md-render {
   line-height: 1.65;
-  font-size: 0.95em;
+  font-size: var(--fs-reading);
 }
 
 .kb-md-render h1,
@@ -271,12 +317,12 @@
   line-height: 1.3;
 }
 
-.kb-md-render h1 { font-size: 1.5em; }
-.kb-md-render h2 { font-size: 1.3em; }
-.kb-md-render h3 { font-size: 1.15em; }
-.kb-md-render h4 { font-size: 1.05em; }
-.kb-md-render h5 { font-size: .98em; }
-.kb-md-render h6 { font-size: .92em; color: var(--text-secondary, hsl(var(--muted-foreground))); }
+.kb-md-render h1 { font-size: calc(var(--fs-reading) * 1.5); }
+.kb-md-render h2 { font-size: calc(var(--fs-reading) * 1.3); }
+.kb-md-render h3 { font-size: calc(var(--fs-reading) * 1.15); }
+.kb-md-render h4 { font-size: calc(var(--fs-reading) * 1.05); }
+.kb-md-render h5 { font-size: calc(var(--fs-reading) * .98); }
+.kb-md-render h6 { font-size: calc(var(--fs-reading) * .92); color: var(--text-secondary, hsl(var(--muted-foreground))); }
 
 .kb-md-render ul,
 .kb-md-render ol {
@@ -340,7 +386,7 @@
   border-radius: 4px;
 }
 
-/* ─── slash 命令面板 ─────────────────────────────────────────────────── */
+/* 鈹€鈹€鈹€ slash 鍛戒护闈㈡澘 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-slash {
   position: fixed;
@@ -348,24 +394,24 @@
   width: 230px;
   border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / .25));
   border-radius: 4px;
-  overflow-y: auto;             /* 视口空间不足时内部滚动，而不是被直接裁掉 */
+  overflow-y: auto;             /* 瑙嗗彛绌洪棿涓嶈冻鏃跺唴閮ㄦ粴鍔紝鑰屼笉鏄鐩存帴瑁佹帀 */
   overscroll-behavior: contain;
   background: var(--paper, hsl(var(--card)));
   box-shadow: 0 10px 34px -12px rgba(40,40,30,.3);
-  font-family: "Noto Sans SC", system-ui, sans-serif;
+  font-family: var(--font-ui);
 }
 .kb-slash-item { display: flex; align-items: center; gap: 10px; padding: 7px 12px; cursor: pointer; }
-.kb-slash-item.on { background: var(--seal-soft, hsl(var(--secondary))); }
+.kb-slash-item.on { background: var(--seal-soft, hsl(var(--seal) / 0.12)); }
 .kb-slash-ico {
   width: 26px; height: 26px; border: 1px solid hsl(var(--muted-foreground) / .2); border-radius: 3px;
   display: inline-flex; align-items: center; justify-content: center;
   color: hsl(var(--muted-foreground)); background: var(--paper, hsl(var(--card))); flex: none;
 }
-.kb-slash-tx b { display: block; font-size: 12px; font-weight: 600; color: hsl(var(--foreground)); }
-.kb-slash-tx i { font-style: normal; font-size: 10px; color: hsl(var(--muted-foreground)); }
-.kb-slash-empty { padding: 12px; font-size: 11px; color: hsl(var(--muted-foreground)); text-align: center; }
+.kb-slash-tx b { display: block; font-size: var(--fs-sub); font-weight: 600; color: hsl(var(--foreground)); }
+.kb-slash-tx i { font-style: normal; font-size: var(--fs-meta); color: hsl(var(--muted-foreground)); }
+.kb-slash-empty { padding: 12px; font-size: var(--fs-meta); color: hsl(var(--muted-foreground)); text-align: center; }
 
-/* ─── 选区浮动工具栏（气泡）──────────────────────────────────────────── */
+/* 鈹€鈹€鈹€ 閫夊尯娴姩宸ュ叿鏍忥紙姘旀场锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-bubble {
   display: flex; gap: 1px; padding: 3px;
@@ -381,19 +427,19 @@
 .kb-bubble button:hover, .kb-bubble button.on { background: rgba(255,255,255,.16); }
 .kb-bubble-table button {
   width: auto; min-width: 26px; padding: 0 7px;
-  font-size: 11px; font-family: "Noto Sans SC", system-ui, sans-serif;
+  font-size: var(--fs-meta); font-family: var(--font-ui);
 }
 .kb-bubble-table button.danger { color: #F9EDEA; }
 .kb-bubble-table button.danger:hover { background: rgba(192,87,79,.55); }
 .kb-bubble-table button:disabled { opacity: .35; cursor: not-allowed; }
 .kb-bubble-sep { width: 1px; height: 14px; background: rgba(255,255,255,.25); margin: auto 4px; }
 
-/* ─── 居中链接弹窗（知识库详情与便签窗共用，portal 挂到 body）─────────── */
+/* 鈹€鈹€鈹€ 灞呬腑閾炬帴寮圭獥锛堢煡璇嗗簱璇︽儏涓庝究绛剧獥鍏辩敤锛宲ortal 鎸傚埌 body锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-link-dialog-overlay {
   position: fixed;
   inset: 0;
-  z-index: 100;              /* 高于选区气泡 / 表格气泡 / slash 面板(60) */
+  z-index: 100;              /* 楂樹簬閫夊尯姘旀场 / 琛ㄦ牸姘旀场 / slash 闈㈡澘(60) */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -402,19 +448,19 @@
 }
 
 .kb-link-dialog {
-  width: min(92vw, 420px);   /* 便签窄窗下随视口收窄 */
+  width: min(92vw, 420px);   /* 渚跨绐勭獥涓嬮殢瑙嗗彛鏀剁獎 */
   max-width: 100%;
   padding: 14px 16px 12px;
   border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / 0.25));
   border-radius: 6px;
   background: var(--paper, hsl(var(--card)));
   box-shadow: 0 18px 48px -18px rgba(40, 40, 30, 0.45);
-  font-family: "Noto Sans SC", system-ui, sans-serif;
+  font-family: var(--font-ui);
 }
 
 .kb-link-dialog-title {
   margin-bottom: 10px;
-  font-size: 12px;
+  font-size: var(--fs-sub);
   font-weight: 600;
   letter-spacing: .4px;
   color: hsl(var(--foreground));
@@ -425,7 +471,7 @@
 .kb-link-dialog-label {
   display: block;
   margin-bottom: 4px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: hsl(var(--muted-foreground));
 }
 
@@ -439,7 +485,7 @@
   background: var(--paper, hsl(var(--card)));
   color: hsl(var(--foreground));
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-sub);
   outline: none;
 }
 .kb-link-dialog-input:focus {
@@ -451,7 +497,7 @@
 .kb-link-dialog-hint {
   min-height: 16px;
   margin-top: 6px;
-  font-size: 10.5px;
+  font-size: var(--fs-meta);
   line-height: 1.4;
   color: hsl(var(--muted-foreground));
 }
@@ -474,7 +520,7 @@
   background: transparent;
   color: hsl(var(--foreground));
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: var(--fs-sub);
   line-height: 1;
   cursor: pointer;
 }
@@ -487,10 +533,8 @@
 }
 .kb-link-dialog-btn.kb-link-dialog-primary:hover { background: hsl(var(--primary) / 0.2); }
 
-/* ─── 条目内查找栏（Ctrl+F，缺陷 #6）────────────────────────────────
-   查找栏是编辑器 flex 列中的 sticky 子项：滚动条目时始终吸顶可见，
-   又排在工具栏之后不遮挡工具栏；z-index 80 低于链接弹窗（100）。
-   配色优先取便签纸 token（--sticky-*），知识库详情里回落到 --paper/--ink-*。 */
+/* 鈹€鈹€鈹€ 鏉＄洰鍐呮煡鎵炬爮锛圕trl+F锛岀己闄?#6锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+   鏌ユ壘鏍忔槸缂栬緫鍣?flex 鍒椾腑鐨?sticky 瀛愰」锛氭粴鍔ㄦ潯鐩椂濮嬬粓鍚搁《鍙锛?   鍙堟帓鍦ㄥ伐鍏锋爮涔嬪悗涓嶉伄鎸″伐鍏锋爮锛泎-index 80 浣庝簬閾炬帴寮圭獥锛?00锛夈€?   閰嶈壊浼樺厛鍙栦究绛剧焊 token锛?-sticky-*锛夛紝鐭ヨ瘑搴撹鎯呴噷鍥炶惤鍒?--paper/--ink-*銆?*/
 
 .kb-find {
   position: sticky;
@@ -509,7 +553,7 @@
   background: var(--sticky-paper, var(--paper, hsl(var(--card))));
   color: var(--sticky-ink, var(--ink-1, hsl(var(--foreground))));
   box-shadow: 0 6px 18px -10px hsl(var(--foreground) / 0.35);
-  font-family: "Noto Sans SC", system-ui, sans-serif;
+  font-family: var(--font-ui);
 }
 
 .kb-find-ico {
@@ -525,7 +569,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-sub);
   line-height: 20px;
   outline: none;
 }
@@ -539,7 +583,7 @@
   min-width: 46px;
   text-align: center;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   line-height: 1;
   font-variant-numeric: tabular-nums;
   color: var(--sticky-muted, var(--ink-3, hsl(var(--muted-foreground))));
@@ -563,8 +607,7 @@
 .kb-find-btn:focus-visible { outline: 1px solid hsl(var(--primary) / 0.55); outline-offset: 1px; }
 .kb-find-btn:disabled { opacity: .3; cursor: default; }
 
-/* 查找命中高亮：只用 Decoration 加 class / 背景，不改文档内容。
-   全部命中浅底；当前项加深并加描边，扫描长文时更醒目。 */
+/* 鏌ユ壘鍛戒腑楂樹寒锛氬彧鐢?Decoration 鍔?class / 鑳屾櫙锛屼笉鏀规枃妗ｅ唴瀹广€?   鍏ㄩ儴鍛戒腑娴呭簳锛涘綋鍓嶉」鍔犳繁骞跺姞鎻忚竟锛屾壂鎻忛暱鏂囨椂鏇撮啋鐩€?*/
 .kb-editor-content .kb-find-hit {
   border-radius: 2px;
   background: color-mix(in srgb, var(--sticky-seal, var(--seal, hsl(var(--primary)))) 16%, transparent);
@@ -574,22 +617,19 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--sticky-seal, var(--seal, hsl(var(--primary)))) 55%, transparent);
 }
 
-/* ─── 字数计数（便签窗 WYSIWYG 正文，maxChars）──────────────────────
-   编辑器 flex 列底部的小字：右下对齐、等宽数字；不抢焦点、不挡点击。
-   配色优先便签纸 token（--sticky-*），知识库等容器回落到 --ink-3；
-   超限用全局危险色 token --destructive（index.css 中的 HSL 三元组）。 */
+/* 鈹€鈹€鈹€ 瀛楁暟璁℃暟锛堜究绛剧獥 WYSIWYG 姝ｆ枃锛宮axChars锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+   缂栬緫鍣?flex 鍒楀簳閮ㄧ殑灏忓瓧锛氬彸涓嬪榻愩€佺瓑瀹芥暟瀛楋紱涓嶆姠鐒︾偣銆佷笉鎸＄偣鍑汇€?   閰嶈壊浼樺厛渚跨绾?token锛?-sticky-*锛夛紝鐭ヨ瘑搴撶瓑瀹瑰櫒鍥炶惤鍒?--ink-3锛?   瓒呴檺鐢ㄥ叏灞€鍗遍櫓鑹?token --destructive锛坕ndex.css 涓殑 HSL 涓夊厓缁勶級銆?*/
 
 .kb-editor-count {
   flex: none;
   align-self: flex-end;
   box-sizing: border-box;
   max-width: 100%;
-  /* 便签窗 .kb-editor 有确定高度（height:100%）：margin-top:auto 把计数压到容器底；
-     KB 等高度由内容撑开的场景，auto 退化为 0，计数紧跟正文之后，不会多出空白。 */
+  /* 渚跨绐?.kb-editor 鏈夌‘瀹氶珮搴︼紙height:100%锛夛細margin-top:auto 鎶婅鏁板帇鍒板鍣ㄥ簳锛?     KB 绛夐珮搴︾敱鍐呭鎾戝紑鐨勫満鏅紝auto 閫€鍖栦负 0锛岃鏁扮揣璺熸鏂囦箣鍚庯紝涓嶄細澶氬嚭绌虹櫧銆?*/
   margin: auto 2px 0 0;
   padding: 0 2px;
-  font-family: "Noto Sans SC", system-ui, sans-serif;
-  font-size: 10.5px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-meta);
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
   color: var(--sticky-muted, var(--ink-3, hsl(var(--muted-foreground))));
@@ -603,10 +643,9 @@
   font-weight: 600;
 }
 
-/* ─── 正文图片节点（缺陷 #15：粘贴截图写入 data URL 的 image 节点）────────
-   行内原子节点；限宽避免撑破纸面，圆角与阅读态 .kb-md-render img 保持一致。
-   选中态沿用 .ProseMirror-selectednode 的描边口径（--primary 全局 token），
-   这里只补图片自己的圆角与外扩，便于点选/拖动时看清边界。 */
+/* 鈹€鈹€鈹€ 姝ｆ枃鍥剧墖鑺傜偣锛堢己闄?#15锛氱矘璐存埅鍥惧啓鍏?data URL 鐨?image 鑺傜偣锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+   琛屽唴鍘熷瓙鑺傜偣锛涢檺瀹介伩鍏嶆拺鐮寸焊闈紝鍦嗚涓庨槄璇绘€?.kb-md-render img 淇濇寔涓€鑷淬€?   閫変腑鎬佹部鐢?.ProseMirror-selectednode 鐨勬弿杈瑰彛寰勶紙--primary 鍏ㄥ眬 token锛夛紝
+   杩欓噷鍙ˉ鍥剧墖鑷繁鐨勫渾瑙掍笌澶栨墿锛屼究浜庣偣閫?鎷栧姩鏃剁湅娓呰竟鐣屻€?*/
 
 .kb-editor-content img {
   max-width: 100%;
@@ -621,11 +660,9 @@
   outline-offset: 2px;
 }
 
-/* ─── 粘贴图片提示条（缺陷 #15：超限/解码失败时的轻提示）────────────────
-   由 paste-image.ts 动态创建在 view.dom.parentElement 内，2.6 秒后自动移除。
-   定位用 fixed：不改 .kb-editor 既有布局（.kb-editor 未设 position），
-   知识库详情页与便签窗两种容器都能稳定贴在视口底部居中。
-   配色全部走 index.css 的 HSL 三元组 token（--foreground / --background / --border）。 */
+/* 鈹€鈹€鈹€ 绮樿创鍥剧墖鎻愮ず鏉★紙缂洪櫡 #15锛氳秴闄?瑙ｇ爜澶辫触鏃剁殑杞绘彁绀猴級鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+   鐢?paste-image.ts 鍔ㄦ€佸垱寤哄湪 view.dom.parentElement 鍐咃紝2.6 绉掑悗鑷姩绉婚櫎銆?   瀹氫綅鐢?fixed锛氫笉鏀?.kb-editor 鏃㈡湁甯冨眬锛?kb-editor 鏈 position锛夛紝
+   鐭ヨ瘑搴撹鎯呴〉涓庝究绛剧獥涓ょ瀹瑰櫒閮借兘绋冲畾璐村湪瑙嗗彛搴曢儴灞呬腑銆?   閰嶈壊鍏ㄩ儴璧?index.css 鐨?HSL 涓夊厓缁?token锛?-foreground / --background / --border锛夈€?*/
 
 .kb-editor-toast {
   position: fixed;
@@ -639,8 +676,8 @@
   border-radius: 6px;
   background: hsl(var(--foreground) / 0.92);
   color: hsl(var(--background));
-  font-family: "Noto Sans SC", system-ui, sans-serif;
-  font-size: 12.5px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sub);
   line-height: 1.5;
   text-align: center;
   box-shadow: 0 8px 24px -10px hsl(var(--foreground) / 0.35);

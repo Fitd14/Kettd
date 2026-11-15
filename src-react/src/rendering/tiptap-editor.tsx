@@ -24,6 +24,12 @@ import {
 import { LinkDialog } from './link-dialog'
 import { ImageExtension } from './image-extension'
 import { handleImagePaste } from './paste-image'
+import { HeadingSelect } from '@/components/editor/heading-select'
+import {
+  applyHeadingCommand,
+  headingValueForLevel,
+  type HeadingValue,
+} from '@/lib/heading-options'
 import {
   FindExtension,
   clearFind as dispatchClearFind,
@@ -65,15 +71,6 @@ interface ToolItem {
   active: boolean
   run: () => void
 }
-
-/** 标题下拉：正文（普通段落）+ H1–H4 */
-const HEADING_OPTIONS = [
-  { value: 'p', label: '正文' },
-  { value: '1', label: 'H1' },
-  { value: '2', label: 'H2' },
-  { value: '3', label: 'H3' },
-  { value: '4', label: 'H4' },
-] as const
 
 const SLASH_ITEMS: SlashItem[] = [
   { id: 'table', title: '表格', desc: '插入可编辑表格', keywords: 'table biaoge', icon: TableIcon,
@@ -846,9 +843,13 @@ export function TipTapEditor({
 
   const chain = () => editor.chain().focus()
 
-  // 当前标题级别（正文 / H1–H4）；H5/H6 仅可能来自外部 Markdown，下拉不覆盖
-  const headingLevel = flags.headingLevel
-  const headingValue = headingLevel >= 1 && headingLevel <= 4 ? String(headingLevel) : 'p'
+  // 当前标题级别（正文 / H1–H6）；H5/H6 只可能来自外部 Markdown，下拉同样能回显
+  const headingValue = headingValueForLevel(flags.headingLevel)
+
+  /** 标题下拉选中：正文回普通段落，H1–H6 切标题（同级再选由 toggleHeading 取消回正文） */
+  const applyHeading = (next: HeadingValue) => {
+    applyHeadingCommand(chain(), next).run()
+  }
 
   /* ── 居中链接弹窗 ── */
   const openLinkDialog = () => {
@@ -1048,27 +1049,8 @@ export function TipTapEditor({
       <div className="kb-editor-toolbar" role="toolbar" aria-label="格式工具栏">
         {inlineTools.map(renderTool)}
 
-        {/* 标题级别：显示当前激活级别，选「正文」回普通段落 */}
-        <div className={'kb-editor-heading' + (flags.heading ? ' on' : '')}>
-          <select
-            className="kb-editor-heading-select"
-            value={headingValue}
-            title="标题级别"
-            aria-label="标题级别"
-            onChange={(e) => {
-              const next = e.target.value
-              if (next === 'p') {
-                chain().setParagraph().run()
-                return
-              }
-              chain().toggleHeading({ level: Number(next) as 1 | 2 | 3 | 4 }).run()
-            }}
-          >
-            {HEADING_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
+        {/* 标题级别：显示当前激活级别，选「正文」回普通段落（自绘下拉；打开/悬停不改选区） */}
+        <HeadingSelect value={headingValue} onSelect={applyHeading} />
 
         {blockTools.map(renderTool)}
 

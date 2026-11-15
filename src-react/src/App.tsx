@@ -7,6 +7,7 @@ import {
   PanelLeftOpen,
   RotateCcw,
   Settings,
+  StickyNote,
   Sun,
   type LucideIcon,
 } from 'lucide-react'
@@ -19,6 +20,8 @@ import {
 } from '@/lib/api'
 import { todaySections } from './kernel/selectors.js'
 import { localToday } from './kernel/time.js'
+import { applyReadingFont } from './lib/reading-font'
+import { configureAssetsDir } from './rendering/asset-url'
 import { useUndoToast, UndoToast } from '@/components/undo-toast'
 import { TitleBar } from '@/components/title-bar'
 import { TodayView } from '@/views/TodayView'
@@ -27,6 +30,7 @@ import { PlannedView } from '@/views/PlannedView'
 import { ReviewView } from '@/views/ReviewView'
 import { KbView } from '@/views/KbView'
 import { SettingsView } from '@/views/SettingsView'
+import { StickyView } from '@/views/StickyView'
 import './styles/app.css'
 
 const ROUTES = [
@@ -35,6 +39,7 @@ const ROUTES = [
   { hash: '#/planned', label: '计划', icon: CalendarDays },
   { hash: '#/review', label: '回顾', icon: RotateCcw },
   { hash: '#/kb', label: '知识库', icon: BookOpen },
+  { hash: '#/sticky', label: '便签', icon: StickyNote },
   { hash: '#/settings', label: '设置', icon: Settings },
 ] as const satisfies ReadonlyArray<{ hash: string; label: string; icon: LucideIcon }>
 
@@ -44,6 +49,19 @@ function routeFromHash(): Route {
   // Deep Link 带查询串（#/kb?id=x）——按 ? 切掉再匹配，否则整串对不上回落今天页
   const h = (window.location.hash.split('?')[0] || window.location.hash) as Route
   return ROUTES.some((r) => r.hash === h) ? h : '#/today'
+}
+
+/**
+ * navigate 事件 payload → 白名单路由（kb-storage-backup D6）。
+ * 后端 `show_main(Some("/kb"))` 下发 "/kb"，前端 emitNavigate 传 "#/kb"，这里统一归一化成 hash；
+ * 非字符串 / 空串 / 白名单外一律返回 null（调用方忽略）。
+ */
+function navigateFromPayload(payload: unknown): Route | null {
+  if (typeof payload !== 'string') return null
+  const raw = payload.trim().split('?')[0]
+  if (!raw) return null
+  const hash = (raw.startsWith('#') ? raw : `#${raw}`) as Route
+  return ROUTES.some((r) => r.hash === hash) ? hash : null
 }
 
 /**
@@ -75,7 +93,11 @@ export default function App() {
     }
     setError(null)
     setBoot(r.data)
+    // 知识库图片：正文存相对引用 assets/<sha>.<ext>，渲染时用本次 bootstrap 的绝对目录解析
+    configureAssetsDir(r.data.assetsDir)
     applyTheme(r.data.settings.theme)
+    // 阅读面字体：设置在 store 里，启动与每次 store-changed 都重放一次（幂等）
+    void applyReadingFont(r.data.settings.readingFont)
   }, [])
 
   useEffect(() => {
@@ -95,6 +117,18 @@ export default function App() {
     window.addEventListener('hashchange', onHash)
     return () => { off(); window.removeEventListener('hashchange', onHash) }
   }, [refresh])
+
+  // navigate 事件（D6）：隐藏主窗按「直达知识库」热键 → 后端 show_main 广播 "/kb" → 这里切视图。
+  // payload 必须过白名单；卸载时取消订阅，避免热重载后重复响应。
+  useEffect(() => {
+    const off = onEvent('navigate', (payload: unknown) => {
+      const hash = navigateFromPayload(payload)
+      if (!hash) return
+      window.location.hash = hash
+      setRoute(hash)
+    })
+    return off
+  }, [])
 
   const today = localToday()
   const todayCount = useMemo(() => {
@@ -171,6 +205,7 @@ export default function App() {
           {boot && route === '#/planned' && <PlannedView boot={boot} refresh={refresh} />}
           {boot && route === '#/review' && <ReviewView boot={boot} />}
           {boot && route === '#/kb' && <KbView boot={boot} />}
+          {boot && route === '#/sticky' && <StickyView />}
           {boot && route === '#/settings' && <SettingsView boot={boot} refresh={refresh} />}
         </main>
         <UndoToast state={undo.state} onUndo={() => { void undo.undo() }} onDismiss={undo.dismiss} />

@@ -131,22 +131,23 @@ export function TaskRow({
 
         {/* hover 动作：默认不占位（opacity-0），focus-within 同样浮出（键盘等价） */}
         <span className="row-actions" onClick={(e) => e.stopPropagation()}>
-          {actions === 'inbox' && onPlanToday && (
-            <button className="btn ghost xs" title="加入今天（T）" onClick={() => onPlanToday(task.id)}>→今天</button>
-          )}
-          {actions !== 'none' && onSchedule && (
-            <button className="btn ghost xs" title="排期（E）" onClick={() => setScheduling((v) => !v)}>排期…</button>
-          )}
           {onDelete && (
             <button
-              className="btn ghost xs"
+              className="btn ghost xs row-actions-trigger"
               title="详情 / 删除"
+              aria-label="更多动作"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((v) => !v)}
             >
               ⋯
             </button>
+          )}
+          {actions === 'inbox' && onPlanToday && (
+            <button className="btn ghost xs row-actions-secondary" title="加入今天（T）" onClick={() => onPlanToday(task.id)}>→今天</button>
+          )}
+          {actions !== 'none' && onSchedule && (
+            <button className="btn ghost xs row-actions-secondary" title="排期（E）" onClick={() => setScheduling((v) => !v)}>排期…</button>
           )}
         </span>
       </span>

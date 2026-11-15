@@ -1,0 +1,11 @@
+/* ── 报头衬线（唯一自绘字体）─────────────────────────────────────────────
+   来源：Noto Serif SC（SIL OFL 1.1），只裁了固定报头用字，12 KB。
+   用途仅限品牌字与视图报头（.view-title），其余界面仍走系统黑体。
+   字符覆盖以外的字符会自然回落到 --font-serif 的下一项（本机 Noto Serif SC → 宋体）。 */
+@font-face {
+  font-family: "Kettd Serif";
+  src: url("../assets/fonts/kettd-masthead-serif.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}

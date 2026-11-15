@@ -4,7 +4,7 @@
 //! - `models`    领域模型 + 本地时间工具（camelCase 序列化，禁 UTC 换算）
 //! - `store`     存储安全层（原子写 / 写前轮转备份 / corrupt 通道 / v1 懒迁移 / 软删）
 //! - `runtime`   窗口三形态、快速记录浮条、全局热键、托盘、系统通知
-//! - `scheduler` 提醒调度（1s tick + 每小时上限 + 免打扰 + 错过 24h 失效 + 启动补发）
+//! - `scheduler` 提醒调度（1s tick + 每小时上限 + 错过 24h 失效 + 启动补发）
 //! - `export`    周汇总导出（md / csv）
 //! - `commands`  对前端的 invoke 命令（全部 Result<_, String>，错误为中文短句）
 
@@ -14,16 +14,21 @@
 )]
 
 mod app;
+mod backup;
 mod commands;
+mod digest;
 mod infra;
 mod kb;
+mod kb_errors;
 mod export;
 mod models;
 mod ports;
 mod runtime;
 mod scheduler;
 mod store;
+mod store_notes;
 mod telemetry;
+#[cfg(test)] mod kb_bench_tests;
 
 use std::sync::Mutex;
 use tauri::Manager;
@@ -143,6 +148,10 @@ fn main() {
       commands::get_hotkey_status,
       commands::get_backups,
       commands::get_form_hints,
+      commands::list_reading_fonts,
+      commands::save_reading_font,
+      commands::delete_reading_font,
+      commands::read_reading_font,
       commands::add_task,
       commands::update_task,
       commands::toggle_task,
@@ -171,6 +180,7 @@ fn main() {
       commands::register_main_hotkey,
       commands::register_sticky_hotkey,
       commands::register_todo_hotkey,
+      commands::register_kb_hotkey,
       commands::hide_todo_float,
       commands::open_data_folder,
       commands::restore_backup,
@@ -182,7 +192,7 @@ fn main() {
       commands::search_kb,
       commands::list_folders,
       commands::create_folder,
-      commands::rename_folder,
+      commands::update_folder,
       commands::delete_folder,
       commands::list_kb_backups,
       commands::restore_kb_backup,
@@ -198,6 +208,8 @@ fn main() {
       commands::delete_sticky,
       commands::sticky_self,
       commands::set_todo_float_mini,
+      commands::export_backup,
+      commands::import_backup,
     ])
     .system_tray(runtime::build_tray(todo_visible))
     .setup(|app| {
@@ -222,6 +234,7 @@ fn main() {
           guard.data.settings.main_hotkey.clone(),
           guard.data.settings.sticky_hotkey.clone(),
           guard.data.settings.todo_hotkey.clone(),
+          guard.data.settings.kb_hotkey.clone(),
         ),
         Err(poisoned) => {
           let guard = poisoned.into_inner();
@@ -230,6 +243,7 @@ fn main() {
             guard.data.settings.main_hotkey.clone(),
             guard.data.settings.sticky_hotkey.clone(),
             guard.data.settings.todo_hotkey.clone(),
+            guard.data.settings.kb_hotkey.clone(),
           )
         }
       };
@@ -260,7 +274,7 @@ fn main() {
       if let Some(capture_window) = app.get_window(runtime::CAPTURE_LABEL) {
         runtime::disable_default_context_menu(&capture_window);
       }
-      // 三个全局热键：窗口全部就绪后注册一次；失败重试 3 次（失败时前端可仍用主窗输入框）
+      // 五个全局热键：窗口全部就绪后注册一次；失败重试 3 次（失败时前端可仍用主窗输入框）
       let hotkey_app = handle.clone();
       std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(400));
@@ -283,8 +297,11 @@ fn main() {
         let sticky_failed = runtime::register_sticky_hotkey(&hotkey_app, &combo.2).is_err();
         // 待办悬浮窗热键：默认 Alt+Shift+T，解绑（None）则不注册（todo-float）
         let todo_failed = runtime::register_todo_hotkey(&hotkey_app, &combo.3).is_err();
+        // 直达知识库热键：默认 Alt+Shift+K，解绑（None）则不注册（kb-storage-backup S4）；
+        // 失败只提示、不阻塞启动
+        let kb_failed = runtime::register_kb_hotkey(&hotkey_app, &combo.4).is_err();
         // qa-1：注册失败不再静默 —— 提示一次「哪个键没绑上」，再把实际注册快照广播给前端标「未生效」
-        if cap_failed || main_failed || sticky_failed || todo_failed {
+        if cap_failed || main_failed || sticky_failed || todo_failed || kb_failed {
           let mut dead: Vec<String> = Vec::new();
           if cap_failed {
             dead.push(format!("快速记录 {}", combo.0));
@@ -302,6 +319,11 @@ fn main() {
           if todo_failed {
             if let Some(todo) = &combo.3 {
               dead.push(format!("待办悬浮窗 {}", todo));
+            }
+          }
+          if kb_failed {
+            if let Some(kb) = &combo.4 {
+              dead.push(format!("直达知识库 {}", kb));
             }
           }
           runtime::notify_title(

@@ -31,6 +31,8 @@
 - **事件总线**：跨窗通信只走 `kernel/event-bus.js`，不得引入全局状态库或第二套事件实现。
 - **Token 类**：颜色一律 `hsl(var(--xxx))`，禁止硬编码色值。
 - **桥接惰性取**：`__TAURI__` 注入可能晚于模块求值，`src-react/src/lib/api.ts` 的 `tauriBridge()` 每次惰性取，不缓存全局引用。
+- **字号只用四档令牌**：chrome 只许 `--fs-meta`（11px）/ `--fs-sub`（12.5px）/ `--fs-body`（14px）/ `--fs-masthead`（22px），编辑器正文只许 `--fs-reading`（16px）；禁止新增字号值或按像素就近选档。
+- **一级页面只用 `.view` 外壳**：`padding` / `gap` 走 `--sp-*`，禁止页面自带第二套根内边距。（以上两条待人工审核后随文档提交）
 
 ### 2.3 后端
 
@@ -110,7 +112,7 @@
 | 层 | 手段 | 证明什么 | 何时必需 |
 | --- | --- | --- | --- |
 | L0 静态 | `cargo check` · `npx tsc -b` · `npm run lint` | 能编译、无类型/语法错误 | 任何代码改动 |
-| L1 单测 | `cargo test`（103 项）· parity · packaging · md-fidelity | 契约与行为没被破坏 | 改 Rust / 命令 / 渲染 / 配置 |
+| L1 单测 | `cargo test`（当前 210 项，1 项性能基准 ignored）· parity · packaging · md-fidelity | 契约与行为没被破坏 | 改 Rust / 命令 / 渲染 / 配置 |
 | L2 构建 | `npm run build`（vite）· `cargo build --release` | 可打包 | 改依赖、构建配置、入口 |
 | L3 产物 | `npm run release` + 核对 `artifacts/v<版本>/` | 安装包可交付 | 改打包脚本、版本、tauri.conf |
 | L4 真机 | 启动应用冒烟 5 条关键路径 | 用户路径可用 | 改 UI / 交互 / 窗口 / 提醒 |
@@ -119,10 +121,10 @@
 
 ### 4.3 一键门禁与 SKIP
 
-默认跑 `npm run check`（12 项，日志 `logs/check-<时间戳>.log`）。汇报证据时写清条数与结果，例如：
+默认跑 `npm run check`（17 项，日志 `logs/check-<时间戳>.log`）。汇报证据时写清条数与结果，例如：
 
 ```
-npm run check → 12 项：11 OK + 1 SKIP（Markdown round-trip：缺 jsdom），0 FAIL
+npm run check → 17 项：16 OK + 1 SKIP（Markdown round-trip：缺 jsdom），0 FAIL
 ```
 
 - **SKIP ≠ 通过**：必须在交付说明里列名并说明原因，不得算进「全绿」。

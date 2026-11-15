@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
   Kettd 门禁聚合：一条命令跑完「提交前必过项」。
@@ -195,6 +195,30 @@ if (-not $SkipNodeTests -and (-not $script:HasFailure -or $ContinueOnError)) {
   Invoke-Step -Name '命令四方对账' -FilePath $node.Source -Arguments @('--test', 'test/command-parity.test.mjs') | Out-Null
   if (-not $script:HasFailure -or $ContinueOnError) {
     Invoke-Step -Name '主窗口关闭契约' -FilePath $node.Source -Arguments @('--test', 'test/main-window-close.test.mjs') | Out-Null
+  }
+  if (-not $script:HasFailure -or $ContinueOnError) {
+    Invoke-Step -Name '托盘菜单契约' -FilePath $node.Source -Arguments @('--test', 'test/tray-menu.test.mjs') | Out-Null
+  }
+  if (-not $script:HasFailure -or $ContinueOnError) {
+    Invoke-Step -Name '便签摘要契约' -FilePath $node.Source -Arguments @('src-react/test/sticky-text.test.mjs') | Out-Null
+  }
+  if (-not $script:HasFailure -or $ContinueOnError) {
+    Invoke-Step -Name '便签搜索契约' -FilePath $node.Source -Arguments @('src-react/test/sticky-filter.test.mjs') | Out-Null
+  }
+  if (-not $script:HasFailure -or $ContinueOnError) {
+    Invoke-Step -Name '便签淡化守卫契约' -FilePath $node.Source -Arguments @('src-react/test/sticky-fade-guard.test.mjs') | Out-Null
+  }
+  if (-not $script:HasFailure -or $ContinueOnError) {
+    Invoke-Step -Name '标题选项契约' -FilePath $node.Source -Arguments @('src-react/test/heading-select.test.mjs') | Out-Null
+  }
+  if (-not $script:HasFailure -or $ContinueOnError) {
+    Invoke-Step -Name '标题下拉接线契约' -FilePath $node.Source -Arguments @('test/heading-select-wiring.test.mjs') | Out-Null
+  }
+  if (-not $script:HasFailure -or $ContinueOnError) {
+    Invoke-Step -Name '托盘入口契约' -FilePath $node.Source -Arguments @('test/tray-entry-parity.test.mjs') | Out-Null
+  }
+  if (-not $script:HasFailure -or $ContinueOnError) {
+    Invoke-Step -Name '便签知识来源契约' -FilePath $node.Source -Arguments @('test/sticky-kbref-seam.test.mjs') | Out-Null
   }
   if (-not $script:HasFailure -or $ContinueOnError) {
     Invoke-Step -Name '打包配置契约' -FilePath $node.Source -Arguments @('--test', 'test/packaging.test.mjs') | Out-Null

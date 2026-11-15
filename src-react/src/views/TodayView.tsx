@@ -109,8 +109,7 @@ export function TodayView({ boot, refresh, undo }: Props) {
       <div>
         <div className="view-title">今天</div>
         <div className="view-sub">
-          {today} · 今天计划 {planTotal} 项 · 剩 {totalOpen} · 做完 {doneToday.length}
-          {' · '}三处同源
+          {today} · 计划 {planTotal} 项 · 剩 {totalOpen} · 做完 {doneToday.length}
         </div>
         <div className="next-remind" aria-live="polite">
           下一条提醒 · <b>{next ?? '—'}</b>
@@ -120,7 +119,7 @@ export function TodayView({ boot, refresh, undo }: Props) {
       <form className="capture-bar" onSubmit={(e) => { e.preventDefault(); void captureCommit() }}>
         <input
           className="input sm grow"
-          placeholder="记一条，回车放进今天（或按 Alt+Shift+A）"
+          placeholder="记一条，回车放进今天"
           aria-label="记一条放进今天"
           value={capture}
           onChange={(e) => setCapture(e.target.value)}
@@ -137,7 +136,7 @@ export function TodayView({ boot, refresh, undo }: Props) {
             <div>今天清零 · 做完 {doneToday.length} 件</div>
           </div>
         ) : (
-          <div className="empty">今天还没有挑出来的事项。</div>
+          <div className="empty">今天还没有挑出来的事项。按 Alt+Shift+A 随时呼出记一条。</div>
         )
       )}
 

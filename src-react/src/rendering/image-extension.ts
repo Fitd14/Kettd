@@ -10,6 +10,7 @@
  * 与写（serialize → Markdown）都自动成立。
  */
 import { Node, mergeAttributes } from '@tiptap/core'
+import { resolveAssetUrl } from './asset-url.ts'
 
 export const ImageExtension = Node.create({
   name: 'image',
@@ -59,7 +60,12 @@ export const ImageExtension = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
+    // 编辑器节点属性始终存正文里的相对引用（assets/<sha>.<ext>，序列化回 Markdown 不变）；
+    // 只有渲染成 <img> 时才解析成 webview 可加载的地址。
+    const src = HTMLAttributes.src
+    const attributes =
+      typeof src === 'string' ? { ...HTMLAttributes, src: resolveAssetUrl(src) } : HTMLAttributes
     // addAttributes 的默认渲染会带上 src/alt/title；值为 null 的属性由 prosemirror-model 跳过
-    return ['img', mergeAttributes(HTMLAttributes)]
+    return ['img', mergeAttributes(attributes)]
   },
 })

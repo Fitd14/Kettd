@@ -368,7 +368,10 @@ mod tests {
     assert_eq!(e.latency_ms, Some(812));
     assert_eq!(e.reason, None);
 
-    let miss = r#"{"ts":"2026-09-04T10:00:00+08:00","event":"reminder_missed","props":{"reason":"dnd"}}"#;
-    assert_eq!(parse_line(miss).unwrap().reason.as_deref(), Some("dnd"));
+    let miss = r#"{"ts":"2026-09-04T10:00:00+08:00","event":"reminder_missed","props":{"reason":"notify_fail"}}"#;
+    assert_eq!(
+      parse_line(miss).unwrap().reason.as_deref(),
+      Some("notify_fail")
+    );
   }
 }

@@ -1,0 +1,85 @@
+/* 璁剧疆椤?路 闃呰瀛椾綋锛坮eading-font锛?   鐢ㄦ埛涓婁紶鐨勫瓧浣撳彧浣滅敤浜庣煡璇嗗簱姝ｆ枃锛?-font-reading锛夛紝涓嶅弬涓庣晫闈笌鎶ュご锛?   杩欓噷鍙憜鎺т欢锛屼笉瀹氫箟浠讳綍鏂扮殑棰滆壊锛屼竴寰嬪悆鐜版湁浠ょ墝銆?*/
+
+/* 鍘熺敓鏂囦欢妗嗗瑙傚悇骞冲彴涓嶄竴锛岃棌璧锋潵鐢辨寜閽唬鍔筹紙鍙仛鐒︽€х敱 .btn 鎵挎媴锛?*/
+.font-file {
+  display: none;
+}
+
+.font-list {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.font-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--r-sm);
+  background: hsl(var(--card));
+}
+
+.font-chip.on {
+  border-color: hsl(var(--accent-foreground) / 0.35);
+  background: hsl(var(--accent));
+}
+
+.font-chip-name {
+  max-width: 200px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: hsl(var(--foreground));
+  font-size: var(--fs-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.font-chip-size {
+  color: hsl(var(--muted-foreground));
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.font-chip-del {
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: hsl(var(--muted-foreground));
+  font-size: var(--fs-body);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.font-chip-del:hover {
+  color: hsl(var(--destructive));
+}
+
+.font-chip-del:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* 棰勮鍙ヨ蛋鐨勫氨鏄鏂囬偅鏉′护鐗岋紝閫変簡鍝棌杩欓噷绔嬪埢鏄偅鏃?*/
+.font-preview {
+  max-width: 62%;
+  margin: 0;
+  color: hsl(var(--foreground));
+  font-family: var(--font-reading);
+  font-size: var(--fs-reading);
+  line-height: 1.7;
+}
+
+@media (max-width: 720px) {
+  .font-preview {
+    max-width: 100%;
+  }
+}

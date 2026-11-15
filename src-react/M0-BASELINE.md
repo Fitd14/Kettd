@@ -38,4 +38,4 @@ M1 起，`src-tauri/tauri.conf.json` 的 `build` 段拟改为：
 
 ## 下一步
 M1：把 capture 窗 React 化（仅重写 capture.html 约 120 行卡片；OS acrylic/拖拽/记位属 Rust 层，与 vanilla 版共用）。
-M2：api.ts / Zustand / Toast / Undo 底座。详见 `spark-output/pitch/` 的 ADR-001。
+M2：api.ts / Zustand / Toast / Undo 底座。架构决策见 `docs/ARCHITECTURE.md`。

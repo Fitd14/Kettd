@@ -1,16 +1,16 @@
-/* 待办悬浮窗（todo-float）：纸感复用 sticky.css 全套令牌与类，这里只补镜像行专属样式。
-   纯轻量镜像档：今天列表 + 勾选完成；完成态置灰不抢眼（「安静文具」调性）。 */
+﻿/* 寰呭姙鎮诞绐楋紙todo-float锛夛細绾告劅澶嶇敤 sticky.css 鍏ㄥ浠ょ墝涓庣被锛岃繖閲屽彧琛ラ暅鍍忚涓撳睘鏍峰紡銆?
+   绾交閲忛暅鍍忔。锛氫粖澶╁垪琛?+ 鍕鹃€夊畬鎴愶紱瀹屾垚鎬佺疆鐏颁笉鎶㈢溂锛堛€屽畨闈欐枃鍏枫€嶈皟鎬э級銆?*/
 .sticky-title.is-done {
   color: var(--sticky-muted);
   text-decoration: line-through;
   text-decoration-color: color-mix(in srgb, var(--sticky-ink) 35%, transparent);
 }
 
-/* ─── 待办悬浮窗 · 迷你条（380×40，对应 TodoFloatWindow 迷你态）──────────
-   与 sticky.css 的 .sticky-note.is-mini 同视觉：40px 单行 =
-   拖动抓手 + 摘要 + 展开（文字钮）/隐藏（图标钮）。
-   注意：todo 窗 bundle 只加载 index.css + sticky/sticky.css + todo/todo.css，
-   本区块必须放在 todo.css 才生效（放 app.css 只有主窗加载，待办窗不生效）。 */
+/* 鈹€鈹€鈹€ 寰呭姙鎮诞绐?路 杩蜂綘鏉★紙380脳40锛屽搴?TodoFloatWindow 杩蜂綘鎬侊級鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+   涓?sticky.css 鐨?.sticky-note.is-mini 鍚岃瑙夛細40px 鍗曡 =
+   鎷栧姩鎶撴墜 + 鎽樿 + 灞曞紑锛堟枃瀛楅挳锛?闅愯棌锛堝浘鏍囬挳锛夈€?
+   娉ㄦ剰锛歵odo 绐?bundle 鍙姞杞?index.css + sticky/sticky.css + todo/todo.css锛?
+   鏈尯鍧楀繀椤绘斁鍦?todo.css 鎵嶇敓鏁堬紙鏀?app.css 鍙湁涓荤獥鍔犺浇锛屽緟鍔炵獥涓嶇敓鏁堬級銆?*/
 .todo-mini {
   display: flex;
   align-items: center;
@@ -31,7 +31,7 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 12px;
+  font-size: var(--fs-sub);
   text-align: left;
   color: hsl(var(--muted-foreground));
   background: transparent;
@@ -58,7 +58,7 @@
   background: hsl(var(--foreground) / 0.08);
 }
 
-/* 迷你条拖动抓手（与 .sticky-mini-grip 对齐） */
+/* 杩蜂綘鏉℃嫋鍔ㄦ姄鎵嬶紙涓?.sticky-mini-grip 瀵归綈锛?*/
 .todo-mini .sticky-mini-grip {
   display: inline-flex;
   align-items: center;
