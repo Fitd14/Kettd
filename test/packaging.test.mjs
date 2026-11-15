@@ -108,3 +108,16 @@ test('预发布版本的 MSI 限制有脚本兜底', () => {
   assert.match(release, /droppedTargets/, 'build-manifest.json 应记录被剔除的产物目标');
   assert.match(release, /numeric-only/, '保留 WiX 限制的注释，说明为何剔除 msi');
 });
+
+test('门禁脚本必须带 UTF-8 BOM', () => {
+  // 2026-11-15 真实事故：编辑器重写 check.ps1 时静默剥掉 BOM，release.ps1 用
+  // powershell.exe（5.1）按 GBK 解码中文，把「…未真正校验"」的收尾引号当成双字节
+  // 尾字节吃掉，字符串一路吞到下一行 ⇒ 12 条语法错误，打包在门禁处 exit 1。
+  for (const p of ['scripts/check.ps1', 'scripts/release.ps1']) {
+    const buf = readFileSync(join(root, p));
+    assert.ok(
+      buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf,
+      `${p} 丢了 UTF-8 BOM：PowerShell 5.1 会按 GBK 读中文，门禁会语法崩`,
+    );
+  }
+});
