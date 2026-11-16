@@ -161,6 +161,11 @@
 .input.xs { font-size: var(--fs-sub); padding: 3px 7px; }
 .input.sm { font-size: var(--fs-body); padding: 6px 10px; }
 
+/* 输入框原语的属性选择器（与 .btn 同口径，新代码只写 data-*，旧 .xs/.sm 迁移期保留） */
+.input[data-size="xs"] { font-size: var(--fs-sub); padding: 3px 7px; }
+.input[data-size="sm"] { font-size: var(--fs-body); padding: 6px 10px; }
+.input[aria-invalid="true"] { border-color: hsl(var(--destructive)); box-shadow: 0 0 0 2px hsl(var(--destructive) / 0.18); }
+
 .inline-err { color: hsl(var(--destructive)); font-size: var(--fs-meta); margin-top: var(--sp-1); }
 .badge {
   display: inline-flex;

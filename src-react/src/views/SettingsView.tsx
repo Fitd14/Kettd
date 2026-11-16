@@ -37,6 +37,7 @@ import { READING_FONT_SYSTEMS } from '@/lib/reading-font'
 
 import { plainPreview } from '@/lib/sticky-text'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { STICKY_PAPERS } from '@/views/sticky-labels'
 import './settings-sticky.css'
 import './settings-backup.css'
@@ -839,7 +840,7 @@ export function SettingsView({ boot, refresh }: Props) {
           </div>
         </span>
           <span className="row-flex">
-            <input className="input xs" value={capCombo} onChange={(e) => setCapCombo(e.target.value)} aria-label="快速记录热键" />
+            <Input size="xs" value={capCombo} onChange={(e) => setCapCombo(e.target.value)} aria-label="快速记录热键" />
             <button className="btn xs outline" onClick={() => { void rebind('capture') }}>换绑</button>
           </span>
         </div>
