@@ -36,6 +36,7 @@ import {
 import { READING_FONT_SYSTEMS } from '@/lib/reading-font'
 
 import { plainPreview } from '@/lib/sticky-text'
+import { Button } from '@/components/ui/button'
 import { STICKY_PAPERS } from '@/views/sticky-labels'
 import './settings-sticky.css'
 import './settings-backup.css'
@@ -678,9 +679,9 @@ export function SettingsView({ boot, refresh }: Props) {
                 e.target.value = ''
               }}
             />
-            <button className="btn sm" disabled={fontBusy} onClick={() => fontFile.current?.click()}>
+            <Button size="sm" disabled={fontBusy} onClick={() => fontFile.current?.click()}>
               {fontBusy ? '处理中…' : '选择文件…'}
-            </button>
+            </Button>
           </span>
         </div>
         {fonts.length > 0 && (
@@ -799,16 +800,17 @@ export function SettingsView({ boot, refresh }: Props) {
                     >
                       打开
                     </button>
-                    <button className="btn ghost xs" onClick={() => { void doToggleSticky(st) }}>{st.mini ? '展开' : '缩小'}</button>
+                    <Button variant="ghost" size="xs" onClick={() => { void doToggleSticky(st) }}>{st.mini ? '展开' : '缩小'}</Button>
                     {confirmDel === st.id ? (
                       <span className="row-flex items-center gap-1">
-                        <button
-                          className="btn xs danger"
+                        <Button
+                          variant="danger"
+                          size="xs"
                           onClick={() => { void doDeleteSticky(st) }}
                           title="删除后不可恢复；关闭便签只是隐藏"
                         >
                           确认删除
-                        </button>
+                        </Button>
                         <button className="btn ghost xs" onClick={() => setConfirmDel(null)}>取消</button>
                       </span>
                     ) : (

@@ -87,6 +87,53 @@
 .btn.sm { font-size: var(--fs-meta); padding: 3px 9px; }
 .btn.xs { font-size: var(--fs-meta); padding: 2px 7px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------------- 按钮原语：尺寸 × 变体（openspec/radix-component-layer D9；视觉基线 design-review/button-system.html） ---------------- */
+/* 尺寸只由 data-size 决定：xs 22 / sm 26 / md 30，图标钮同档，window 与 caret 是两个特例 */
+.btn[data-size="xs"] { height: 22px; padding: 0 8px; font-size: var(--fs-sub); }
+.btn[data-size="sm"] { height: 26px; padding: 0 10px; font-size: var(--fs-sub); }
+.btn[data-size="md"] { height: 30px; padding: 0 12px; font-size: var(--fs-body); }
+.btn[data-size^="icon-"] { padding: 0; }
+.btn[data-size="icon-xs"] { width: 22px; height: 22px; }
+.btn[data-size="icon-sm"] { width: 26px; height: 26px; }
+.btn[data-size="icon-md"] { width: 30px; height: 30px; }
+.btn[data-size="caret"] { width: 18px; height: 20px; padding: 0; }
+.btn[data-size="window"] {
+  width: 44px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--fs-body);
+}
+
+/* 变体只改颜色与边框，尺寸/圆角/焦点环共用 */
+.btn[data-variant="primary"] {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: transparent;
+}
+.btn[data-variant="primary"]:hover { background: hsl(var(--primary) / 0.88); }
+.btn[data-variant="ghost"] { background: transparent; color: hsl(var(--muted-foreground)); border-color: transparent; }
+.btn[data-variant="ghost"]:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.btn[data-variant="soft"] { background: hsl(var(--secondary)); border-color: transparent; }
+.btn[data-variant="soft"]:hover { background: hsl(var(--muted)); }
+.btn[data-variant="danger"] { color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.4); }
+.btn[data-variant="danger"]:hover { background: hsl(var(--destructive) / 0.08); }
+.btn[data-variant="window-close"] { background: transparent; color: hsl(var(--foreground)); border: 0; border-radius: 0; }
+.btn[data-variant="window-close"]:hover { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
+.btn[aria-pressed="true"] { background: hsl(var(--primary) / 0.1); color: hsl(var(--foreground)); border-color: transparent; }
+.btn[aria-pressed="true"]:hover { background: hsl(var(--primary) / 0.16); }
+
+/* 便签纸表面：只换色，不改尺寸与圆角 */
+[data-surface="sticky"] .btn[data-variant="ghost"] { color: var(--sticky-muted); }
+[data-surface="sticky"] .btn[data-variant="ghost"]:hover { background: hsl(0 0% 50% / 0.14); color: var(--sticky-ink); }
+[data-surface="sticky"] .btn[data-variant="ghost"][aria-pressed="true"] {
+  background: color-mix(in srgb, var(--sticky-accent) 38%, transparent);
+  color: var(--sticky-ink);
+}
+
 :where(button, [tabindex]):focus-visible {
   outline: 2px solid hsl(var(--ring));
   outline-offset: 1px;
