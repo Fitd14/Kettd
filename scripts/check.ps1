@@ -8,7 +8,7 @@
     1. 版本一致性（package.json / src-react / tauri.conf / Cargo.toml 四处对齐）
     2. 契约门禁：命令四方对账、主窗口关闭契约、打包配置契约、文档结构契约
     3. 前端门禁：Markdown 渲染保真、Markdown round-trip
-    4. 前端：类型检查 → lint → 生产构建
+    4. 前端：类型检查 → lint → CSS 解析 → 生产构建
     5. Rust：cargo check → cargo test
   全量日志写入 logs/check-<时间戳>.log，控制台只留摘要；退出码 0=全绿，1=有红。
 
@@ -244,6 +244,11 @@ if (-not $SkipFront -and (-not $script:HasFailure -or $ContinueOnError)) {
   Invoke-Step -Name '前端类型检查' -FilePath $npmExe -Arguments @('run', 'typecheck') -WorkDir $FrontDir | Out-Null
   if (-not $script:HasFailure -or $ContinueOnError) {
     Invoke-Step -Name '前端 lint' -FilePath $npmExe -Arguments @('run', 'lint') -WorkDir $FrontDir | Out-Null
+  }
+  if (-not $script:HasFailure -or $ContinueOnError) {
+    # tsc / eslint 都不解析 CSS，样式表语法错只有构建阶段才炸。
+    # 这里用同一条 lightningcss 链路先压一遍（秒级），把「门禁全绿、构建失败」提前到门禁里。
+    Invoke-Step -Name 'CSS 解析' -FilePath $node.Source -Arguments @('scripts/css-parse.mjs') | Out-Null
   }
   if (-not $script:HasFailure -or $ContinueOnError) {
     Invoke-Step -Name '前端构建' -FilePath $npmExe -Arguments @('run', 'build') -WorkDir $FrontDir | Out-Null
