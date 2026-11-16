@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   Kettd 门禁聚合：一条命令跑完「提交前必过项」。
@@ -183,6 +183,11 @@ if (-not $npm) {
 }
 $npmExe = $npm.Source
 
+# type stripping：Node 22.12 默认关闭（22.18+ 才默认开）。门禁里若干单测直接
+# import 源码 .ts，缺 flag 会 ERR_UNKNOWN_FILE_EXTENSION。--experimental-strip-types
+# 在 22.12+ 全系列可用，新版本上等价于默认行为，故统一显式带上。
+$nodeTsArgs = @('--experimental-strip-types')
+
 Write-Host "Kettd 门禁检查  $Stamp" -ForegroundColor Cyan
 Write-Host "仓库：$Root"
 Write-Host "日志：$LogFile" -ForegroundColor DarkGray
@@ -200,16 +205,16 @@ if (-not $SkipNodeTests -and (-not $script:HasFailure -or $ContinueOnError)) {
     Invoke-Step -Name '托盘菜单契约' -FilePath $node.Source -Arguments @('--test', 'test/tray-menu.test.mjs') | Out-Null
   }
   if (-not $script:HasFailure -or $ContinueOnError) {
-    Invoke-Step -Name '便签摘要契约' -FilePath $node.Source -Arguments @('src-react/test/sticky-text.test.mjs') | Out-Null
+    Invoke-Step -Name '便签摘要契约' -FilePath $node.Source -Arguments (@($nodeTsArgs) + @('src-react/test/sticky-text.test.mjs')) | Out-Null
   }
   if (-not $script:HasFailure -or $ContinueOnError) {
-    Invoke-Step -Name '便签搜索契约' -FilePath $node.Source -Arguments @('src-react/test/sticky-filter.test.mjs') | Out-Null
+    Invoke-Step -Name '便签搜索契约' -FilePath $node.Source -Arguments (@($nodeTsArgs) + @('src-react/test/sticky-filter.test.mjs')) | Out-Null
   }
   if (-not $script:HasFailure -or $ContinueOnError) {
-    Invoke-Step -Name '便签淡化守卫契约' -FilePath $node.Source -Arguments @('src-react/test/sticky-fade-guard.test.mjs') | Out-Null
+    Invoke-Step -Name '便签淡化守卫契约' -FilePath $node.Source -Arguments (@($nodeTsArgs) + @('src-react/test/sticky-fade-guard.test.mjs')) | Out-Null
   }
   if (-not $script:HasFailure -or $ContinueOnError) {
-    Invoke-Step -Name '标题选项契约' -FilePath $node.Source -Arguments @('src-react/test/heading-select.test.mjs') | Out-Null
+    Invoke-Step -Name '标题选项契约' -FilePath $node.Source -Arguments (@($nodeTsArgs) + @('src-react/test/heading-select.test.mjs')) | Out-Null
   }
   if (-not $script:HasFailure -or $ContinueOnError) {
     Invoke-Step -Name '标题下拉接线契约' -FilePath $node.Source -Arguments @('test/heading-select-wiring.test.mjs') | Out-Null
@@ -230,7 +235,7 @@ if (-not $SkipNodeTests -and (-not $script:HasFailure -or $ContinueOnError)) {
     Invoke-Step -Name 'Markdown 渲染保真' -FilePath $node.Source -Arguments @('--test', 'src-react/test/md-fidelity.test.mjs') | Out-Null
   }
   if (-not $script:HasFailure -or $ContinueOnError) {
-    Invoke-Step -Name 'Markdown round-trip' -FilePath $node.Source -Arguments @('src-react/test/md-roundtrip.test.mjs') | Out-Null
+    Invoke-Step -Name 'Markdown round-trip' -FilePath $node.Source -Arguments (@($nodeTsArgs) + @('src-react/test/md-roundtrip.test.mjs')) | Out-Null
   }
 }
 
