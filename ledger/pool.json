@@ -1,5 +1,6 @@
 {
   "tasks": {
+    "20261116-1316-313c-原生控件迁移到-components-ui-封装": {"category": "重构", "created": "2026-11-16 13:16:59", "creator": "afcfcca0-be4c-4afd-931b-16fdade9d4fd", "creator_name": "simy", "finished": null, "owner": null, "owner_name": null, "started": null, "status": "open", "tags": ["前端", "radix", "组件封装", "迁移"], "title": "原生控件迁移到 components/ui 封装", "updated": "2026-11-16 13:16:59", "worklog": "worklog/202611/16-1316-313c-原生控件迁移到-components-ui-封装.md"}
   },
   "version": "20261022000000"
 }
