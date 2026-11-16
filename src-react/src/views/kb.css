@@ -236,7 +236,7 @@
      --kb-measure 姝ｆ枃鍒楀涓婇檺 78ch鈥斺€擟JK 绾?39 瀛?琛岋紝钀藉湪 <80 瀛楃鍙鍖洪棿锛?
      --kb-gutter 宸﹀彸鏈€灏忕暀鐧解€斺€旂獎闈㈡澘 20px 璧凤紝瀹界獥闅忛潰鏉垮闀裤€?4px 灏侀《锛?
      --kb-bottom 搴曢儴鍐欎綔鐣欑櫧鈥斺€旀湯琛屽彲婊氬埌瑙嗗彛涓儴浠ヤ笂锛屽厜鏍囦笉璐磋鍙ｅ簳杈广€?*/
-  --kb-measure: 78ch;
+  --kb-measure-cap: 96ch;
   --kb-gutter: clamp(20px, 4vw, 64px);
   --kb-bottom: max(64px, 26vh);
   position: relative;
@@ -279,7 +279,7 @@
    鍒楀鐢辨湰灞傜粺涓€鎺у埗锛氬伐鍏锋爮 / 鏍囬 / 鏍囩 / 姝ｆ枃鑷姩鍚屽垪宸︾紭瀵归綈锛?
    涓嶅啀鐢?.kb-editor-content 鍗曠嫭闄愬锛堥偅鏍蜂細鍜屾爣棰樹笉鍦ㄥ悓涓€鏉″乏缂橈級銆?*/
 .kb-detail-inner {
-  width: min(100%, var(--kb-measure));
+  width: min(100%, var(--kb-measure-cap));
   margin-inline: auto;
   display: flex;
   flex-direction: column;
@@ -293,9 +293,38 @@
 @media (max-width: 720px) {
   .kb-detail {
     --kb-gutter: 20px;
-    --kb-measure: 100%;
   }
 }
+
+/* ── 阅读偏好档位（kb-writing-experience / design D2–D4）────────────────────────
+   三个 data-* 写在 <html> 上（lib/reading-prefs.ts），这里只对 .kb-detail 子树覆盖，
+   所以便签窗的标题、正文、`--fs-reading` 一律不受影响。
+   字号七档直接改 `--fs-reading`：正文与 H1–H6 都是它的 calc() 派生，一处改、整篇等比缩放。 */
+:root[data-reading-size='8'] .kb-detail { --fs-reading: 8px; }
+:root[data-reading-size='10'] .kb-detail { --fs-reading: 10px; }
+:root[data-reading-size='12'] .kb-detail { --fs-reading: 12px; }
+:root[data-reading-size='14'] .kb-detail { --fs-reading: 14px; }
+:root[data-reading-size='16'] .kb-detail { --fs-reading: 16px; }
+:root[data-reading-size='18'] .kb-detail { --fs-reading: 18px; }
+:root[data-reading-size='20'] .kb-detail { --fs-reading: 20px; }
+
+/* 字距七档：em 步长 0.015，随字号等比放大，不改列宽像素 */
+:root[data-reading-tracking='0'] .kb-detail { --ls-reading: 0em; }
+:root[data-reading-tracking='1'] .kb-detail { --ls-reading: 0.015em; }
+:root[data-reading-tracking='2'] .kb-detail { --ls-reading: 0.03em; }
+:root[data-reading-tracking='3'] .kb-detail { --ls-reading: 0.045em; }
+:root[data-reading-tracking='4'] .kb-detail { --ls-reading: 0.06em; }
+:root[data-reading-tracking='5'] .kb-detail { --ls-reading: 0.075em; }
+:root[data-reading-tracking='6'] .kb-detail { --ls-reading: 0.09em; }
+
+.kb-detail .kb-editor-content,
+.kb-detail-title {
+  letter-spacing: var(--ls-reading, 0em);
+}
+
+/* 列宽上限两档：宽度取「可用宽与上限较小值」，所以宽窗只增留白、不增行宽 */
+:root[data-reading-measure='comfortable'] .kb-detail { --kb-measure-cap: 96ch; }
+:root[data-reading-measure='wide'] .kb-detail { --kb-measure-cap: 112ch; }
 
 .kb-detail-body {
   display: flex;

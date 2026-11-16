@@ -175,6 +175,12 @@ export interface Settings {
   telemetryEnabled: boolean
   /** 阅读面字族："" = 跟随正文；`system:<键>` = 系统字体；`file:<文件名>` = 用户上传 */
   readingFont: string
+  /** 阅读面字号（px；白名单 8/10/12/14/16/18/20，越界由后端回落 16） */
+  readingSize: number
+  /** 阅读面字距档位（0..=6，对应 0–0.09em） */
+  readingTracking: number
+  /** 正文列宽上限档位（comfortable 96ch | wide 112ch） */
+  readingMeasure: string
 }
 
 export interface SettingsPayload {
@@ -195,6 +201,9 @@ export interface SettingsPayload {
   exportDir?: string | null
   telemetryEnabled?: boolean
   readingFont?: string
+  readingSize?: number
+  readingTracking?: number
+  readingMeasure?: string
 }
 
 export interface BackupInfo {

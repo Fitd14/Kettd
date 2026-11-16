@@ -78,8 +78,18 @@
   line-height: 1.7;
 }
 
+/* 阅读偏好三组控件（字号 / 字距 / 列宽）：沿用 .seg 写法，只补窄窗换行 */
+.pref-seg {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 @media (max-width: 720px) {
   .font-preview {
     max-width: 100%;
+  }
+
+  .pref-seg {
+    justify-content: flex-start;
   }
 }

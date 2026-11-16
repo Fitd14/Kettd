@@ -18,7 +18,7 @@ export interface KbFolderDialogProps {
 
 /**
  * 文件夹新建 / 重命名弹窗（任务 #4）。
- * 交互沿用 LinkDialog：createPortal 到 body、打开即聚焦全选、Enter 提交、Esc 取消、
+ * 交互沿用旧居中弹窗的焦点纪律：createPortal 到 body、打开即聚焦全选、Enter 提交、Esc 取消、
  * Tab 焦点循环、点击遮罩取消；错误内联显示，成功后由父级卸载（本组件不自行关闭）。
  */
 export function KbFolderDialog({
@@ -82,7 +82,7 @@ export function KbFolderDialog({
     void submit()
   }
 
-  // Tab 焦点循环（与 LinkDialog 一致：首尾回环，跳过 disabled）
+  // Tab 焦点循环（首尾回环，跳过 disabled）
   const handleDialogKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'Tab') return
     const dialog = dialogRef.current

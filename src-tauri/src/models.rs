@@ -305,6 +305,15 @@ pub struct Settings {
   /// 阅读面字族："" = 跟随正文；`system:<键>` = 系统字体；`file:<文件名>` = 用户上传
   #[serde(default)]
   pub reading_font: String,
+  /// 阅读面字号（px，白名单 8/10/12/14/16/18/20；越界回落 16）
+  #[serde(default = "default_reading_size")]
+  pub reading_size: u8,
+  /// 阅读面字距档位（0..=6，对应 0–0.09em 七档；越界回落 0）
+  #[serde(default)]
+  pub reading_tracking: u8,
+  /// 正文列宽上限档位（comfortable 96ch | wide 112ch；越界回落 comfortable）
+  #[serde(default = "default_reading_measure")]
+  pub reading_measure: String,
 }
 
 fn telemetry_default() -> bool {
@@ -346,6 +355,9 @@ impl Default for Settings {
       export_dir: None,
       telemetry_enabled: true,
       reading_font: String::new(),
+      reading_size: default_reading_size(),
+      reading_tracking: 0,
+      reading_measure: default_reading_measure(),
     }
   }
 }
@@ -391,6 +403,9 @@ impl Settings {
     if self.remind_cap_per_hour == 0 || self.remind_cap_per_hour > 60 {
       self.remind_cap_per_hour = REMINDER_CAP_DEFAULT;
     }
+    self.reading_size = normalize_reading_size(self.reading_size);
+    self.reading_tracking = normalize_reading_tracking(self.reading_tracking);
+    self.reading_measure = normalize_reading_measure(&self.reading_measure);
   }
 }
 
@@ -495,11 +510,14 @@ pub const STICKY_CAP: usize = 5;
 
 /// 设置里可选的系统字族：`readingFont = "system:<键>"`，键即 CSS 族名，
 /// 前端用同一张表拼回退栈，后端只做白名单校验。
-pub const READING_FONT_SYSTEMS: [(&str, &str); 4] = [
+pub const READING_FONT_SYSTEMS: [(&str, &str); 6] = [
   ("SimSun", "宋体"),
   ("KaiTi", "楷体"),
   ("FangSong", "仿宋"),
   ("Microsoft YaHei", "微软雅黑"),
+  // 思源（Noto CJK）随 Windows 11 中文版预装；族名必须与系统注册名逐字一致，否则前端解析不到
+  ("Noto Serif SC", "思源宋体"),
+  ("Noto Sans SC", "思源黑体"),
 ];
 
 const FONT_EXTENSIONS: [&str; 4] = ["ttf", "otf", "woff", "woff2"];
@@ -545,6 +563,90 @@ pub fn normalize_reading_font(value: &str) -> Result<String, String> {
   Err("字体设置不认识，已忽略".to_string())
 }
 
+// ---------------------------------------------------------------- 阅读偏好档位（reading-prefs）
+
+/// 可选阅读字号（px）：8–20 步长 2，白名单而非区间，避免 9/11 这类碎值。
+pub const READING_SIZES: [u8; 7] = [8, 10, 12, 14, 16, 18, 20];
+
+/// 字距档位上限（0..=6 共七档；前端按 0.015em 步进换算成 `--ls-reading`）
+pub const READING_TRACKING_MAX: u8 = 6;
+
+/// 列宽上限两档：舒适 96ch / 宽敞 112ch
+pub const READING_MEASURES: [&str; 2] = ["comfortable", "wide"];
+
+fn default_reading_size() -> u8 {
+  16
+}
+
+fn default_reading_measure() -> String {
+  "comfortable".to_string()
+}
+
+/// 字号越界一律回落到 16px（既不取最近档，也不夹紧，保证可复现）。
+pub fn normalize_reading_size(value: u8) -> u8 {
+  if READING_SIZES.contains(&value) {
+    value
+  } else {
+    default_reading_size()
+  }
+}
+
+/// 字距档位越界回落到 0（无额外字距）。
+pub fn normalize_reading_tracking(value: u8) -> u8 {
+  if value <= READING_TRACKING_MAX {
+    value
+  } else {
+    0
+  }
+}
+
+/// 列宽档位名字越界回落到 comfortable。
+pub fn normalize_reading_measure(value: &str) -> String {
+  let trimmed = value.trim();
+  if READING_MEASURES.contains(&trimmed) {
+    trimmed.to_string()
+  } else {
+    default_reading_measure()
+  }
+}
+
+#[cfg(test)]
+mod reading_pref_tests {
+  use super::*;
+
+  #[test]
+  fn size_whitelist_accepts_every_step() {
+    for size in READING_SIZES {
+      assert_eq!(normalize_reading_size(size), size);
+    }
+  }
+
+  #[test]
+  fn rejects_off_step_size_and_tracking() {
+    assert_eq!(normalize_reading_size(15), 16);
+    assert_eq!(normalize_reading_size(0), 16);
+    assert_eq!(normalize_reading_tracking(7), 0);
+    assert_eq!(normalize_reading_tracking(6), 6);
+  }
+
+  #[test]
+  fn missing_fields_fall_back_to_defaults() {
+    // 旧 data.json 没有这三个字段；容器级 #[serde(default)] 必须把它们补成默认值
+    let settings: Settings = serde_json::from_str("{}").unwrap();
+    assert_eq!(settings.reading_size, 16);
+    assert_eq!(settings.reading_tracking, 0);
+    assert_eq!(settings.reading_measure, "comfortable");
+  }
+
+  #[test]
+  fn measure_falls_back_to_comfortable() {
+    assert_eq!(normalize_reading_measure("wide"), "wide");
+    assert_eq!(normalize_reading_measure(" comfortable "), "comfortable");
+    assert_eq!(normalize_reading_measure("wide-ish"), "comfortable");
+    assert_eq!(normalize_reading_measure(""), "comfortable");
+  }
+}
+
 #[cfg(test)]
 mod reading_font_tests {
   use super::*;
@@ -561,6 +663,19 @@ mod reading_font_tests {
     assert!(normalize_reading_font("system:Comic Sans").is_err());
     assert!(normalize_reading_font("KaiTi").is_err());
     assert!(normalize_reading_font("file:../../evil.ttf").is_err());
+  }
+
+  #[test]
+  fn accepts_noto_faces_registered_on_windows() {
+    assert_eq!(
+      normalize_reading_font("system:Noto Serif SC").unwrap(),
+      "system:Noto Serif SC"
+    );
+    assert_eq!(
+      normalize_reading_font("system:Noto Sans SC").unwrap(),
+      "system:Noto Sans SC"
+    );
+    assert!(normalize_reading_font("system:Noto Serif").is_err());
   }
 
   #[test]
@@ -784,6 +899,9 @@ pub struct SettingsPayload {
   pub onboarded: Option<bool>,
   pub export_dir: Option<String>,
   pub reading_font: Option<String>,
+  pub reading_size: Option<u8>,
+  pub reading_tracking: Option<u8>,
+  pub reading_measure: Option<String>,
 }
 
 /// patch 字符串字段：null / 空串 → None（清空）

@@ -123,7 +123,7 @@
 /* 琛ㄦ牸缃戞牸閫夋嫨鍣紙Typora Ctrl+T 鍚屾浜や簰锛?*/
 .kb-editor-gridwrap { position: relative; }
 .kb-grid-picker {
-  position: absolute; top: 30px; left: 0; z-index: 30;
+  position: absolute; top: 26px; left: 0; z-index: 30;
   border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / 0.25));
   border-radius: 4px; padding: 8px;
   background: var(--paper, hsl(var(--card)));
@@ -149,16 +149,31 @@
 
 /* 鎺掔増闃舵 + 闃呰瀹藉害锛坋ditor-polish-spec 搂5锛泂cope 绾搁潰璇︽儏锛屼究绛剧獎绐椾笉鍙楅檺锛?   闃呰瀹藉害鏀圭敱 .kb-detail-inner 鐨?--kb-measure 缁熶竴鎺у埗锛坱asks 4.1锛夛細姝ｆ枃鑷韩涓嶅啀闄愬锛?   鍚﹀垯鏍囬/鏍囩/宸ュ叿鏍忎笌姝ｆ枃宸︾紭浼氶敊浣嶏紱姝ｆ枃瀛楀彿涓庤楂橀樁姊繚鎸佸師鏍枫€?*/
 .kb-detail .kb-editor-content { max-width: none; width: 100%; font-size: var(--fs-reading); }
-.kb-detail .kb-editor-content h1 { font-size: calc(var(--fs-reading) * 1.35); margin: 1.5em 0 .5em; letter-spacing: .4px; }
+.kb-detail .kb-editor-content h1 { font-size: calc(var(--fs-reading) * 1.35); margin: 1.5em 0 .5em; letter-spacing: calc(.4px + var(--ls-reading, 0em)); }
 .kb-detail .kb-editor-content h2 { font-size: calc(var(--fs-reading) * 1.2); margin: 1.3em 0 .45em; }
 .kb-detail .kb-editor-content h3 { font-size: calc(var(--fs-reading) * 1.05); margin: 1.1em 0 .4em; }
 .kb-detail .kb-editor-content p { margin: .65em 0; }
 
 /* H4鈥揌6锛堝伐鍏锋爮銆屾爣棰樸€嶄笅鎷夋柊澧烇級锛歬b-detail 涓庝究绛剧獎绐楃紪杈戞€佸叡鐢紝
    瀛楀彿/闂磋窛寤剁画涓婇潰鐨勫眰绾ч樁姊紝娴呭簳绋跨焊椋庢牸涓嶉澶栧姞绮椼€?*/
-.kb-editor-content h4 { font-size: var(--fs-reading); margin: 1em 0 .35em; letter-spacing: .2px; }
+.kb-editor-content h4 { font-size: var(--fs-reading); margin: 1em 0 .35em; letter-spacing: calc(.2px + var(--ls-reading, 0em)); }
 .kb-editor-content h5 { font-size: calc(var(--fs-reading) * .93); margin: .9em 0 .3em; }
-.kb-editor-content h6 { font-size: calc(var(--fs-reading) * .88); margin: .85em 0 .25em; letter-spacing: .3px; color: var(--text-secondary, hsl(var(--muted-foreground))); }
+.kb-editor-content h6 { font-size: calc(var(--fs-reading) * .88); margin: .85em 0 .25em; letter-spacing: calc(.3px + var(--ls-reading, 0em)); color: var(--text-secondary, hsl(var(--muted-foreground))); }
+
+/* 链接在编辑区可辨（kb-writing-experience D-链接）：Tailwind preflight 把 `a` 重置成
+   `color: inherit; text-decoration: inherit`，编辑区此前没有任何 `a` 规则 → 链接看着像正文。
+   这里显式给回颜色与下划线；颜色只取 --link 令牌，不硬编码。 */
+.kb-editor-content a {
+  color: hsl(var(--link));
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: .18em;
+  cursor: pointer;
+}
+
+.kb-editor-content a:hover {
+  color: hsl(var(--link) / 0.82);
+}
 
 /* 鐪熸満鍙嶉锛歝ontenteditable 榛樿 focus 榛戞鍒虹溂 鈫?鍏ㄧ姸鎬佸幓 outline */
 .kb-editor-content:focus,
@@ -373,8 +388,9 @@
 }
 
 .kb-md-render a {
-  color: hsl(var(--primary));
+  color: hsl(var(--link));
   text-decoration: underline;
+  text-underline-offset: .18em;
 }
 
 .kb-md-render a:hover {
@@ -436,49 +452,29 @@
 
 /* 鈹€鈹€鈹€ 灞呬腑閾炬帴寮圭獥锛堢煡璇嗗簱璇︽儏涓庝究绛剧獥鍏辩敤锛宲ortal 鎸傚埌 body锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
-.kb-link-dialog-overlay {
+/* ── 链接编辑条（kb-writing-experience D9）：点链接在它下方弹一条输入条 ──
+   取代原 .kb-link-dialog-* 居中模态：非模态、不锁编辑区、portal 到 body，
+   所以知识库详情面板与便签窄窗都不会因祖先 overflow 被裁切。 */
+.kb-link-inline {
   position: fixed;
-  inset: 0;
-  z-index: 100;              /* 楂樹簬閫夊尯姘旀场 / 琛ㄦ牸姘旀场 / slash 闈㈡澘(60) */
+  z-index: 90;
+  box-sizing: border-box;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  padding: 16px;
-  background: hsl(var(--foreground) / 0.18);
-}
-
-.kb-link-dialog {
-  width: min(92vw, 420px);   /* 渚跨绐勭獥涓嬮殢瑙嗗彛鏀剁獎 */
-  max-width: 100%;
-  padding: 14px 16px 12px;
+  gap: 6px;
+  padding: 6px 8px;
   border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / 0.25));
   border-radius: 6px;
   background: var(--paper, hsl(var(--card)));
-  box-shadow: 0 18px 48px -18px rgba(40, 40, 30, 0.45);
+  box-shadow: 0 12px 32px -14px rgba(40, 40, 30, 0.42);
   font-family: var(--font-ui);
 }
 
-.kb-link-dialog-title {
-  margin-bottom: 10px;
-  font-size: var(--fs-sub);
-  font-weight: 600;
-  letter-spacing: .4px;
-  color: hsl(var(--foreground));
-}
-
-.kb-link-dialog-field { display: block; }
-
-.kb-link-dialog-label {
-  display: block;
-  margin-bottom: 4px;
-  font-size: var(--fs-meta);
-  color: hsl(var(--muted-foreground));
-}
-
-.kb-link-dialog-input {
-  box-sizing: border-box;
-  width: 100%;
-  height: 30px;
+.kb-link-inline-input {
+  flex: 1 1 160px;
+  min-width: 0;
+  height: 26px;
   padding: 0 8px;
   border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / 0.3));
   border-radius: 4px;
@@ -488,33 +484,15 @@
   font-size: var(--fs-sub);
   outline: none;
 }
-.kb-link-dialog-input:focus {
-  border-color: hsl(var(--primary) / 0.55);
-  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.12);
-}
-.kb-link-dialog-input:disabled { opacity: .55; cursor: not-allowed; }
-
-.kb-link-dialog-hint {
-  min-height: 16px;
-  margin-top: 6px;
-  font-size: var(--fs-meta);
-  line-height: 1.4;
-  color: hsl(var(--muted-foreground));
-}
-.kb-link-dialog-hint.on-error { color: var(--seal, hsl(var(--primary))); }
-
-.kb-link-dialog-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
+.kb-link-inline-input:focus {
+  border-color: hsl(var(--link) / 0.55);
+  box-shadow: 0 0 0 2px hsl(var(--link) / 0.12);
 }
 
-.kb-link-dialog-spacer { flex: 1 1 auto; }
-
-.kb-link-dialog-btn {
+.kb-link-inline-btn {
+  flex: 0 0 auto;
   height: 26px;
-  padding: 0 10px;
+  padding: 0 9px;
   border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / 0.25));
   border-radius: 4px;
   background: transparent;
@@ -524,14 +502,16 @@
   line-height: 1;
   cursor: pointer;
 }
-.kb-link-dialog-btn:hover { background: var(--muted, hsl(var(--muted))); }
-.kb-link-dialog-btn:focus-visible { outline: 1px solid hsl(var(--muted-foreground) / 0.4); outline-offset: 1px; }
-.kb-link-dialog-btn:disabled { opacity: .45; cursor: not-allowed; }
-.kb-link-dialog-btn.kb-link-dialog-primary {
-  border-color: hsl(var(--primary) / 0.35);
-  background: hsl(var(--primary) / 0.12);
+.kb-link-inline-btn:hover { background: hsl(var(--muted)); }
+.kb-link-inline-btn.danger { color: hsl(var(--destructive)); }
+.kb-link-inline-btn:focus-visible { outline: 1px solid hsl(var(--muted-foreground) / 0.4); outline-offset: 1px; }
+
+.kb-link-inline-err {
+  flex: 1 1 100%;
+  font-size: var(--fs-meta);
+  line-height: 1.4;
+  color: hsl(var(--destructive));
 }
-.kb-link-dialog-btn.kb-link-dialog-primary:hover { background: hsl(var(--primary) / 0.2); }
 
 /* 鈹€鈹€鈹€ 鏉＄洰鍐呮煡鎵炬爮锛圕trl+F锛岀己闄?#6锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
    鏌ユ壘鏍忔槸缂栬緫鍣?flex 鍒椾腑鐨?sticky 瀛愰」锛氭粴鍔ㄦ潯鐩椂濮嬬粓鍚搁《鍙锛?   鍙堟帓鍦ㄥ伐鍏锋爮涔嬪悗涓嶉伄鎸″伐鍏锋爮锛泎-index 80 浣庝簬閾炬帴寮圭獥锛?00锛夈€?   閰嶈壊浼樺厛鍙栦究绛剧焊 token锛?-sticky-*锛夛紝鐭ヨ瘑搴撹鎯呴噷鍥炶惤鍒?--paper/--ink-*銆?*/

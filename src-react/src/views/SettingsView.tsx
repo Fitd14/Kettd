@@ -34,6 +34,7 @@ import {
   type StickyNoteItem,
 } from '@/lib/api'
 import { READING_FONT_SYSTEMS } from '@/lib/reading-font'
+import { READING_SIZES, READING_MEASURES, trackingEm } from '@/lib/reading-prefs'
 import { plainPreview } from '@/lib/sticky-text'
 import { STICKY_PAPERS } from '@/views/sticky-labels'
 import './settings-sticky.css'
@@ -653,6 +654,56 @@ export function SettingsView({ boot, refresh }: Props) {
                 onClick={() => { void chooseFont(`system:${f.key}`) }}
               >
                 {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="set-row"><span>字号
+          <div className="tiny text-muted">8–20px 七档 · 标题随正文档位整体缩放（便签窗不跟随）</div>
+        </span>
+          <div className="seg pref-seg" role="group" aria-label="阅读字号">
+            {READING_SIZES.map((size) => (
+              <button
+                key={size}
+                className={`btn sm ${s.readingSize === size ? 'on' : ''}`}
+                onClick={() => { void patch({ readingSize: size }) }}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="set-row"><span>字距
+          <div className="tiny text-muted">七档步进 0.015em · 随字号等比放大，不改行宽</div>
+        </span>
+          <div className="seg pref-seg" role="group" aria-label="阅读字距">
+            {Array.from({ length: 7 }, (_, index) => {
+              const em = trackingEm(index)
+              return (
+                <button
+                  key={index}
+                  className={`btn sm ${s.readingTracking === index ? 'on' : ''}`}
+                  title={em}
+                  onClick={() => { void patch({ readingTracking: index }) }}
+                >
+                  {index === 0 ? '0' : em.replace('0.', '.')}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div className="set-row"><span>列宽
+          <div className="tiny text-muted">只定上限 · 窄窗自动填满，宽窗多出的宽度变成留白</div>
+        </span>
+          <div className="seg pref-seg" role="group" aria-label="正文列宽">
+            {READING_MEASURES.map((m) => (
+              <button
+                key={m.key}
+                className={`btn sm ${s.readingMeasure === m.key ? 'on' : ''}`}
+                title={m.note}
+                onClick={() => { void patch({ readingMeasure: m.key }) }}
+              >
+                {m.label}
               </button>
             ))}
           </div>

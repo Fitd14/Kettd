@@ -2094,6 +2094,15 @@ impl Store {
       if let Some(value) = &patch.reading_font {
         settings.reading_font = crate::models::normalize_reading_font(value)?;
       }
+      if let Some(value) = patch.reading_size {
+        settings.reading_size = crate::models::normalize_reading_size(value);
+      }
+      if let Some(value) = patch.reading_tracking {
+        settings.reading_tracking = crate::models::normalize_reading_tracking(value);
+      }
+      if let Some(value) = &patch.reading_measure {
+        settings.reading_measure = crate::models::normalize_reading_measure(value);
+      }
       if let Some(value) = &patch.capture_hotkey {
         let trimmed = value.trim();
         if trimmed.is_empty() {

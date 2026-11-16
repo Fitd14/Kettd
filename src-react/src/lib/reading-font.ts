@@ -15,6 +15,8 @@ export const READING_FONT_SYSTEMS = [
   { key: 'KaiTi', label: '楷体' },
   { key: 'FangSong', label: '仿宋' },
   { key: 'Microsoft YaHei', label: '微软雅黑' },
+  { key: 'Noto Serif SC', label: '思源宋体' },
+  { key: 'Noto Sans SC', label: '思源黑体' },
 ] as const
 
 /** 上传字体统一注册到这个族名，切换时整族替换，避免同名文件互相覆盖 */

@@ -40,11 +40,11 @@ function plainPreview(md: string): string {
   return text.length > 60 ? `${text.slice(0, 60)}…` : text
 }
 
-/** 窗口内浮层选择器：链接弹窗 / slash 命令面板 / 选区气泡 / 表格网格 / 通用弹层 */
+/** 窗口内浮层选择器：链接编辑条 / slash 命令面板 / 选区气泡 / 表格网格 / 通用弹层 */
 const OVERLAY_SELECTOR = [
   '[role="dialog"]',
   '[role="listbox"]',
-  '.kb-link-dialog-overlay',
+  '.kb-link-inline',
   '.kb-slash',
   '.kb-bubble',
   '.kb-grid-picker',

@@ -21,7 +21,10 @@ import {
   ListTodo, TextQuote, Code, Table as TableIcon, Link2, Minus, Pilcrow,
   Search, ChevronUp, ChevronDown, X,
 } from 'lucide-react'
-import { LinkDialog } from './link-dialog'
+import { LinkInlineEditor } from './link-inline-editor'
+import { LinkSyntax, insertLinkTemplate, normalizeLinkSyntax } from './link-syntax'
+import { isSafeLink } from '@/lib/link-url'
+import { openExternal } from '@/lib/external-link'
 import { ImageExtension } from './image-extension'
 import { handleImagePaste } from './paste-image'
 import { HeadingSelect } from '@/components/editor/heading-select'
@@ -61,7 +64,12 @@ interface SlashItem {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon: any
   /** 在已聚焦的命令链上执行（"/query" 文本由 applySlashItem 先行删除） */
-  command: (chain: ChainedCommands) => void
+  command?: (chain: ChainedCommands) => void
+  /**
+   * 需要读编辑器状态时改用这个（如插入模板并选中占位文本），与 `command` 二选一。
+   * 模块级函数拿不到 React 状态，所以链接项不走命令链。
+   */
+  run?: (editor: Editor) => void
 }
 
 /** 工具栏按钮描述（行内格式 / 块级格式共用） */
@@ -95,6 +103,10 @@ const SLASH_ITEMS: SlashItem[] = [
     command: (c) => c.setParagraph() },
   { id: 'hr', title: '分割线', desc: '内容分节', keywords: 'hr rule fenge', icon: Minus,
     command: (c) => c.setHorizontalRule() },
+  // 链接（kb-writing-experience D10）：插入 `[@文本](url)` 模板并选中占位文本。
+  // 便签窗同样可用 —— 它只需要 link mark，不涉及表格/图片。
+  { id: 'link', title: '链接', desc: '插入 [@文本](url)', keywords: 'link lianjie url chaolianjie', icon: Link2,
+    run: (editor) => insertLinkTemplate(editor) },
 ]
 
 /**
@@ -117,9 +129,17 @@ function applySlashItem(
   range: { from: number; to: number } | null,
   item: SlashItem,
 ) {
+  // 需要读编辑器状态的项（链接模板）：先删触发文本，再由它自己发事务
+  if (item.run) {
+    const cleanup = editor.chain().focus()
+    if (range) cleanup.deleteRange(range)
+    cleanup.run()
+    item.run(editor)
+    return
+  }
   const chain = editor.chain().focus()
   if (range) chain.deleteRange(range)
-  item.command(chain)
+  item.command?.(chain)
   chain.run()
 }
 
@@ -383,6 +403,9 @@ export function TipTapEditor({
     if (!ed) return
     if (!force && ed.isDestroyed) return
     try {
+      // 落盘前归一化 `[@文本](url)` 字面量（D8）：Markdown 里不残留 `[@`。
+      // 只有历史文本 / 混在长文里粘贴的才走到这里，键入与整段粘贴已在输入时转换。
+      normalizeLinkSyntax(ed)
       // getMarkdown 内部已 try/catch：序列化异常返回 ''
       const md = getMarkdown(ed)
       // 序列化异常得到空串时不要覆盖已有内容（仅当编辑器确实为空才允许写空串）
@@ -434,6 +457,7 @@ export function TipTapEditor({
   const slashRectRef = useRef<(() => DOMRect | null) | null>(null)
   const slashPanelRef = useRef<HTMLDivElement | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const gridWrapRef = useRef<HTMLDivElement>(null)
 
   const slashBridge = useRef<{
     onStart?: (p: any) => void
@@ -499,10 +523,12 @@ export function TipTapEditor({
   const [gridOpen, setGridOpen] = useState(false)
   const [gridSize, setGridSize] = useState({ rows: 0, cols: 0 })
 
-  // 居中链接弹窗（预填当前链接；无选中文本也无链接时禁用应用）
-  const [linkOpen, setLinkOpen] = useState(false)
-  const [linkInitial, setLinkInitial] = useState('')
-  const [linkCanApply, setLinkCanApply] = useState(true)
+  // 链接编辑条（D9）：点链接在它下方弹一条内联输入条，取代原来的居中弹窗
+  const [inlineLink, setInlineLink] = useState<
+    { href: string; anchor: { left: number; top: number; bottom: number } } | null
+  >(null)
+  /** 点击处理住在只创建一次的 editorProps 里，经 ref 拿最新的 setState */
+  const openInlineLinkRef = useRef<(href: string, pos: number) => boolean>(() => false)
 
   // slash 扩展：菜单渲染与键盘导航经 bridge 委托给 React 层
   const slashExtension = useMemo(
@@ -568,6 +594,8 @@ export function TipTapEditor({
     () => [
       StarterKit.configure({
         codeBlock: false, // 用 CodeBlockLowlight 替代
+        // 外链一律不外泄导航（D11）：点击由 handleClick 接管，Ctrl/⌘+点击才开系统浏览器
+        link: { openOnClick: false },
       }),
       CodeBlockLowlight.configure({ lowlight }),
       TaskList,
@@ -586,6 +614,8 @@ export function TipTapEditor({
         breaks: true,
       }),
       slashExtension,
+      // `[@文本](url)` 语法（D7/D8）：键入转换 + 整段粘贴转换
+      LinkSyntax,
       // 条目内查找（Ctrl+F）：模块级单例扩展，引用稳定，不参与 useMemo 依赖
       FindExtension,
       // 正文字数上限（便签窗 500 字；KB 不传 maxChars → 恒定放行）
@@ -609,6 +639,23 @@ export function TipTapEditor({
         // allowImagesRef 是运行期值，schema 层的 Image 扩展则由上面的 extensions 按挂载期决定。
         handlePaste: (view, event) =>
           handleImagePaste(view, event, { allowImages: allowImagesRef.current }),
+        /**
+         * 链接点击（D11）：普通点击 → 打开内联编辑条并选中该链接；
+         * Ctrl/⌘+点击 → 交给系统浏览器（openExternal 内部再验一次协议）。
+         * 返回 true 即接管，WebView 不会自行导航。
+         */
+        handleClick: (_view, pos, event) => {
+          const anchor = (event.target as HTMLElement | null)?.closest?.('a')
+          if (!anchor) return false
+          const href = anchor.getAttribute('href') ?? ''
+          if (!isSafeLink(href)) return false
+          if (event.metaKey || event.ctrlKey) {
+            event.preventDefault()
+            openExternal(href)
+            return true
+          }
+          return openInlineLinkRef.current(href, pos)
+        },
       },
       onUpdate: () => scheduleSave(),
       // 失焦 / editor 销毁时立刻落盘（供切条、窗口切换不丢字）
@@ -796,6 +843,28 @@ export function TipTapEditor({
     }
   }, [editor])
 
+  /**
+   * 表格网格选择器：打开期间点面板外或按 Esc 就收起（任务 6.1）。
+   * 不用按钮 blur 收 —— 面板内按下单元格会先触发 blur，会「点一下就消失」。
+   */
+  useEffect(() => {
+    if (!gridOpen) return
+    const onDocPointerDown = (event: MouseEvent) => {
+      const wrap = gridWrapRef.current
+      if (wrap && event.target instanceof Node && wrap.contains(event.target)) return
+      setGridOpen(false)
+    }
+    const onDocKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setGridOpen(false)
+    }
+    document.addEventListener('mousedown', onDocPointerDown, true)
+    document.addEventListener('keydown', onDocKeyDown, true)
+    return () => {
+      document.removeEventListener('mousedown', onDocPointerDown, true)
+      document.removeEventListener('keydown', onDocKeyDown, true)
+    }
+  }, [gridOpen])
+
   // 外部 markdown 变化同步（知识便签 viewport：KB 原文变化 → 编辑器更新）
   useEffect(() => {
     if (!editor) return
@@ -851,37 +920,33 @@ export function TipTapEditor({
     applyHeadingCommand(chain(), next).run()
   }
 
-  /* ── 居中链接弹窗 ── */
-  const openLinkDialog = () => {
-    const href = (editor.getAttributes('link').href as string | undefined) ?? ''
-    setLinkInitial(href)
-    setLinkCanApply(!editor.state.selection.empty || href !== '')
-    setLinkOpen(true)
-  }
-
-  const closeLinkDialog = () => {
-    setLinkOpen(false)
-    // 关闭后把焦点与选区还给编辑器
-    editor.chain().focus().run()
-  }
-
-  /** 返回 false 表示地址不合法（setLink 内置校验失败），弹窗保留并提示 */
-  const applyLink = (value: string): boolean => {
-    const url = value.trim()
-    const cmd = editor.chain().focus()
-    if (!url) {
-      // 与原 prompt 语义一致：留空确定 = 移除链接
-      cmd.extendMarkRange('link').unsetLink().run()
-    } else if (!cmd.extendMarkRange('link').setLink({ href: url }).run()) {
-      return false
-    }
-    setLinkOpen(false)
+  /* ── 链接编辑条（D9）── */
+  openInlineLinkRef.current = (href: string, pos: number) => {
+    // 先选中整条链接：后续 extendMarkRange('link') 才能精确命中这一条
+    editor.chain().focus().setTextSelection(pos).extendMarkRange('link').run()
+    const coords = editor.view.coordsAtPos(pos)
+    setInlineLink({ href, anchor: { left: coords.left, top: coords.top, bottom: coords.bottom } })
     return true
   }
 
-  const removeLink = () => {
+  /** 返回 false 表示地址不合法（条留下并提示）；留空提交 = 移除链接 */
+  const submitInlineLink = (value: string): boolean => {
+    const url = value.trim()
+    const cmd = editor.chain().focus().extendMarkRange('link')
+    if (!url) {
+      cmd.unsetLink().run()
+      setInlineLink(null)
+      return true
+    }
+    if (!isSafeLink(url)) return false
+    if (!cmd.setLink({ href: url }).run()) return false
+    setInlineLink(null)
+    return true
+  }
+
+  const removeInlineLink = () => {
     editor.chain().focus().extendMarkRange('link').unsetLink().run()
-    setLinkOpen(false)
+    setInlineLink(null)
   }
 
   const renderTool = (t: ToolItem) => {
@@ -1003,8 +1068,6 @@ export function TipTapEditor({
   const onKeyDown = (e: React.KeyboardEvent) => {
     // 中文输入法组合态（isComposing / keyCode 229）不处理快捷键，也不触发查找导航
     if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
-    // 链接弹窗打开时快捷键交给弹窗，避免 portal 事件冒泡后误插表格 / 误开查找
-    if (linkOpen) return
 
     const mod = e.ctrlKey || e.metaKey
     const key = e.key.toLowerCase()
@@ -1015,6 +1078,14 @@ export function TipTapEditor({
       e.preventDefault()
       e.stopPropagation()
       openFind()
+      return
+    }
+
+    // Ctrl/Cmd+K：插入 `[@文本](url)` 模板并选中占位文本（与工具栏按钮、/link 同一实现）
+    if (mod && !e.shiftKey && !e.altKey && key === 'k') {
+      e.preventDefault()
+      e.stopPropagation()
+      insertLinkTemplate(editor)
       return
     }
 
@@ -1058,12 +1129,14 @@ export function TipTapEditor({
 
         {/* 表格：网格选择器（allowTables=false 时整块不渲染，便签窗没有任何表格入口） */}
         {allowTables && (
-          <div className="kb-editor-gridwrap">
+          <div className="kb-editor-gridwrap" ref={gridWrapRef}>
             <button
               type="button"
               className={'kb-editor-tool' + (flags.table ? ' on' : '')}
               title="表格 Ctrl+T"
               aria-label="插入表格"
+              aria-haspopup="dialog"
+              aria-expanded={gridOpen}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => setGridOpen((v) => !v)}
             >
@@ -1084,7 +1157,7 @@ export function TipTapEditor({
           title="链接 Ctrl+K"
           aria-label="链接"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={openLinkDialog}
+          onClick={() => insertLinkTemplate(editor)}
         >
           <Link2 size={15} strokeWidth={1.7} />
         </button>
@@ -1101,7 +1174,7 @@ export function TipTapEditor({
         </button>
       </div>
 
-      {/* 条目内查找栏（Ctrl+F）：sticky 吸顶、右侧对齐，不遮挡工具栏；z-index 低于 LinkDialog */}
+      {/* 条目内查找栏（Ctrl+F）：sticky 吸顶、右侧对齐，不遮挡工具栏；z-index 低于链接编辑条 */}
       {findOpen && (
         <div className="kb-find" role="search" aria-label="条目内查找">
           <Search size={14} strokeWidth={1.7} className="kb-find-ico" aria-hidden="true" />
@@ -1199,14 +1272,14 @@ export function TipTapEditor({
         <EditorCharCount editor={editor} maxChars={maxChars} />
       )}
 
-      {/* 居中链接弹窗：portal 到 body，知识库与便签窄窗下都可见 */}
-      {linkOpen && (
-        <LinkDialog
-          initialUrl={linkInitial}
-          canApply={linkCanApply}
-          onConfirm={applyLink}
-          onRemove={removeLink}
-          onCancel={closeLinkDialog}
+      {/* 链接编辑条（D9）：非模态，贴在链接下方；portal 到 body，窄窗也不会被裁切 */}
+      {inlineLink && (
+        <LinkInlineEditor
+          href={inlineLink.href}
+          anchor={inlineLink.anchor}
+          onSubmit={submitInlineLink}
+          onRemove={removeInlineLink}
+          onClose={() => { setInlineLink(null); editor.chain().focus().run() }}
         />
       )}
 

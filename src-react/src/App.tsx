@@ -21,6 +21,7 @@ import {
 import { todaySections } from './kernel/selectors.js'
 import { localToday } from './kernel/time.js'
 import { applyReadingFont } from './lib/reading-font'
+import { applyReadingPrefs } from './lib/reading-prefs'
 import { configureAssetsDir } from './rendering/asset-url'
 import { useUndoToast, UndoToast } from '@/components/undo-toast'
 import { TitleBar } from '@/components/title-bar'
@@ -98,6 +99,8 @@ export default function App() {
     applyTheme(r.data.settings.theme)
     // 阅读面字体：设置在 store 里，启动与每次 store-changed 都重放一次（幂等）
     void applyReadingFont(r.data.settings.readingFont)
+    // 阅读偏好（字号 / 字距 / 列宽）：属性驱动，幂等重放；store-changed 走同一个 refresh
+    applyReadingPrefs(r.data.settings)
   }, [])
 
   useEffect(() => {
