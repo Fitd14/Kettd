@@ -14,19 +14,24 @@
 
 /* 鈹€鈹€鈹€ 鎼滅储鏍?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
-.kb-topbar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
+/* 搜索并入左列顶部（kb-workspace-layout D1）：知识库区不再有横跨整栏的搜索带 */
+.kb-list > .kb-search-bar {
+  flex: 0 0 auto;
+  width: 100%;
+  padding: 2px 6px 4px;
 }
 
-.kb-topbar .kb-search-bar {
-  flex: 1;
+.kb-list > .kb-search-bar input {
+  height: 28px;
+  padding: 0 8px;
+  font-size: var(--fs-sub);
 }
 
-.kb-new-btn {
-  flex-shrink: 0;
+/* 结果计数让位给 232px 窄列：只留数字，不换行 */
+.kb-list > .kb-search-bar .kb-result-count {
+  flex: 0 0 auto;
+  font-size: var(--fs-meta);
+  white-space: nowrap;
 }
 
 .kb-search-bar {
@@ -197,6 +202,18 @@
   flex-shrink: 0;
 }
 
+/* 左列里只占一行：标签多了横向滚，不把树挤下去 */
+.kb-list > .kb-tag-filter {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 0 6px 2px;
+  scrollbar-width: none;
+}
+
+.kb-list > .kb-tag-filter::-webkit-scrollbar { display: none; }
+
+.kb-list > .kb-tag-filter .kb-tag-chip { flex: 0 0 auto; }
+
 .kb-tag-chip {
   font-size: var(--fs-sub);
   padding: 0.15em 0.6em;
@@ -238,21 +255,16 @@
      --kb-bottom 搴曢儴鍐欎綔鐣欑櫧鈥斺€旀湯琛屽彲婊氬埌瑙嗗彛涓儴浠ヤ笂锛屽厜鏍囦笉璐磋鍙ｅ簳杈广€?*/
   --kb-measure-cap: 96ch;
   --kb-gutter: clamp(20px, 4vw, 64px);
-  --kb-bottom: max(64px, 26vh);
+  /* 底部留白：末行能滚到视口中部以上，但不再把半个屏幕空出来（m01762 第 3 条） */
+  --kb-bottom: clamp(64px, 14vh, 160px);
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  /* 鏈眰鏄敮涓€婊氬姩瀹瑰櫒锛堝唴灞備笉鍐嶅 .kb-detail锛夛紱overflow-x 鏄惧紡 hidden锛?
-     overflow-y 闈?visible 鏃惰鑼冧細鎶?visible 绠楁垚 auto锛屾í鍚戠粷涓嶅嚭鐜版粴鍔ㄦ潯銆?*/
-  overflow-y: auto;
-  overflow-x: hidden;
-  /* 閿洏/鍏夋爣婊氬叆瑙嗛噹鏃剁粰鏈鐣欏嚭搴曢儴鍛煎惛锛涙粴鍔ㄦ潯杩涘嚭涓嶆尋鍘嬫鏂囧垪銆?*/
-  scroll-padding-bottom: var(--kb-bottom);
-  scrollbar-gutter: stable;
+  min-height: 0;
+  /* 本层不再滚动：滚动交给 .kb-detail-scroll，工具条因此不会被正文推走 */
+  overflow: hidden;
   border-left: 1px solid var(--line-warm);
-  /* 涓婏細宸ュ叿鏍忓懠鍚镐綅锛涘乏鍙筹細gutter锛涗笅锛氬啓浣滅暀鐧斤紙Chromium 婊氬姩鍒板簳浼氫繚鐣欏熬 padding锛夈€?*/
-  padding: clamp(20px, 2.6vh, 28px) var(--kb-gutter) var(--kb-bottom);
+  padding: 0;
   background-color: var(--paper);
   background-image:
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/></svg>"),
@@ -260,6 +272,18 @@
   box-shadow: inset 0 0 90px rgba(90,80,60,.07);
   color: var(--ink-1);
   border-radius: 2px;
+}
+
+/* 正文滚动区：滚动条从这里开始，工具条与标题在它之外（m01554 第 8 条）。 */
+.kb-detail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* 锚点落位时只留一行的余量：再大就会把「跳转后正文空白过多」算到留白头上 */
+  scroll-padding-bottom: 32px;
+  scrollbar-gutter: stable;
+  padding: 10px var(--kb-gutter) var(--kb-bottom);
 }
 
 /* 暗色主题：宣纸面随共享令牌走（tasks 5.1 / design.md §4.6）。
@@ -279,14 +303,40 @@
    鍒楀鐢辨湰灞傜粺涓€鎺у埗锛氬伐鍏锋爮 / 鏍囬 / 鏍囩 / 姝ｆ枃鑷姩鍚屽垪宸︾紭瀵归綈锛?
    涓嶅啀鐢?.kb-editor-content 鍗曠嫭闄愬锛堥偅鏍蜂細鍜屾爣棰樹笉鍦ㄥ悓涓€鏉″乏缂橈級銆?*/
 .kb-detail-inner {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  /* 大纲轨道常驻（kb-workspace-layout D3）：右侧 176px 栏 + 12px 间距恒占位，
+     开关只切 .kb-outline 的可见性，不再改列数——正文因此不会横跳。 */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 188px;
+  align-items: stretch;
+  min-height: 100%;
+}
+
+/* 正文本栏：列宽档位的最终承载层——宽度取「可用宽与上限的较小值」，
+   宽窗多出来的宽度只变成两侧留白，不变成每行更多字。 */
+.kb-detail-main {
+  flex: 1;
   width: min(100%, var(--kb-measure-cap));
   margin-inline: auto;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  flex: 1;
-  min-height: 0;
+  min-width: 0;
 }
+
+/* 大纲从右侧留白里让位：并排时整块改两列，右列固定 176px；正文在剩下那一列里
+   按「可用宽与上限取小」居中。留白够时大纲不压字，留白不够就顺带把正文列收窄——
+   左右留白因此允许不对称：右宽左窄（m01787「允许大纲占用正文留白」）。 */
+.kb-detail-inner > .kb-detail-main { grid-column: 1; min-width: 0; }
+.kb-detail-inner > .kb-outline {
+  grid-column: 2;
+  min-width: 0;
+}
+.kb-detail-inner > .kb-outline.is-hidden { visibility: hidden; }
+/* 抽屉形态（窄窗）：轨道整体不占位，正文独占整列，抽屉以覆盖层出现 */
+.kb-detail-inner.no-rail { grid-template-columns: minmax(0, 1fr); }
 
 /* 鍐欎綔鍖哄搷搴斿紡锛坱asks 4.2锛夛細绐勯潰鏉挎鏂囧崰婊″垪瀹姐€佷晶鐣欑櫧淇濆簳 20px锛?
    瀹界獥锛?=1440px锛変笉鍔?--kb-measure 鈫?澶氬嚭鐨勫搴﹀彧鍙樺乏鍙崇暀鐧姐€?*/
@@ -300,22 +350,24 @@
    三个 data-* 写在 <html> 上（lib/reading-prefs.ts），这里只对 .kb-detail 子树覆盖，
    所以便签窗的标题、正文、`--fs-reading` 一律不受影响。
    字号七档直接改 `--fs-reading`：正文与 H1–H6 都是它的 calc() 派生，一处改、整篇等比缩放。 */
-:root[data-reading-size='8'] .kb-detail { --fs-reading: 8px; }
-:root[data-reading-size='10'] .kb-detail { --fs-reading: 10px; }
 :root[data-reading-size='12'] .kb-detail { --fs-reading: 12px; }
+:root[data-reading-size='13'] .kb-detail { --fs-reading: 13px; }
 :root[data-reading-size='14'] .kb-detail { --fs-reading: 14px; }
+:root[data-reading-size='15'] .kb-detail { --fs-reading: 15px; }
 :root[data-reading-size='16'] .kb-detail { --fs-reading: 16px; }
+:root[data-reading-size='17'] .kb-detail { --fs-reading: 17px; }
 :root[data-reading-size='18'] .kb-detail { --fs-reading: 18px; }
+:root[data-reading-size='19'] .kb-detail { --fs-reading: 19px; }
 :root[data-reading-size='20'] .kb-detail { --fs-reading: 20px; }
+:root[data-reading-size='21'] .kb-detail { --fs-reading: 21px; }
+:root[data-reading-size='22'] .kb-detail { --fs-reading: 22px; }
+:root[data-reading-size='23'] .kb-detail { --fs-reading: 23px; }
+:root[data-reading-size='24'] .kb-detail { --fs-reading: 24px; }
 
 /* 字距七档：em 步长 0.015，随字号等比放大，不改列宽像素 */
 :root[data-reading-tracking='0'] .kb-detail { --ls-reading: 0em; }
-:root[data-reading-tracking='1'] .kb-detail { --ls-reading: 0.015em; }
-:root[data-reading-tracking='2'] .kb-detail { --ls-reading: 0.03em; }
-:root[data-reading-tracking='3'] .kb-detail { --ls-reading: 0.045em; }
-:root[data-reading-tracking='4'] .kb-detail { --ls-reading: 0.06em; }
-:root[data-reading-tracking='5'] .kb-detail { --ls-reading: 0.075em; }
-:root[data-reading-tracking='6'] .kb-detail { --ls-reading: 0.09em; }
+:root[data-reading-tracking='1'] .kb-detail { --ls-reading: 0.03em; }
+:root[data-reading-tracking='2'] .kb-detail { --ls-reading: 0.06em; }
 
 .kb-detail .kb-editor-content,
 .kb-detail-title {
@@ -344,18 +396,315 @@
   flex: 1;
 }
 
-.kb-detail-toolbar {
-  display: flex;
-  gap: 0.5rem;
+/* 文档工具条（镇纸）：横贯整栏、吸在滚动容器顶部，分两行。
+   第一行＝文件名 + 保存时间（左）与文档动作（右）；第二行＝格式工具栏（独占一行，按宽度自然折）。
+   下缘一道细朱线是整页唯一的装饰，其余一概交给留白。 */
+.kb-detail-strip {
+  position: relative;
+  z-index: 8;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'head actions'
+    'tools tools';
   align-items: center;
-  flex-wrap: wrap;
-  flex-shrink: 0;
+  gap: 2px 12px;
+  flex: 0 0 auto;
+  padding: 6px var(--kb-gutter) 0;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line-warm);
+  box-shadow: 0 1px 0 hsl(var(--seal) / 0.16);
+}
+
+/* 第一行左端：文件名（只读镜像）+ 保存时间。
+   外层 head 用 center 把这一组垂直居中（与右侧 24px 图标按钮同一中线）；
+   基线只在组内由 headline 保证，否则单行 flex 的 line 贴顶，文字会比图标高约 11px。 */
+.kb-strip-head {
+  grid-area: head;
+  min-width: 0;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}
+.kb-strip-headline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* 两行之间的分割线：第一行 38px + strip 顶内边距 6px = 44px 处。
+   放在伪元素上，才能横贯整栏（第一行本身被 grid 拆成 head / actions 两块）。 */
+.kb-detail-strip::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 44px;
+  border-top: 1px solid var(--line-warm);
+}
+
+/* 第一行左端只读镜像：标题在正文首行改，这里只回答「现在打开的是哪一条」（单行省略） */
+.kb-strip-ro {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: min(46ch, 420px);
+  color: var(--ink-2);
+  font-size: var(--fs-sub);
+  line-height: 1.2;
+}
+.kb-strip-ro-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kb-strip-saved {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.2;
+  font-size: var(--fs-meta);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.kb-strip-saved .dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; }
+.kb-strip-saved.editing { color: var(--seal-ink); }
+
+/* 第二行：格式工具栏整行铺开；下缘留 6px 再接过 strip 的朱线 */
+.kb-strip-tools {
+  grid-area: tools;
+  min-width: 0;
+  min-height: 24px;
+  display: flex;
+  padding: 2px 0 6px;
+}
+
+/* 右侧动作与第一行同高，基线对齐由 head 决定 */
+.kb-strip-actions { min-height: 38px; }
+
+/* 工具栏进入 strip 后由 strip 提供下缘规则，自身不再画线、不再留边 */
+.kb-strip-tools .kb-editor-toolbar {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 0;
+  border-bottom: 0;
+}
+
+.kb-strip-actions { grid-area: actions; display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+.kb-strip-anchor { position: relative; display: flex; }
+
+.kb-strip-btn {
+  min-width: 26px;
+  height: 24px;
+  padding: 0 5px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground, hsl(var(--muted-foreground)));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.kb-strip-btn:hover:not(:disabled) { background: var(--muted, hsl(var(--muted))); color: hsl(var(--foreground)); }
+.kb-strip-btn.on { background: hsl(var(--primary) / 0.1); color: hsl(var(--foreground)); }
+.kb-strip-btn:focus-visible { outline: 1px solid hsl(var(--muted-foreground) / 0.4); }
+.kb-strip-btn:disabled { opacity: 0.38; cursor: default; }
+
+.kb-strip-sep { width: 1px; height: 16px; margin: 0 4px; background: hsl(var(--muted-foreground) / 0.2); }
+
+/* 排版弹层：挂在「排版」钮下方，宽度只够放两条滑块 */
+.kb-typo-pop {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  z-index: 60;
+  width: 268px;
+  padding: 12px 14px 10px;
+  border: 1px solid var(--line-warm);
+  border-radius: 6px;
+  background: var(--paper-deep);
+  box-shadow: 0 12px 28px hsl(var(--foreground) / 0.14);
+  color: var(--ink-1);
+}
+.kb-typo-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: var(--fs-sub);
+  color: var(--ink-1);
+}
+.kb-typo-note { font-size: var(--fs-meta); color: var(--ink-3); }
+.kb-typo-measure { margin-top: 10px; }
+.kb-typo-measure-label { display: block; margin-bottom: 4px; font-size: var(--fs-sub); color: var(--ink-2); }
+.kb-typo-seg { display: flex; gap: 4px; }
+.kb-typo-seg-btn {
+  flex: 1;
+  height: 26px;
+  border: 1px solid var(--line-warm);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: var(--fs-sub);
+  cursor: pointer;
+}
+.kb-typo-seg-btn:hover { border-color: var(--seal-track); color: var(--ink-1); }
+.kb-typo-seg-btn.on { border-color: var(--seal-track); color: var(--seal-ink); background: hsl(var(--seal) / 0.07); }
+.kb-typo-foot { margin: 8px 0 0; font-size: var(--fs-meta); color: var(--ink-3); }
+
+/* 分级滑块：刻度点即档位，指针只能落在点上（不会停在两档之间） */
+.step-slider + .step-slider { margin-top: 10px; }
+.step-slider-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 2px;
+  font-size: var(--fs-sub);
+  color: var(--ink-2);
+}
+.step-slider-value { font-size: var(--fs-meta); color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.step-slider-track {
+  position: relative;
+  height: 18px;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+.step-slider-rail,
+.step-slider-fill {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  height: 2px;
+  border-radius: 1px;
+}
+.step-slider-rail { right: 0; background: var(--line-warm); }
+.step-slider-fill { background: var(--seal-track); }
+.step-slider-tick {
+  position: absolute;
+  top: 6px;
+  width: 2px;
+  height: 6px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--line-warm);
+}
+.step-slider-tick.on { background: var(--seal-track); }
+.step-slider-knob {
+  position: absolute;
+  top: 2px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border: 2px solid var(--seal-track);
+  border-radius: 50%;
+  background: var(--paper);
+  box-sizing: border-box;
+}
+.step-slider-knob:focus-visible { outline: 2px solid hsl(var(--seal) / 0.5); outline-offset: 2px; }
+
+/* 页边大纲：手稿页边的批注，不是导航面板——没有卡片、没有背景。
+   刷新随正文滚动的是内层（`.kb-outline-inner` sticky），外层占位只负责定位。 */
+.kb-outline {
+  display: flex;
+  justify-content: flex-start;
+  padding-left: 14px;
+  border-left: 1px solid var(--line-warm);
+  font-size: var(--fs-sub);
+  overflow: hidden;
+}
+.kb-outline-inner {
+  position: sticky;
+  top: 8px;
+  align-self: flex-start;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 8px;
+}
+.kb-outline-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: var(--fs-meta);
+  color: var(--ink-3);
+  letter-spacing: 0.08em;
+}
+.kb-outline-count { font-variant-numeric: tabular-nums; }
+.kb-outline-list { list-style: none; margin: 0; padding: 0; }
+.kb-outline-link {
+  display: block;
+  width: 100%;
+  padding: 3px 6px 3px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: var(--fs-sub);
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kb-outline-link[data-level='2'] { padding-left: 12px; }
+.kb-outline-link[data-level='3'] { padding-left: 24px; }
+.kb-outline-link:hover { color: var(--ink-1); }
+.kb-outline-link.on { color: var(--seal-ink); }
+.kb-outline-empty { margin: 0; color: var(--ink-3); line-height: 1.7; font-size: var(--fs-meta); }
+.kb-outline-head-right { display: inline-flex; align-items: center; gap: 8px; }
+.kb-outline-close {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; padding: 0;
+  border: 0; background: transparent; color: var(--ink-3);
+  font-size: 15px; line-height: 1; cursor: pointer; border-radius: 3px;
+}
+.kb-outline-close:hover { color: var(--seal-ink); background: hsl(var(--seal) / 0.08); }
+.kb-outline-close:focus-visible { outline: 2px solid hsl(var(--seal) / 0.5); outline-offset: 1px; }
+
+/* 窄窗抽屉：同一份大纲换容器——白纸从右侧滑入，遮罩压住正文但仍是暖色。
+   定位用 absolute 而不是 fixed：包含块是 .kb-detail（position: relative + overflow: hidden），
+   抽屉与遮罩因此只盖住文档区，不会浮到整个应用窗口顶层（m01762 第 4 条）。 */
+.kb-outline-layer { position: absolute; inset: 0; z-index: 60; display: flex; justify-content: flex-end; }
+.kb-outline-mask { position: absolute; inset: 0; background: hsl(var(--foreground) / 0.14); }
+.kb-outline-panel {
+  position: relative;
+  width: min(88%, 320px);
+  height: 100%;
+  padding: 14px 16px;
+  background: var(--paper);
+  border-left: 1px solid var(--line-warm);
+  box-shadow: -10px 0 28px hsl(var(--foreground) / 0.14);
+  overflow-y: auto;
+  animation: kb-drawer-in 160ms ease-out;
+}
+.kb-outline-panel:focus { outline: none; }
+@keyframes kb-drawer-in {
+  from { transform: translateX(12px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kb-outline-panel { animation: none; }
+}
+.kb-outline.kb-outline-drawer {
+  position: static;
+  max-height: none;
+  overflow: visible;
+  padding-left: 0;
+  border-left: 0;
 }
 
 .kb-detail-title {
   font-size: var(--fs-reading);
   font-weight: 600;
   margin: 0;
+  font-family: var(--font-reading-title);
 }
 
 /* 鈹€鈹€ 鍏冩暟鎹尯锛堟爣棰樺氨鍦扮紪杈?+ 淇濆瓨鎸囩ず + 鏍囩澧炲垹锛夆攢鈹€鈹€ */
@@ -365,6 +714,7 @@
   flex: 1; min-width: 0;
   border: none; outline: none; background: transparent;
   font: inherit; font-size: var(--fs-masthead); font-weight: 700; letter-spacing: .4px;
+  font-family: var(--font-reading-title);
   color: var(--ink-1); padding: 0;
   border-bottom: 1px dashed transparent;
 }
@@ -378,6 +728,28 @@
 .kb-save-pill.editing { color: var(--seal-ink); }
 .kb-save-pill.editing .dot { animation: kb-pulse 1.1s ease-in-out infinite; }
 @keyframes kb-pulse { 50% { opacity: .3; } }
+
+/* 文档标题：纸面上的第一行，衬线、无框、随文滚动；空标题显示占位符。
+   字号跟阅读档位走（正文 ×2），改字号档标题一起长，不另立一套阶梯。 */
+.kb-doc-title {
+  margin: 2px 0 2px;
+  color: var(--ink-1);
+  font-family: var(--font-reading-title);
+  font-size: calc(var(--fs-reading) * 2);
+  font-weight: 600;
+  line-height: 1.28;
+  letter-spacing: 0.01em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+  border-radius: 3px;
+  outline: none;
+  transition: background-color 0.12s ease;
+}
+.kb-doc-title:hover { background: hsl(var(--muted) / 0.35); }
+.kb-doc-title:focus { background: hsl(var(--seal) / 0.05); }
+.kb-doc-title:empty::before { content: attr(data-placeholder); color: var(--ink-3); }
+.kb-doc-title::selection { background: hsl(var(--seal) / 0.2); }
 
 .kb-tag-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .kb-tag-row .kb-tag-chip { display: inline-flex; align-items: center; gap: 4px; }
@@ -691,6 +1063,13 @@
   border-bottom: 1px solid hsl(var(--muted-foreground) / 0.14);
 }
 
+/* 树头右侧两个图标：打开数据目录 / 额外操作（菜单两项） */
+.kb-tree-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
 .kb-tree-title {
   flex: 1;
   font-size: var(--fs-meta);
@@ -784,7 +1163,21 @@
 
 /* 鈹€鈹€鈹€ 鎶樺彔鎬侊紙96px 绐勮建锛夛細鍘嬪钩缂╄繘锛屽彧鐣欐枃浠跺す鍚?/ 鏉＄洰鏍囬 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
-.kb-layout.is-collapsed .kb-tree-head,
+/* 折叠态保留树头（只留两个图标）：新建的唯一入口在树头，整块藏掉会连入口一起消失 */
+.kb-layout.is-collapsed .kb-tree-head {
+  justify-content: center;
+  padding: 0 0 0.25rem;
+}
+
+/* 折叠态没有空间放搜索框：96px 窄轨只留树头两个入口 */
+.kb-layout.is-collapsed .kb-list > .kb-search-bar {
+  display: none;
+}
+
+.kb-layout.is-collapsed .kb-tree-title {
+  display: none;
+}
+
 .kb-layout.is-collapsed .kb-tree .kb-folder-caret,
 .kb-layout.is-collapsed .kb-tree .kb-folder-ico,
 .kb-layout.is-collapsed .kb-tree .kb-folder-count,
@@ -872,13 +1265,6 @@
 
 /* 鈹€鈹€鈹€ #14 鎵撳紑鏁版嵁鐩綍鎸夐挳 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
-.kb-open-dir-btn {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-}
 
 /* 鈹€鈹€鈹€ #4 鏂板缓 / 閲嶅懡鍚嶆枃浠跺す寮圭獥锛堝眳涓紱浜や簰鍚?LinkDialog锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 

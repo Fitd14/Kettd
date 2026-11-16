@@ -8,17 +8,21 @@ import type {
 import {
   ChevronDown,
   ChevronRight,
+  FilePlus,
   FileText,
   Folder,
   FolderOpen,
   FolderPlus,
   Inbox,
   Layers,
+  MoreHorizontal,
   Pencil,
   Pin,
   Trash2,
 } from 'lucide-react'
 import type { KbFolder, KbItem } from '@/lib/api'
+import { KbContextMenu } from '@/components/kb/kb-context-menu'
+import type { KbMenuItem } from '@/components/kb/kb-context-menu'
 import {
   findKbFolderNode,
   KB_DND_MIME,
@@ -69,6 +73,10 @@ export interface KbFileTreeProps {
   onSelectItem: (id: string) => void
   onSelectFolder: (selection: FolderSelection) => void
   onCreateFolder: () => void
+  /** 新建条目（树头「额外操作」菜单的第二项）：KbView 负责建条目并聚焦标题 */
+  onCreateItem?: () => void
+  /** 打开本地数据目录（树头第一个图标）；未传则不渲染该图标 */
+  onOpenDataFolder?: () => void
   onRenameFolder: (folder: KbFolder) => void
   onDeleteFolder: (folder: KbFolder) => void | Promise<void>
   /** 文件夹行右键（tasks 2.4）：菜单由 KbView 持有，树内只上报 */
@@ -108,6 +116,8 @@ export function KbFileTree({
   onSelectItem,
   onSelectFolder,
   onCreateFolder,
+  onCreateItem,
+  onOpenDataFolder,
   onRenameFolder,
   onDeleteFolder,
   onContextFolder,
@@ -116,6 +126,9 @@ export function KbFileTree({
 }: KbFileTreeProps) {
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const confirmTimer = useRef<number | null>(null)
+  // 树头「额外操作」菜单锚点：null = 关闭。菜单复用 KbContextMenu（portal + 视口 clamp）
+  const [headMenu, setHeadMenu] = useState<{ x: number; y: number } | null>(null)
+  const headMoreRef = useRef<HTMLButtonElement>(null)
 
   const clearConfirmTimer = useCallback(() => {
     if (confirmTimer.current !== null) {
@@ -494,20 +507,64 @@ export function KbFileTree({
     onContextBlank(event.clientX, event.clientY)
   }
 
+  // 树头「额外操作」菜单：只有新建两项。菜单项不自行关闭，关闭由子树统一处理
+  const headMenuItems: KbMenuItem[] = [
+    {
+      label: '新建文件夹',
+      icon: <FolderPlus size={13} strokeWidth={1.7} />,
+      onSelect: () => { setHeadMenu(null); onCreateFolder() },
+    },
+    {
+      label: '新建文件',
+      icon: <FilePlus size={13} strokeWidth={1.7} />,
+      onSelect: () => { setHeadMenu(null); onCreateItem?.() },
+    },
+  ]
+
   return (
     <div className="kb-tree">
       <div className="kb-tree-head">
         <span className="kb-tree-title">目录</span>
-        <button
-          type="button"
-          className="kb-folder-add"
-          title="新建文件夹"
-          aria-label="新建文件夹"
-          onClick={onCreateFolder}
-        >
-          <FolderPlus size={13} />
-        </button>
+        <div className="kb-tree-head-actions">
+          {onOpenDataFolder && (
+            <button
+              type="button"
+              className="kb-folder-add"
+              title="打开本地数据目录"
+              aria-label="打开本地数据目录"
+              onClick={onOpenDataFolder}
+            >
+              <FolderOpen size={13} />
+            </button>
+          )}
+          <button
+            ref={headMoreRef}
+            type="button"
+            className="kb-folder-add"
+            title="更多操作：新建文件夹 / 新建文件"
+            aria-label="更多操作"
+            aria-haspopup="menu"
+            aria-expanded={headMenu !== null}
+            onClick={() => {
+              const rect = headMoreRef.current?.getBoundingClientRect()
+              if (!rect) return
+              setHeadMenu({ x: rect.left, y: rect.bottom + 4 })
+            }}
+          >
+            <MoreHorizontal size={13} />
+          </button>
+        </div>
       </div>
+
+      {headMenu && (
+        <KbContextMenu
+          x={headMenu.x}
+          y={headMenu.y}
+          ariaLabel="新建操作"
+          onClose={() => setHeadMenu(null)}
+          items={headMenuItems}
+        />
+      )}
 
       {folderLoadError && (
         <div className="kb-folder-error" role="alert">

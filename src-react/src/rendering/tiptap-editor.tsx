@@ -25,6 +25,7 @@ import { LinkInlineEditor } from './link-inline-editor'
 import { LinkSyntax, insertLinkTemplate, normalizeLinkSyntax } from './link-syntax'
 import { isSafeLink } from '@/lib/link-url'
 import { openExternal } from '@/lib/external-link'
+import { collectOutline, type OutlineItem } from '@/lib/doc-outline'
 import { ImageExtension } from './image-extension'
 import { handleImagePaste } from './paste-image'
 import { HeadingSelect } from '@/components/editor/heading-select'
@@ -334,6 +335,25 @@ interface Props {
    * 期望在挂载期固定（切换会重建 extensions 与编辑器）。
    */
   allowImages?: boolean
+  /**
+   * 工具栏的落点（知识库详情页把它提到标题之上、横贯整栏）。
+   * 传 null / 不传则在编辑器内部照常渲染（便签窗路径）。
+   */
+  toolbarHost?: HTMLElement | null
+  /** 文档级能力上抛：复制 Markdown、按大纲跳转（详情页头部按钮用） */
+  onReady?: (api: EditorApi) => void
+  /** 标题结构变化时回传大纲（详情页右侧页边栏用） */
+  onOutline?: (items: OutlineItem[]) => void
+}
+
+/** 详情页可从编辑器拿到的少量命令面（不暴露整个 Editor 实例） */
+export interface EditorApi {
+  /** 当前文档序列化后的 Markdown（与落盘同一口径） */
+  getMarkdown: () => string
+  /** 滚动到第 index 个标题（H1–H3，顺序同大纲） */
+  scrollToHeading: (index: number) => void
+  /** 把光标放进正文开头（文档标题按回车时用） */
+  focusStart: () => void
 }
 
 /**
@@ -357,6 +377,9 @@ export function TipTapEditor({
   maxChars,
   allowTables = true,
   allowImages = false,
+  toolbarHost = null,
+  onReady,
+  onOutline,
 }: Props) {
   /**
    * 最新 props 的 ref 镜像：useEditor 的 options 只创建一次，
@@ -594,8 +617,13 @@ export function TipTapEditor({
     () => [
       StarterKit.configure({
         codeBlock: false, // 用 CodeBlockLowlight 替代
-        // 外链一律不外泄导航（D11）：点击由 handleClick 接管，Ctrl/⌘+点击才开系统浏览器
-        link: { openOnClick: false },
+        // 外链一律不外泄导航（D11）：点击由 handleClick 接管，Ctrl/⌘+点击才开系统浏览器。
+        // 同时摘掉 `target="_blank"`：WebView2 对带 target 的 <a> 会接管成「新窗口」，那正是
+        // 「点一下就跳出页面」的来源；导航拦截在下面的 handleDOMEvents.click 里兜底。
+        link: {
+          openOnClick: false,
+          HTMLAttributes: { target: null, rel: 'noopener noreferrer nofollow' },
+        },
       }),
       CodeBlockLowlight.configure({ lowlight }),
       TaskList,
@@ -648,13 +676,27 @@ export function TipTapEditor({
           const anchor = (event.target as HTMLElement | null)?.closest?.('a')
           if (!anchor) return false
           const href = anchor.getAttribute('href') ?? ''
-          if (!isSafeLink(href)) return false
+          // 锚点上任何点击都先掐掉默认行为：ProseMirror 只在 handler 返回 true 时对 mouseup
+          // 调 preventDefault，而 <a> 的导航发生在 click 阶段 —— 不在这里拦就会漏。
+          event.preventDefault()
+          if (!isSafeLink(href)) return true
           if (event.metaKey || event.ctrlKey) {
-            event.preventDefault()
             openExternal(href)
             return true
           }
           return openInlineLinkRef.current(href, pos)
+        },
+        /**
+         * 兜底闸：click 阶段的默认动作（WebView2 打开链接 / 新窗口）一律取消。
+         * 真正的行为分支仍在 handleClick 里，这里只保证「不会自己跳走」。
+         */
+        handleDOMEvents: {
+          click: (_view, event) => {
+            const anchor = (event.target as HTMLElement | null)?.closest?.('a')
+            if (!anchor) return false
+            event.preventDefault()
+            return false
+          },
         },
       },
       onUpdate: () => scheduleSave(),
@@ -667,6 +709,39 @@ export function TipTapEditor({
 
   const editor = useEditor(editorOptions)
   editorRef.current = editor
+
+  /** 上抛回调的运行期镜像：父级每次 render 都会传新的内联函数，effect 只跟 editor 走 */
+  const onReadyRef = useRef(onReady)
+  const onOutlineRef = useRef(onOutline)
+  onReadyRef.current = onReady
+  onOutlineRef.current = onOutline
+
+  const pushOutline = useCallback(() => {
+    const ed = editorRef.current
+    if (!ed || ed.isDestroyed) return
+    onOutlineRef.current?.(collectOutline(ed.state.doc))
+  }, [])
+
+  // 文档级能力（复制 Markdown / 按标题跳转）+ 大纲初值与增量
+  useEffect(() => {
+    if (!editor) return
+    onReadyRef.current?.({
+      getMarkdown: () => getMarkdown(editor),
+      scrollToHeading: (index: number) => {
+        const headings = editor.view.dom.querySelectorAll('h1, h2, h3')
+        const el = headings[index] as HTMLElement | undefined
+        if (!el) return
+        el.scrollIntoView({ block: 'start', behavior: 'smooth' })
+        editor.chain().focus().run()
+      },
+      focusStart: () => {
+        editor.chain().focus('start').run()
+      },
+    })
+    pushOutline()
+    editor.on('update', pushOutline)
+    return () => { editor.off('update', pushOutline) }
+  }, [editor, pushOutline])
 
   /**
    * 工具栏 / 气泡 / 标题下拉的状态订阅：selector 每个事务执行一次（很便宜），
@@ -1115,64 +1190,69 @@ export function TipTapEditor({
     }
   }
 
+  const toolbar = (
+    <div className="kb-editor-toolbar" role="toolbar" aria-label="格式工具栏">
+      {inlineTools.map(renderTool)}
+
+      {/* 标题级别：显示当前激活级别，选「正文」回普通段落（自绘下拉；打开/悬停不改选区） */}
+      <HeadingSelect value={headingValue} onSelect={applyHeading} />
+
+      {blockTools.map(renderTool)}
+
+      <span className="kb-tool-sep" />
+
+      {/* 表格：网格选择器（allowTables=false 时整块不渲染，便签窗没有任何表格入口） */}
+      {allowTables && (
+        <div className="kb-editor-gridwrap" ref={gridWrapRef}>
+          <button
+            type="button"
+            className={'kb-editor-tool' + (flags.table ? ' on' : '')}
+            title="表格 Ctrl+T"
+            aria-label="插入表格"
+            aria-haspopup="dialog"
+            aria-expanded={gridOpen}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setGridOpen((v) => !v)}
+          >
+            <TableIcon size={15} strokeWidth={1.7} />
+          </button>
+          {gridOpen && (
+            <div className="kb-grid-picker" onMouseLeave={() => setGridSize({ rows: 0, cols: 0 })}>
+              <div className="grid-cells">{gridCells()}</div>
+              <div className="grid-hint">{gridSize.rows || '—'} 行 × {gridSize.cols || '—'} 列</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <button
+        type="button"
+        className={'kb-editor-tool' + (flags.link ? ' on' : '')}
+        title="链接 Ctrl+K"
+        aria-label="链接"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => insertLinkTemplate(editor)}
+      >
+        <Link2 size={15} strokeWidth={1.7} />
+      </button>
+
+      <button
+        type="button"
+        className="kb-editor-tool"
+        title="分割线"
+        aria-label="分割线"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => chain().setHorizontalRule().run()}
+      >
+        <Minus size={15} strokeWidth={1.7} />
+      </button>
+    </div>
+  )
+
   return (
     <div className={`kb-editor ${className ?? ''}`} ref={wrapperRef} onKeyDown={onKeyDown} onBlur={onWrapperBlur}>
-      <div className="kb-editor-toolbar" role="toolbar" aria-label="格式工具栏">
-        {inlineTools.map(renderTool)}
-
-        {/* 标题级别：显示当前激活级别，选「正文」回普通段落（自绘下拉；打开/悬停不改选区） */}
-        <HeadingSelect value={headingValue} onSelect={applyHeading} />
-
-        {blockTools.map(renderTool)}
-
-        <span className="kb-tool-sep" />
-
-        {/* 表格：网格选择器（allowTables=false 时整块不渲染，便签窗没有任何表格入口） */}
-        {allowTables && (
-          <div className="kb-editor-gridwrap" ref={gridWrapRef}>
-            <button
-              type="button"
-              className={'kb-editor-tool' + (flags.table ? ' on' : '')}
-              title="表格 Ctrl+T"
-              aria-label="插入表格"
-              aria-haspopup="dialog"
-              aria-expanded={gridOpen}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => setGridOpen((v) => !v)}
-            >
-              <TableIcon size={15} strokeWidth={1.7} />
-            </button>
-            {gridOpen && (
-              <div className="kb-grid-picker" onMouseLeave={() => setGridSize({ rows: 0, cols: 0 })}>
-                <div className="grid-cells">{gridCells()}</div>
-                <div className="grid-hint">{gridSize.rows || '—'} 行 × {gridSize.cols || '—'} 列</div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <button
-          type="button"
-          className={'kb-editor-tool' + (flags.link ? ' on' : '')}
-          title="链接 Ctrl+K"
-          aria-label="链接"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => insertLinkTemplate(editor)}
-        >
-          <Link2 size={15} strokeWidth={1.7} />
-        </button>
-
-        <button
-          type="button"
-          className="kb-editor-tool"
-          title="分割线"
-          aria-label="分割线"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => chain().setHorizontalRule().run()}
-        >
-          <Minus size={15} strokeWidth={1.7} />
-        </button>
-      </div>
+      {/* 详情页把工具栏提到标题之上（横贯整栏）；便签窗没有落点，就地渲染 */}
+      {toolbarHost ? createPortal(toolbar, toolbarHost) : toolbar}
 
       {/* 条目内查找栏（Ctrl+F）：sticky 吸顶、右侧对齐，不遮挡工具栏；z-index 低于链接编辑条 */}
       {findOpen && (

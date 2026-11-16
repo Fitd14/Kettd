@@ -8,7 +8,6 @@ import {
   FilePlus,
   FileText,
   FolderInput,
-  FolderOpen,
   FolderPlus,
   PencilLine,
   Pin,
@@ -1243,39 +1242,27 @@ export function KbView({ boot }: Props) {
 
   return (
     <div className="view kb-view" ref={viewRef}>
-      <div className="kb-topbar">
-        <KbSearchBar
-          query={query}
-          onChange={setQuery}
-          resultCount={isFiltering ? flatResults.length : items.length}
-        />
-        <button
-          className="btn xs ghost kb-open-dir-btn"
-          onClick={() => void handleOpenDataFolder()}
-          title="打开本地数据目录"
-        >
-          <FolderOpen size={13} strokeWidth={1.7} /> 打开数据目录
-        </button>
-        <button className="btn xs primary kb-new-btn" onClick={handleCreate} title="新建知识条目">
-          + 新建
-        </button>
-      </div>
-
       {actionErr && (
         <div className="inline-err" role="alert">{actionErr}</div>
-      )}
-
-      {!listCollapsed && (
-        <KbTagFilter
-          tags={allTags}
-          activeTag={activeTag}
-          onSelect={setActiveTag}
-        />
       )}
 
       <div className={`kb-layout${listCollapsed ? ' is-collapsed' : ''}`}>
         {/* 左清单：树态一棵树 / 过滤态扁平结果（各自滚动；折叠态 CSS 压成 96px 窄轨） */}
         <div className="kb-list">
+          {/* 搜索移入左列顶部：知识库区不再有横跨整栏的搜索带，纸面从窗口顶端起算 */}
+          <KbSearchBar
+            query={query}
+            onChange={setQuery}
+            resultCount={isFiltering ? flatResults.length : items.length}
+          />
+          {/* 标签筛选也留在左列：详情纸面才能从窗口顶端起算（kb-workspace-layout D1） */}
+          {!listCollapsed && (
+            <KbTagFilter
+              tags={allTags}
+              activeTag={activeTag}
+              onSelect={setActiveTag}
+            />
+          )}
           {/* 加载失败 / 知识库损坏：错误横幅 + 重试；绝不渲染「空空如也」假空态。折叠态也始终可见。 */}
           {loadError && (
             <div className="kb-error-banner" role="alert">
@@ -1330,6 +1317,8 @@ export function KbView({ boot }: Props) {
               onSelectItem={handleSelectItem}
               onSelectFolder={setFolderSelection}
               onCreateFolder={handleCreateFolder}
+              onCreateItem={handleCreate}
+              onOpenDataFolder={() => void handleOpenDataFolder()}
               onRenameFolder={handleRenameFolder}
               onDeleteFolder={handleDeleteFolder}
               onContextFolder={(folder, x, y) => openMenu({ kind: 'folder', x, y, folderId: folder.id })}

@@ -60,6 +60,9 @@
   --font-ui: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
   --font-serif: "Kettd Serif", "Noto Serif SC", "Songti SC", SimSun, serif;
   --font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  /* 文档标题专用衬线：MUST NOT 含 "Kettd Serif"——那是 61 字的报头子集，
+     标题里命中的字走子集、其余回落系统衬线，同一行会出现两种衬线（kb-doc-shell D7）。 */
+  --font-reading-title: "Noto Serif SC", "Songti SC", SimSun, serif;
   /* 阅读面（编辑器正文）暂与正文同族；等定下「霞鹜文楷 / 思源宋体」后只改这一行。 */
   --font-reading: var(--font-ui);
 

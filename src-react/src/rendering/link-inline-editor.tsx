@@ -17,6 +17,9 @@ export interface LinkInlineEditorProps {
 
 const INVALID_HINT = '地址要 http / https / mailto 开头'
 
+/** 打开后的宽限：这段时间内点条外不收起，给手动输入地址留时间 */
+const OUTSIDE_GRACE_MS = 3000
+
 /**
  * 链接编辑条（kb-writing-experience D9）：点链接在它下方弹一条横向输入条，
  * 取代原来的居中模态 `LinkDialog`。非模态 —— 不锁编辑区、不遮正文，
@@ -31,6 +34,7 @@ export function LinkInlineEditor({ href, anchor, onSubmit, onRemove, onClose }: 
   const barRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const openedAtRef = useRef(Date.now())
 
   // 打开即聚焦并全选，直接键入就替换旧地址
   useEffect(() => {
@@ -40,11 +44,13 @@ export function LinkInlineEditor({ href, anchor, onSubmit, onRemove, onClose }: 
     input.select()
   }, [])
 
-  // 点条外任意处收起（不吞事件：先关条，那次点击照常生效）
+  // 点条外收起。打开后 3 秒内不响应：刚点开链接爪子还在鼠标上，
+  // 这一段时间留给手动键入地址，否则一点空白条就没了（m01554 第 5 条）。
   useEffect(() => {
     const onDocPointerDown = (event: MouseEvent) => {
       const bar = barRef.current
       if (bar && event.target instanceof Node && bar.contains(event.target)) return
+      if (Date.now() - openedAtRef.current < OUTSIDE_GRACE_MS) return
       closeRef.current()
     }
     document.addEventListener('mousedown', onDocPointerDown, true)

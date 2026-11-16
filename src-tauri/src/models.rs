@@ -565,24 +565,24 @@ pub fn normalize_reading_font(value: &str) -> Result<String, String> {
 
 // ---------------------------------------------------------------- 阅读偏好档位（reading-prefs）
 
-/// 可选阅读字号（px）：8–20 步长 2，白名单而非区间，避免 9/11 这类碎值。
-pub const READING_SIZES: [u8; 7] = [8, 10, 12, 14, 16, 18, 20];
+/// 可选阅读字号（px）：12–24 步长 1，白名单而非区间，避免 0–11 这类不可读值。
+pub const READING_SIZES: [u8; 13] = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
 
-/// 字距档位上限（0..=6 共七档；前端按 0.015em 步进换算成 `--ls-reading`）
-pub const READING_TRACKING_MAX: u8 = 6;
+/// 字距三档（0..=2）：常规 0 / 宽松 0.03em / 较宽 0.06em，换算在前端 `reading-prefs.ts`。
+pub const READING_TRACKING_MAX: u8 = 2;
 
 /// 列宽上限两档：舒适 96ch / 宽敞 112ch
 pub const READING_MEASURES: [&str; 2] = ["comfortable", "wide"];
 
 fn default_reading_size() -> u8 {
-  16
+  15
 }
 
 fn default_reading_measure() -> String {
   "comfortable".to_string()
 }
 
-/// 字号越界一律回落到 16px（既不取最近档，也不夹紧，保证可复现）。
+/// 字号越界一律回落到 15px（既不取最近档，也不夹紧，保证可复现）。
 pub fn normalize_reading_size(value: u8) -> u8 {
   if READING_SIZES.contains(&value) {
     value
@@ -623,17 +623,17 @@ mod reading_pref_tests {
 
   #[test]
   fn rejects_off_step_size_and_tracking() {
-    assert_eq!(normalize_reading_size(15), 16);
-    assert_eq!(normalize_reading_size(0), 16);
-    assert_eq!(normalize_reading_tracking(7), 0);
-    assert_eq!(normalize_reading_tracking(6), 6);
+    assert_eq!(normalize_reading_size(11), 15);
+    assert_eq!(normalize_reading_size(0), 15);
+    assert_eq!(normalize_reading_tracking(3), 0);
+    assert_eq!(normalize_reading_tracking(2), 2);
   }
 
   #[test]
   fn missing_fields_fall_back_to_defaults() {
     // 旧 data.json 没有这三个字段；容器级 #[serde(default)] 必须把它们补成默认值
     let settings: Settings = serde_json::from_str("{}").unwrap();
-    assert_eq!(settings.reading_size, 16);
+    assert_eq!(settings.reading_size, 15);
     assert_eq!(settings.reading_tracking, 0);
     assert_eq!(settings.reading_measure, "comfortable");
   }

@@ -1,8 +1,13 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, ClipboardEvent as ReactClipboardEvent } from 'react'
 import type { KbItem } from '@/lib/api'
-import { updateKbItem, trackEvent } from '@/lib/api'
-import { Pin, Trash2, X, Plus } from 'lucide-react'
-import { TipTapEditor } from '@/rendering/tiptap-editor'
+import { updateKbItem, trackEvent, getSettings, setSettings } from '@/lib/api'
+import { Pin, Trash2, X, Plus, Type, FileCode2, Check, PanelRight } from 'lucide-react'
+import { TipTapEditor, type EditorApi } from '@/rendering/tiptap-editor'
+import { applyReadingPrefs } from '@/lib/reading-prefs'
+import type { OutlineItem } from '@/lib/doc-outline'
+import { TypoPopover } from './typo-popover'
+import { DocOutline } from './doc-outline'
 
 interface Props {
   item: KbItem
@@ -19,6 +24,12 @@ interface Props {
    */
   focusTitleSignal?: number
 }
+
+/** 页边大纲占位：176px 栏 + 12px 间距。宽度从这里让，正文列随之收窄，而不是被大纲盖住。 */
+const OUTLINE_TRACK = 188
+
+/** 让出大纲后正文仍低于这个宽度（700px ≈ 87 字符）就不并排，改用抽屉。 */
+const MIN_TEXT_WIDTH = 700
 
 /** 本地日期时间戳（YYYY-MM-DDTHH:mm；全链路本地语义字符串，禁止 UTC/ISO-Z，见 AGENTS.md 4.1） */
 function localStamp(): string {
@@ -45,27 +56,91 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
     time: formatTime(item.updatedAt),
   })
 
-  // 标题就地编辑
+  // 文档标题（方案 A）：正文首行就地编辑，顶部只保留只读镜像。
+  // 标题仍只存条目名一个字段；不进 Markdown 文档树，复制/导出时才在首行拼 `# 标题`。
   const [title, setTitle] = useState(item.title)
-  const titleInputRef = useRef<HTMLInputElement>(null)
+  const titleElRef = useRef<HTMLDivElement>(null)
   /** 已消费的焦点信号：只在信号前进时聚焦，避免重渲染/切条目时抢焦点（初始值=挂载时的信号） */
   const consumedFocusSignal = useRef(focusTitleSignal ?? 0)
-  useEffect(() => { setTitle(item.title) }, [item.id, item.title])
+
+  /** contentEditable 不吃受控 children：标题文本靠这个单向刷回 DOM */
+  const paintTitle = useCallback((value: string) => {
+    const el = titleElRef.current
+    if (el && el.textContent !== value) el.textContent = value
+  }, [])
+
+  /** 外部改名（树里重命名）或切条目：渲染期就地校正，不走 effect（避免多一轮渲染） */
+  const [syncedTitle, setSyncedTitle] = useState(item.title)
+  if (syncedTitle !== item.title) {
+    setSyncedTitle(item.title)
+    setTitle(item.title)
+  }
+
+  // 编辑中不覆盖用户输入；切条目或外部改名才把 DOM 重画
+  useEffect(() => {
+    if (document.activeElement !== titleElRef.current) paintTitle(item.title)
+  }, [item.id, item.title, paintTitle])
+
+  /** 聚焦并全选整条标题：改名不用三击，落点即替换 */
+  const focusDocTitle = useCallback(() => {
+    const el = titleElRef.current
+    if (!el) return
+    el.focus()
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    const sel = window.getSelection()
+    sel?.removeAllRanges()
+    sel?.addRange(range)
+  }, [])
+
   useEffect(() => {
     if (!focusTitleSignal || focusTitleSignal <= consumedFocusSignal.current) return
     consumedFocusSignal.current = focusTitleSignal
-    const input = titleInputRef.current
-    if (!input) return
-    input.focus()
-    input.select()
-  }, [focusTitleSignal])
+    focusDocTitle()
+  }, [focusTitleSignal, focusDocTitle])
 
-  const saveTitle = useCallback(async () => {
-    const next = title.trim()
+  const saveTitle = useCallback(async (raw?: string) => {
+    const next = (raw ?? title).trim()
     if (!next || next === item.title) return
     const result = await updateKbItem(item.id, { title: next })
     onSaved?.(result.data ?? withLocalPatch(item, { title: next }))
   }, [item, title, onSaved])
+
+  /** 失焦落盘；空标题不落盘，恢复原名（顶部镜像与树里都不会出现空名） */
+  const commitDocTitle = useCallback(() => {
+    const el = titleElRef.current
+    const raw = (el?.textContent ?? '').replace(/\s+/g, ' ').trim()
+    if (!raw) {
+      paintTitle(item.title)
+      setTitle(item.title)
+      return
+    }
+    paintTitle(raw)
+    setTitle(raw)
+    void saveTitle(raw)
+  }, [item.title, paintTitle, saveTitle])
+
+  const onDocTitleKeyDown = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      titleElRef.current?.blur() // blur 即落盘
+      apiRef.current?.focusStart() // 光标进正文第一段
+      return
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      paintTitle(item.title)
+      setTitle(item.title)
+      titleElRef.current?.blur()
+    }
+  }, [item.title, paintTitle])
+
+  /** 粘贴只取单行纯文本：标题不接收换行与富文本 */
+  const onDocTitlePaste = useCallback((e: ReactClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const text = e.clipboardData.getData('text/plain').replace(/\s+/g, ' ').trim()
+    if (text) document.execCommand('insertText', false, text)
+  }, [])
 
   // 标签增删
   const [tagInput, setTagInput] = useState('')
@@ -108,101 +183,345 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
     setShowDeleteConfirm(false)
   }, [item.id, onDeleted])
 
-  return (
-    // S3 写作区布局：外层 .kb-detail 是纸面与唯一滚动容器，本层是居中手稿栏（宽度/留白见 kb.css）
-    <div className="kb-detail-inner">
-      {/* 动作栏 */}
-      <div className="kb-detail-toolbar">
-        {onPin && (
-          <button className="btn xs ghost" onClick={() => onPin(item)} title="贴到桌面">
-            <Pin size={13} strokeWidth={1.7} /> 贴到桌面
-          </button>
-        )}
-        <span style={{ flex: 1 }} />
-        {!showDeleteConfirm ? (
-          <button className="btn xs ghost" onClick={() => setShowDeleteConfirm(true)} title="删除">
-            <Trash2 size={13} strokeWidth={1.7} />
-          </button>
-        ) : (
-          <>
-            <span className="kb-del-confirm">
-              {refCount > 0 ? `有 ${refCount} 处引用将悬空，` : ''}确认删除？
-            </span>
-            <button className="btn xs danger" onClick={handleDelete}>确认</button>
-            <button className="btn xs ghost" onClick={() => setShowDeleteConfirm(false)}>取消</button>
-          </>
-        )}
-      </div>
+  // ── 文档工具条：工具栏挂载点 / 排版弹层 / 复制反馈 / 大纲 ──
+  const stripRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const innerRef = useRef<HTMLDivElement>(null)
+  const mainRef = useRef<HTMLDivElement>(null)
+  const outlineBtnRef = useRef<HTMLButtonElement>(null)
+  const drawerRef = useRef<HTMLDivElement>(null)
+  const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null)
+  const [typoOpen, setTypoOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  /** null = 还没手动开关过：默认按「有没有页边留白给大纲」自动决定（首进窄窗不会弹抽屉） */
+  const [outlinePref, setOutlinePref] = useState<boolean | null>(null)
+  const [railFits, setRailFits] = useState(false)
+  const [outline, setOutline] = useState<OutlineItem[]>([])
+  const [activeHeading, setActiveHeading] = useState(-1)
+  const [prefs, setPrefs] = useState({ size: 15, tracking: 0, measure: 'comfortable' })
+  const apiRef = useRef<EditorApi | null>(null)
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prefsTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingPrefs = useRef<{ readingSize?: number; readingTracking?: number; readingMeasure?: string }>({})
 
-      {/* 标题（就地编辑）+ 保存指示 */}
-      <div className="kb-meta">
-        <div className="kb-title-row">
-          <input
-            className="kb-title-input"
-            ref={titleInputRef}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={saveTitle}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') { e.currentTarget.blur() }
-              if (e.key === 'Escape') { setTitle(item.title); e.currentTarget.blur() }
-            }}
-            aria-label="条目标题"
-          />
-          <span className={'kb-save-pill' + (saveState.saved ? '' : ' editing')}>
-            <span className="dot" />{saveState.saved ? `已保存 ${saveState.time}` : '编辑中…'}
+  // 排版档位是全局设置：这里只读一次，后续改动由本组件的滑块写回
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      const r = await getSettings()
+      if (!alive || r.err || !r.data) return
+      setPrefs({ size: r.data.readingSize, tracking: r.data.readingTracking, measure: r.data.readingMeasure })
+    })()
+    return () => { alive = false }
+  }, [])
+
+  // 页边大纲：轨道恒占 176px 栏（+12px 间距）= 188px，开关只切可见性，不重排列。
+  // 只有余下正文连 700px 都保证不了时，才退回抽屉形态（轨道整体不占位）。
+  // 判据是容器实测宽（不看窗口、也不看开关）：树折叠、字号档位、列宽档位都会改这个数。
+  useLayoutEffect(() => {
+    const inner = innerRef.current
+    if (!inner) return
+    const measure = () => {
+      setRailFits(inner.getBoundingClientRect().width - OUTLINE_TRACK >= MIN_TEXT_WIDTH)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(inner)
+    return () => ro.disconnect()
+  }, [])
+
+  // 大纲高亮跟随滚动：取最后一个越过分隔线的标题（滚动容器是正文区，不含工具条）
+  useEffect(() => {
+    const scroller = scrollRef.current
+    const content = scroller?.querySelector('.kb-editor-content')
+    if (!scroller || !content) return
+    const onScroll = () => {
+      const headings = content.querySelectorAll('h1, h2, h3')
+      const line = scroller.getBoundingClientRect().top + 24
+      let next = -1
+      headings.forEach((el, i) => {
+        if (el.getBoundingClientRect().top <= line) next = i
+      })
+      setActiveHeading(next)
+    }
+    onScroll()
+    scroller.addEventListener('scroll', onScroll, { passive: true })
+    return () => scroller.removeEventListener('scroll', onScroll)
+  }, [outline, railFits])
+
+  useEffect(() => () => {
+    if (copyTimer.current) clearTimeout(copyTimer.current)
+    if (prefsTimer.current) clearTimeout(prefsTimer.current)
+  }, [])
+
+  // 档位先本地生效（文档立刻变），写入合并 220ms，避免拖滑块时连打后端
+  const changePrefs = useCallback((patch: { readingSize?: number; readingTracking?: number; readingMeasure?: string }) => {
+    const next = {
+      size: patch.readingSize ?? prefs.size,
+      tracking: patch.readingTracking ?? prefs.tracking,
+      measure: patch.readingMeasure ?? prefs.measure,
+    }
+    setPrefs(next)
+    applyReadingPrefs({ readingSize: next.size, readingTracking: next.tracking, readingMeasure: next.measure })
+    pendingPrefs.current = { ...pendingPrefs.current, ...patch }
+    if (prefsTimer.current) clearTimeout(prefsTimer.current)
+    prefsTimer.current = setTimeout(() => {
+      const pending = pendingPrefs.current
+      pendingPrefs.current = {}
+      void setSettings(pending)
+    }, 220)
+  }, [prefs])
+
+  const copyMarkdown = useCallback(async () => {
+    const body = apiRef.current?.getMarkdown() ?? ''
+    const heading = title.trim()
+    // 标题不在 bodyMd 里（方案 A）：复制时补首行，粘出去才是一篇完整 Markdown
+    const md = heading ? `# ${heading}\n\n${body}`.trimEnd() : body
+    if (!md) return
+    let ok = false
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(md)
+        ok = true
+      }
+    } catch { ok = false }
+    if (!ok) {
+      // 剪贴板权限被拒时的兜底：临时 textarea + execCommand
+      const ta = document.createElement('textarea')
+      ta.value = md
+      ta.setAttribute('readonly', 'true')
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      try { ok = document.execCommand('copy') } catch { ok = false }
+      ta.remove()
+    }
+    if (!ok) return
+    setCopied(true)
+    if (copyTimer.current) clearTimeout(copyTimer.current)
+    copyTimer.current = setTimeout(() => setCopied(false), 1600)
+  }, [title])
+
+  /** 用户没手动开合过时：只有页边留白够宽才默认打开（避免首进窄窗弹出抽屉） */
+  const outlineOpen = outlinePref ?? railFits
+  const drawerOpen = outlineOpen && !railFits
+
+  // 抽屉：打开时把焦点移进去，Esc 关闭，关闭后焦点回到大纲按钮
+  const closeOutline = useCallback(() => {
+    setOutlinePref(false)
+    outlineBtnRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    if (!drawerOpen) return
+    const drawer = drawerRef.current
+    drawer?.focus()
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        closeOutline()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [drawerOpen, closeOutline])
+
+  return (
+    <>
+      {/* 文档工具条分两行：第一行 文件名 + 保存时间（左）/ 文档动作（右）；第二行 格式工具栏 */}
+      <div className="kb-detail-strip" ref={stripRef}>
+        {/* 第一行左端只读镜像：标题在正文首行改，这里只回答「现在打开的是哪一条」。
+            headline 一层只负责让文件名与保存时间共基线，外层 head 负责把这组居中。 */}
+        <div className="kb-strip-head">
+          <span className="kb-strip-headline">
+            <span className="kb-strip-ro" title={title.trim() || '未命名文档'}>
+              <span className="kb-strip-ro-text">{title.trim() || '未命名文档'}</span>
+            </span>
+            <span className={'kb-strip-saved' + (saveState.saved ? '' : ' editing')} title={saveState.saved ? '已保存' : '编辑中'}>
+              <span className="dot" />{saveState.saved ? `已保存 ${saveState.time}` : '编辑中…'}
+            </span>
           </span>
         </div>
 
-        {/* 标签（就地增删） */}
-        <div className="kb-tag-row">
-          {item.tags?.map((t) => (
-            <span key={t} className="kb-tag-chip">
-              {t}
-              <button
-                className="kb-tag-x"
-                title="删除标签"
-                aria-label={`删除标签 ${t}`}
-                onClick={() => { void saveTags(item.tags.filter((x) => x !== t)) }}
-              >
-                <X size={10} strokeWidth={2} />
-              </button>
-            </span>
-          ))}
-          {tagEditing ? (
-            <input
-              className="kb-tag-input"
-              value={tagInput}
-              autoFocus
-              placeholder="标签名，回车确认"
-              onChange={(e) => setTagInput(e.target.value)}
-              onBlur={addTag}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') addTag()
-                if (e.key === 'Escape') { setTagInput(''); setTagEditing(false) }
-              }}
+        <div className="kb-strip-tools" ref={setToolbarHost} />
+
+        <div className="kb-strip-actions">
+          <div className="kb-strip-anchor">
+            <button
+              type="button"
+              className={'kb-strip-btn' + (typoOpen ? ' on' : '')}
+              title="排版"
+              aria-label="排版"
+              aria-haspopup="dialog"
+              aria-expanded={typoOpen}
+              onClick={() => setTypoOpen((v) => !v)}
+            >
+              <Type size={15} strokeWidth={1.7} />
+            </button>
+            <TypoPopover
+              open={typoOpen}
+              value={{ size: prefs.size, tracking: prefs.tracking, measure: prefs.measure }}
+              onClose={() => setTypoOpen(false)}
+              onChange={changePrefs}
             />
-          ) : (
-            <button className="kb-tag-add" onClick={() => setTagEditing(true)}>
-              <Plus size={11} strokeWidth={1.7} /> 标签
+          </div>
+
+          <button
+            type="button"
+            className={'kb-strip-btn' + (copied ? ' on' : '')}
+            title={copied ? '已复制' : '复制 Markdown'}
+            aria-label="复制 Markdown"
+            onClick={() => { void copyMarkdown() }}
+          >
+            {copied ? <Check size={15} strokeWidth={1.8} /> : <FileCode2 size={15} strokeWidth={1.7} />}
+          </button>
+
+          <button
+            type="button"
+            ref={outlineBtnRef}
+            className={'kb-strip-btn' + (outlineOpen ? ' on' : '')}
+            title={railFits ? '大纲（页边）' : '大纲（右侧抽屉）'}
+            aria-label="大纲"
+            aria-pressed={outlineOpen}
+            aria-expanded={drawerOpen}
+            onClick={() => setOutlinePref(!outlineOpen)}
+          >
+            <PanelRight size={15} strokeWidth={1.7} />
+          </button>
+
+          <span className="kb-strip-sep" aria-hidden="true" />
+
+          {onPin && (
+            <button className="btn xs ghost" onClick={() => onPin(item)} title="贴到桌面">
+              <Pin size={13} strokeWidth={1.7} /> 贴到桌面
             </button>
           )}
+          {!showDeleteConfirm ? (
+            <button className="btn xs ghost" onClick={() => setShowDeleteConfirm(true)} title="删除" aria-label="删除">
+              <Trash2 size={13} strokeWidth={1.7} />
+            </button>
+          ) : (
+            <>
+              <span className="kb-del-confirm">
+                {refCount > 0 ? `有 ${refCount} 处引用将悬空，` : ''}确认删除？
+              </span>
+              <button className="btn xs danger" onClick={handleDelete}>确认</button>
+              <button className="btn xs ghost" onClick={() => setShowDeleteConfirm(false)}>取消</button>
+            </>
+          )}
+          <span className="sr-only" aria-live="polite">{copied ? 'Markdown 已复制' : ''}</span>
         </div>
-
-        <div className="kb-meta-sep" />
       </div>
 
-      {/* 常驻即时渲染画布（无模式） */}
-      <div className="kb-detail-body">
-        <TipTapEditor
-          markdown={item.bodyMd}
-          onSave={handleSave}
-          onDirty={handleDirty}
-          placeholder="写点什么…（输入 / 唤起插入菜单）"
-          allowImages
-        />
+      {/* 正文区独立滚动：滚动条从工具条下缘开始，工具条与标题不会被内容盖住 */}
+      <div className="kb-detail-scroll" ref={scrollRef}>
+        <div className={'kb-detail-inner' + (railFits ? '' : ' no-rail')} ref={innerRef}>
+          <div className="kb-detail-main" ref={mainRef}>
+            {/* 文档标题：纸面上的第一行，随文滚动。点进即全选，回车进正文，Esc 复原 */}
+            <div
+              className="kb-doc-title"
+              ref={titleElRef}
+              contentEditable
+              suppressContentEditableWarning
+              role="textbox"
+              aria-label="文档标题"
+              aria-multiline="false"
+              data-placeholder="未命名文档"
+              spellCheck={false}
+              onInput={(e) => setTitle(e.currentTarget.textContent ?? '')}
+              onBlur={commitDocTitle}
+              onKeyDown={onDocTitleKeyDown}
+              onPaste={onDocTitlePaste}
+            />
+            {/* 标签（就地增删） */}
+            <div className="kb-tag-row">
+              {item.tags?.map((t) => (
+                <span key={t} className="kb-tag-chip">
+                  {t}
+                  <button
+                    className="kb-tag-x"
+                    title="删除标签"
+                    aria-label={`删除标签 ${t}`}
+                    onClick={() => { void saveTags(item.tags.filter((x) => x !== t)) }}
+                  >
+                    <X size={10} strokeWidth={2} />
+                  </button>
+                </span>
+              ))}
+              {tagEditing ? (
+                <input
+                  className="kb-tag-input"
+                  value={tagInput}
+                  autoFocus
+                  placeholder="标签名，回车确认"
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onBlur={addTag}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') addTag()
+                    if (e.key === 'Escape') { setTagInput(''); setTagEditing(false) }
+                  }}
+                />
+              ) : (
+                <button className="kb-tag-add" onClick={() => setTagEditing(true)}>
+                  <Plus size={11} strokeWidth={1.7} /> 标签
+                </button>
+              )}
+            </div>
+
+            {/* 常驻即时渲染画布（无模式） */}
+            <div className="kb-detail-body">
+              <TipTapEditor
+                markdown={item.bodyMd}
+                onSave={handleSave}
+                onDirty={handleDirty}
+                placeholder="写点什么…（输入 / 唤起插入菜单）"
+                allowImages
+                toolbarHost={toolbarHost}
+                onReady={(api) => { apiRef.current = api }}
+                onOutline={setOutline}
+              />
+            </div>
+          </div>
+
+          {/* 页边批注式大纲：轨道恒占 188px，收起时只隐藏不撤走——开合不移动正文 */}
+          {railFits && (
+            <DocOutline
+              items={outline}
+              active={activeHeading}
+              hidden={!outlineOpen}
+              onPick={(index) => apiRef.current?.scrollToHeading(index)}
+            />
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* 窄窗：同一份大纲换右侧抽屉，遮罩点击 / Esc 关闭，选条目后收起 */}
+      {drawerOpen && (
+        <div className="kb-outline-layer">
+          <div className="kb-outline-mask" onMouseDown={closeOutline} aria-hidden="true" />
+          <div
+            className="kb-outline-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="文档大纲"
+            tabIndex={-1}
+            ref={drawerRef}
+          >
+            <DocOutline
+              items={outline}
+              active={activeHeading}
+              onPick={(index) => {
+                apiRef.current?.scrollToHeading(index)
+                closeOutline()
+              }}
+              variant="drawer"
+              onClose={closeOutline}
+            />
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
