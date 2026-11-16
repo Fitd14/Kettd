@@ -135,7 +135,7 @@ UI 层（React）
 
 ### 视觉语言
 
-- **字号五档，按角色取用**：`--fs-meta` 11px（时间 / 标签 / kbd）、`--fs-sub` 12.5px（副行 / 说明 / 按钮）、`--fs-body` 14px（行标题 / 输入框 / 正文）、`--fs-masthead` 22px（页面报头，KPI 数字同档）、`--fs-reading` 16px（仅编辑器正文，行高 1.85）。
+- **字号四档 + 阅读档位**：chrome 按角色取 `--fs-meta` 11px（时间 / 标签 / kbd）、`--fs-sub` 12.5px（副行 / 说明 / 按钮）、`--fs-body` 14px（行标题 / 输入框 / 正文）、`--fs-masthead` 22px（页面报头，KPI 数字同档）；编辑器正文只用 `--fs-reading`，它由设置项 `readingSize` 在 8–20px 七档间切换（默认 16px，行高 1.85），字距由 `readingTracking` 在 `0`–`0.09em` 七档间切换（默认 0），列宽上限由 `readingMeasure` 在 96ch / 112ch 两档间切换（默认 96ch）。只在 `.kb-detail` 子树内生效，便签窗不受影响。
 - **颜色只从令牌取**：一律 `hsl(var(--xxx))`；新增 `--seal`（朱砂 `4 47% 53%`）用于知识库印章与危险动作。
 - **两种纸，看得越久纸越实**：描图纸（`--vellum-*`，捕获浮条，停留 <2s）→ 白页（`--card` + `--shadow-sm`，当前行）→ 宣纸（`--background` + `--seal` + 纸纹，知识库详情 / 编辑器，停留 >10s）；一个面只用一种纸。
 - **唯一用力处**：同一帧只有当前行浮起（`.trow:hover` / `:focus-within`），其余行平贴账本。

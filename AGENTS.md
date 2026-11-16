@@ -31,7 +31,8 @@
 - **事件总线**：跨窗通信只走 `kernel/event-bus.js`，不得引入全局状态库或第二套事件实现。
 - **Token 类**：颜色一律 `hsl(var(--xxx))`，禁止硬编码色值。
 - **桥接惰性取**：`__TAURI__` 注入可能晚于模块求值，`src-react/src/lib/api.ts` 的 `tauriBridge()` 每次惰性取，不缓存全局引用。
-- **字号只用四档令牌**：chrome 只许 `--fs-meta`（11px）/ `--fs-sub`（12.5px）/ `--fs-body`（14px）/ `--fs-masthead`（22px），编辑器正文只许 `--fs-reading`（16px）；禁止新增字号值或按像素就近选档。
+- **字号只用四档令牌**：chrome 只许 `--fs-meta`（11px）/ `--fs-sub`（12.5px）/ `--fs-body`（14px）/ `--fs-masthead`（22px）；编辑器正文只许 `--fs-reading`（默认 16px，可由设置项在 8–20px 七档间切换，仅 `.kb-detail` 子树）；禁止新增字号值或按像素就近选档。
+- **阅读偏好三档位**：字号 / 字距 / 列宽上限只能经 `src-react/src/lib/reading-prefs.ts` 写 `data-reading-*` 属性驱动，档位表在 `src-tauri/src/models.rs`（`READING_SIZES` / `READING_TRACKING_MAX` / `READING_MEASURES`），前后端各一份、改动必须同步；禁止在组件里内联 style 传档位。
 - **一级页面只用 `.view` 外壳**：`padding` / `gap` 走 `--sp-*`，禁止页面自带第二套根内边距。（以上两条待人工审核后随文档提交）
 
 ### 2.3 后端
