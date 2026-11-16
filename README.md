@@ -135,7 +135,7 @@ UI 层（React）
 
 ### 视觉语言
 
-- **字号四档 + 阅读档位**：chrome 按角色取 `--fs-meta` 11px（时间 / 标签 / kbd）、`--fs-sub` 12.5px（副行 / 说明 / 按钮）、`--fs-body` 14px（行标题 / 输入框 / 正文）、`--fs-masthead` 22px（页面报头，KPI 数字同档）；编辑器正文只用 `--fs-reading`，它由设置项 `readingSize` 在 8–20px 七档间切换（默认 16px，行高 1.85），字距由 `readingTracking` 在 `0`–`0.09em` 七档间切换（默认 0），列宽上限由 `readingMeasure` 在 96ch / 112ch 两档间切换（默认 96ch）。只在 `.kb-detail` 子树内生效，便签窗不受影响。
+- **字号四档 + 阅读档位**：chrome 按角色取 `--fs-meta` 11px（时间 / 标签 / kbd）、`--fs-sub` 12.5px（副行 / 说明 / 按钮）、`--fs-body` 14px（行标题 / 输入框 / 正文）、`--fs-masthead` 22px（页面报头，KPI 数字同档）；编辑器正文只用 `--fs-reading`，它由设置项 `readingSize` 在 12–24px 逐像素 13 档间切换（默认 15px，行高 1.85），字距由 `readingTracking` 在常规 0 / 宽松 0.03em / 较宽 0.06em 三档间切换（默认常规），列宽上限由 `readingMeasure` 在 96ch / 112ch 两档间切换（默认 96ch）。只在 `.kb-detail` 子树内生效，便签窗不受影响。
 - **颜色只从令牌取**：一律 `hsl(var(--xxx))`；新增 `--seal`（朱砂 `4 47% 53%`）用于知识库印章与危险动作。
 - **两种纸，看得越久纸越实**：描图纸（`--vellum-*`，捕获浮条，停留 <2s）→ 白页（`--card` + `--shadow-sm`，当前行）→ 宣纸（`--background` + `--seal` + 纸纹，知识库详情 / 编辑器，停留 >10s）；一个面只用一种纸。
 - **唯一用力处**：同一帧只有当前行浮起（`.trow:hover` / `:focus-within`），其余行平贴账本。
@@ -160,7 +160,7 @@ UI 层（React）
 | `src-react/src/index.css` | 设计令牌：字号 / 颜色 / 材质 / 字体 |
 | `src-react/src/styles/app.css` | 视图骨架、行与行尾动作样式 |
 | `src-react/src/kernel/` | 时间 / 选择器 / 事件总线 / 捕获语法单源 |
-| `scripts/` | `version.mjs` 版本同步 · `check.ps1` 门禁 · `release.ps1` 一键发版 |
+| `scripts/` | `version.mjs` 版本同步 · `check.ps1` 门禁 · `css-parse.mjs` 样式表解析 · `release.ps1` 一键发版 |
 | `test/` | 门禁：命令四方对账 / 主窗口关闭契约 / 打包配置契约 / 文档结构契约 |
 
 ## 开发
@@ -199,7 +199,7 @@ Kettd/
 │   │   ├── App.tsx         # 路由与全局壳
 │   │   ├── main.tsx        # 入口
 │   │   ├── views/          # 六视图（今天/收件箱/计划/回顾/知识库/设置）
-│   │   ├── components/     # 共享组件 + kb 组件
+│   │   ├── components/     # 组件：ui/ 原语（radix+token）· <domain>/ 业务域 · 根为跨视图壳
 │   │   ├── capture/        # 快速记录窗
 │   │   ├── sticky/         # 便签窗
 │   │   ├── todo/           # 待办悬浮窗
@@ -226,12 +226,13 @@ Kettd/
 ### 测试与门禁
 
 ```bash
-npm run check                                                     # 一把跑完 17 项
+npm run check                                                     # 一把跑完 21 项
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1 -SkipRust    # 只查前端
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1 -Only Markdown  # 按名字过滤
 ```
 
-门禁顺序：版本一致性 → 命令四方对账 → 主窗口关闭契约 → 打包配置契约 → 文档结构契约 → Markdown 渲染保真 → Markdown round-trip → 前端类型检查 → 前端 lint → 前端构建 → `cargo check` → `cargo test`。任一步非零即退出 1；日志在 `logs/check-<时间戳>.log`。依赖缺失导致跳过的项会标 `SKIP` 并单独提示（当前 `md-roundtrip` 需要 `jsdom`，缺失时跳过）——**SKIP 不算通过**。
+门禁顺序：版本一致性 → 命令四方对账 → 主窗口关闭契约 → … → Markdown round-trip → 前端类型检查 → 前端 lint → **CSS 解析** → 前端构建 → `cargo check` → `cargo test`。任一步非零即退出 1；日志在 `logs/check-<时间戳>.log`。依赖缺失导致跳过的项会标 `SKIP` 并单独提示（当前 `md-roundtrip` 需要 `jsdom`，缺失时跳过）——**SKIP 不算通过**。
+
+「CSS 解析」用 `scripts/css-parse.mjs`，走与 `vite:css-post` 相同的 lightningcss 压缩链路：`tsc` 与 `eslint` 都不解析 CSS，样式表语法错过去要到构建阶段才炸（2026-11-16 一次 `Invalid empty selector` 就是这样把整轮发版打回的），这一步把它提前到秒级门禁里。
 
 单独跑某一项：
 
@@ -242,6 +243,7 @@ node --test test/main-window-close.test.mjs            # 主窗口关闭契约
 node --test test/packaging.test.mjs                    # 打包配置契约（8 条）
 node --test test/docs.test.mjs                         # 文档结构契约（README / AGENTS 分工）
 node --test src-react/test/md-fidelity.test.mjs        # Markdown 渲染保真
+node scripts/css-parse.mjs                             # 样式表解析（lightningcss，同构建链路）
 cd src-react && npx tsc -b                             # 前端类型检查
 ```
 
@@ -257,7 +259,7 @@ npm run release      # 门禁 → 构建前端 → tauri build → 校验产物 
 一条链路做完四件事：
 
 1. **版本单一来源**：`scripts/version.mjs`（`get` / `check` / `set`）维护四处版本——根 `package.json`、`src-react/package.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`；不一致时门禁直接拦下。
-2. **门禁**：默认先跑 `scripts/check.ps1`（17 项），`-SkipChecks` 可跳过。
+2. **门禁**：默认先跑 `scripts/check.ps1`（21 项），`-SkipChecks` 可跳过。
 3. **构建**：调用 `tauri build --bundles msi,nsis`；bundle 阶段偶发 `os error 32`（Defender 瞬时锁）会自动退避重试，默认 2 次。
    - **预发布版本只出 NSIS**：WiX/MSI 要求版本里的预发布标识是纯数字（`0.0.2-1` 可以，`0.0.2-rc.1` 不行，会报 `pre-release identifier ... must be numeric-only ... for msi target`）。脚本检测到非数字标识时自动剔除 `msi`，只打 NSIS，并在 `build-manifest.json` 的 `droppedTargets` 记下原因。
 4. **归档**：产物拷到 `artifacts/v<版本>/`，同目录生成 `SHA256SUMS.txt` 与 `build-manifest.json`（含 git commit / 分支 / 是否脏工作区、node·npm·cargo·rustc 版本、各安装包大小与 sha256）。

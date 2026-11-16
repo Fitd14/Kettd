@@ -31,9 +31,13 @@
 - **事件总线**：跨窗通信只走 `kernel/event-bus.js`，不得引入全局状态库或第二套事件实现。
 - **Token 类**：颜色一律 `hsl(var(--xxx))`，禁止硬编码色值。
 - **桥接惰性取**：`__TAURI__` 注入可能晚于模块求值，`src-react/src/lib/api.ts` 的 `tauriBridge()` 每次惰性取，不缓存全局引用。
-- **字号只用四档令牌**：chrome 只许 `--fs-meta`（11px）/ `--fs-sub`（12.5px）/ `--fs-body`（14px）/ `--fs-masthead`（22px）；编辑器正文只许 `--fs-reading`（默认 16px，可由设置项在 8–20px 七档间切换，仅 `.kb-detail` 子树）；禁止新增字号值或按像素就近选档。
+- **字号只用四档令牌**：chrome 只许 `--fs-meta`（11px）/ `--fs-sub`（12.5px）/ `--fs-body`（14px）/ `--fs-masthead`（22px）；编辑器正文只许 `--fs-reading`（默认 15px，可在 12–24px 逐像素 13 档间切换，仅 `.kb-detail` 子树；字距三档）；禁止新增字号值或按像素就近选档。
 - **阅读偏好三档位**：字号 / 字距 / 列宽上限只能经 `src-react/src/lib/reading-prefs.ts` 写 `data-reading-*` 属性驱动，档位表在 `src-tauri/src/models.rs`（`READING_SIZES` / `READING_TRACKING_MAX` / `READING_MEASURES`），前后端各一份、改动必须同步；禁止在组件里内联 style 传档位。
 - **一级页面只用 `.view` 外壳**：`padding` / `gap` 走 `--sp-*`，禁止页面自带第二套根内边距。（以上两条待人工审核后随文档提交）
+- **组件单一入口**：交互控件只许来自 `src-react/src/components/ui/`；`views/`、`capture/`、`sticky/`、`todo/`、`rendering/` 与 `components/` 下的业务组件禁止直接写原生 `<button>` / `<input>` / `<select>` / `<textarea>`，也禁止手写弹层、菜单、标签页。原生元素只允许出现在 `ui/` 封装内部，一处封装、全站引用。
+- **radix 承载行为**：弹层 / 菜单 / 下拉 / 标签页 / 浮层 / 提示 / 滑块 / 勾选 / 开关一律基于 `radix-ui` 统一包封装，导入写 `import { Dialog } from 'radix-ui'`；禁止新增 `@radix-ui/react-*` 分包（沿用依赖冻结线）。radix 没有 Button / Input / Textarea 原语，这三类由 `ui/` 内的 cva + token 样式封装承担。
+- **组件分层**：`ui/` 原语（无业务语义，radix 管行为、token 管样式）→ `components/<domain>/`（如 `kb/`、`editor/`）→ `components/` 根（跨视图壳，如 `title-bar`、`undo-toast`）。新增层级必须先改 README §目录结构并写明理由，不许临时造目录。
+- **存量冻结**：规则生效前已写的原生元素不随功能改动顺手重写；被触碰的文件按本规则替换，存量清单与分批顺序记在 ledger 迁移单，禁止一次性大改。
 
 ### 2.3 后端
 
@@ -122,11 +126,14 @@
 
 ### 4.3 一键门禁与 SKIP
 
-默认跑 `npm run check`（17 项，日志 `logs/check-<时间戳>.log`）。汇报证据时写清条数与结果，例如：
+默认跑 `npm run check`（21 项，日志 `logs/check-<时间戳>.log`）。汇报证据时写清条数与结果，例如：
 
 ```
-npm run check → 17 项：16 OK + 1 SKIP（Markdown round-trip：缺 jsdom），0 FAIL
+npm run check → 21 项：20 OK + 1 SKIP（Markdown round-trip：缺 jsdom），0 FAIL
 ```
+
+- **步数以日志为准**：`### <步骤名> ::` 出现几次就是几步；数 `check.ps1` 里的 `Invoke-Step` 调用行会数错。
+- **CSS 也要过门禁**：`tsc` 与 `eslint` 不解析样式表，语法错只有构建才炸；`CSS 解析` 步（`scripts/css-parse.mjs`）用 lightningcss 先压一遍，改过 `.css` 必须看这一项。
 
 - **SKIP ≠ 通过**：必须在交付说明里列名并说明原因，不得算进「全绿」。
 - 门禁失败先修再谈交付；确实无法本地复现的（如真机类），写明未验证原因与风险。
