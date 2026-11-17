@@ -1,6 +1,7 @@
 /* 鈹€鈹€鈹€ 缂栬緫鍣ㄦ牸寮忓伐鍏锋爮 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-editor {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -202,35 +203,114 @@
   color: var(--text-secondary, #666);
 }
 
-/* 琛ㄦ牸 */
+/* 表格：单一来源。旧的重复规则已合并；边线与表头走 token，不再用 seal 暖红铺底 */
 .kb-editor-content table {
   border-collapse: collapse;
   width: 100%;
-  margin: 0.5em 0;
+  margin: 0.8em 0;
+  font-size: var(--fs-body);
+  box-shadow: 0 0 0 1px hsl(var(--foreground) / 0.38);
 }
 
 .kb-editor-content th,
 .kb-editor-content td {
-  border: 1px solid var(--border, #e0e0e0);
-  padding: 0.4em 0.8em;
+  border: 1px solid hsl(var(--foreground) / 0.2);
+  padding: 0.45em 0.8em;
+  text-align: left;
+  min-width: 4em;
+  position: relative;
 }
 
 .kb-editor-content th {
   font-weight: 600;
-  background: var(--seal-soft, hsl(var(--seal) / 0.12));
+  background: hsl(var(--secondary));
+  color: hsl(var(--foreground));
 }
 
-/* 琛ㄦ牸锛堢紪杈戞€侊級锛氶€変腑琛ㄦ牸楂樹寒宸ュ叿鏍忋€佸崟鍏冩牸鏈€灏忓 */
-.kb-editor-content table { border-collapse: collapse; width: 100%; margin: .8em 0; font-size: var(--fs-body); }
-.kb-editor-content th, .kb-editor-content td {
-  border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / .25));
-  padding: .45em .8em; text-align: left; min-width: 4em;
-}
 .kb-editor-content .selectedCell:after {
-  content: ""; position: absolute; inset: 0;
-  background: var(--seal, #C0574F); opacity: .12; pointer-events: none;
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: hsl(var(--foreground) / 0.06);
+  pointer-events: none;
 }
 
+/* ── 表格悬浮操作：表格右上（表级）与单元格右上（行列级）────────────── */
+.kb-tbl-tools-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 45;
+}
+
+.kb-tbl-tools {
+  position: absolute;
+  display: flex;
+  pointer-events: auto;
+}
+
+/* 手柄下方 6px 的隐形搭桥：hover 从手柄移到面板时不丢 hover */
+.kb-tbl-tools::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 6px;
+}
+
+.kb-tbl-handle {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--r-sm, 6px);
+  background: hsl(var(--secondary));
+  color: hsl(var(--muted-foreground));
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.08);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 120ms ease;
+}
+
+.kb-tbl-tools:hover .kb-tbl-handle,
+.kb-tbl-handle:focus-visible,
+.kb-tbl-tools.is-open .kb-tbl-handle {
+  opacity: 1;
+}
+
+.kb-tbl-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  align-items: center;
+}
+
+.kb-tbl-tools:hover .kb-tbl-panel,
+.kb-tbl-tools.is-open .kb-tbl-panel {
+  display: flex;
+}
+
+.kb-tbl-label,
+.kb-tbl-num {
+  font-size: var(--fs-meta);
+  color: hsl(var(--bubble-ink) / 0.72);
+  white-space: nowrap;
+}
+
+.kb-tbl-label {
+  padding: 0 2px;
+}
+
+.kb-tbl-num {
+  min-width: 14px;
+  text-align: center;
+  color: hsl(var(--bubble-ink));
+}
 /* 鈹€鈹€鈹€ 鍐欎綔鍖哄垪鍐呮孩鍑猴紙tasks 4.1锛夛細瀹借〃鏍?/ 闀夸覆鍦ㄦ鏂囧垪鍐呰嚜琛屾粴鍔ㄦ垨鎶樿锛?   涓嶆拺鐮磋鎯呴潰鏉匡紙鍒楀涓婇檺鐢?.kb-detail-inner 鐨?--kb-measure 鎺у埗锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 /* tiptap Table 榛樿 TableView 鐢熸垚 div.tableWrapper > table锛?   瀹借〃鍦ㄦ鏂囧垪鍐呮í鍚戞粴鍔紝璇︽儏闈㈡澘鏈韩涓嶅嚭鐜版í鍚戞粴鍔ㄦ潯銆?*/
@@ -256,7 +336,7 @@
 }
 
 /* 浠诲姟娓呭崟锛堝彲鍕鹃€夛級 */
-.kb-editor-content ul[data-type="taskList"] li > label { margin-top: .3em; }
+.kb-editor-content ul[data-type="taskList"] li > label { margin-top: .7em; }
 .kb-editor-content ul[data-type="taskList"] li[data-checked="true"] > div { color: var(--ink-3, hsl(var(--muted-foreground) / 0.75)); text-decoration: line-through; }
 
 /* 浠诲姟鍒楄〃 */
