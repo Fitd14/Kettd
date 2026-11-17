@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { hideMainWindow, mainWindowBridge } from '@/lib/api'
 
 /**
@@ -39,33 +40,34 @@ export function TitleBar() {
         Kettd
       </div>
       <div className="titlebar-actions">
-        <button
+        <Button
           type="button"
-          className="titlebar-btn"
+          size="window"
           title="最小化"
           aria-label="最小化"
           onClick={() => { void mainWindowBridge()?.minimize?.() }}
         >
           ─
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="titlebar-btn"
+          size="window"
           title={maximized ? '向下还原' : '最大化'}
           aria-label={maximized ? '向下还原' : '最大化'}
           onClick={() => { void mainWindowBridge()?.toggleMaximize?.() }}
         >
           {maximized ? '⧉' : '□'}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="titlebar-btn close"
+          size="window"
+          variant="window-close"
           title="关闭"
           aria-label="关闭"
           onClick={() => { void hideMainWindow() }}
         >
           ×
-        </button>
+        </Button>
       </div>
     </div>
   )

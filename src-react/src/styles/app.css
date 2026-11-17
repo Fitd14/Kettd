@@ -110,7 +110,11 @@
   border-radius: 0;
   background: transparent;
   font-size: var(--fs-body);
+  line-height: 1;
+  cursor: default;
 }
+/* 窗口键不跟着普通按钮按压位移，保持系统标题栏手感 */
+.btn[data-size="window"]:active { transform: none; }
 
 /* 变体只改颜色与边框，尺寸/圆角/焦点环共用 */
 .btn[data-variant="primary"] {
