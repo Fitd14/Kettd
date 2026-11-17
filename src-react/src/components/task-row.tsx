@@ -139,13 +139,15 @@ export function TaskRow({
           {onDelete && (
             <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
               <DropdownMenuTrigger asChild>
-                <button
-                  className="btn ghost xs row-actions-trigger"
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="row-actions-trigger"
                   title="详情 / 删除"
                   aria-label="更多动作"
                 >
                   ⋯
-                </button>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" aria-label="更多动作">
                 <DropdownMenuItem onSelect={() => onOpen?.(task.id)}>
@@ -158,10 +160,10 @@ export function TaskRow({
             </DropdownMenu>
           )}
           {actions === 'inbox' && onPlanToday && (
-            <button className="btn ghost xs row-actions-secondary" title="加入今天（T）" onClick={() => onPlanToday(task.id)}>→今天</button>
+            <Button variant="ghost" size="xs" className="row-actions-secondary" title="加入今天（T）" onClick={() => onPlanToday(task.id)}>→今天</Button>
           )}
           {actions !== 'none' && onSchedule && (
-            <button className="btn ghost xs row-actions-secondary" title="排期（E）" onClick={() => setScheduling((v) => !v)}>排期…</button>
+            <Button variant="ghost" size="xs" className="row-actions-secondary" title="排期（E）" onClick={() => setScheduling((v) => !v)}>排期…</Button>
           )}
         </span>
       </span>

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import type { Task } from '@/lib/api'
 import { getCategoryColor } from '@/lib/api'
 
@@ -67,7 +68,7 @@ export function CompletionTimeline({ items, onSelect, pageSize = 30 }: Props) {
         <div className="ctl-item ctl-more" role="listitem">
           <span className="ctl-time text-muted">…</span>
           <button className="ctl-dot ghost" aria-label="加载更早" onClick={loadMore} />
-          <button className="btn ghost xs" onClick={loadMore}>更早 →</button>
+          <Button variant="ghost" size="xs" onClick={loadMore}>更早 →</Button>
         </div>
       )}
     </div>
