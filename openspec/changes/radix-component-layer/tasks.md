@@ -82,7 +82,9 @@
   - 门禁替代跑法：`npm run check` 仍因 `node --test` 需管道 spawn（EPERM）中断，改为 8 个 test 文件逐个 `node test/x.test.mjs`，合计 44 tests / 0 fail（command-parity 6、docs 4、heading-select-wiring 6、main-window-close 5、packaging 9、sticky-kbref 4、tray-entry-parity 5、tray-menu 5）
 - [ ] 5.3 按 AGENTS §4.2 做 L4 冒烟五条：快速记录、今天视图计数、提醒触发、便签三态、知识库搜索
 - [ ] 5.4 校对 `AGENTS.md` §2.2 与 `README.md` §目录结构 的文案与最终实现一致（三层描述、例外清单），过 `node test/docs.test.mjs`
-- [ ] 5.5 更新 ledger 任务 `20261116-1316-313c-原生控件迁移到-components-ui-封装` 的 worklog 结论，与本变更的五批一一对应
+- [x] 5.5 更新 ledger 任务 `20261116-1316-313c-原生控件迁移到-components-ui-封装` 的 worklog 结论，与本变更的五批一一对应
+  - 已落地（2026-11-17）：worklog 的 Process / Conclusion / Next 三节重写——五批逐条对应「完成 / 结果 / 遗留」，`To Do` 标注为立项时的历史计划；结论表写清 `<button>` 161→22、`<input>` 28→4、弹层菜单标签页全换 radix，以及 5.3 冒烟与 5.4 文档待批
+  - 台账 CLI：本机不在 PATH，实际路径 `C:\Users\simy\.dsh\profiles\desktop\node_modules\dsh-task-ledger\skill\scripts\bin\ledger-windows-amd64.exe`；`log --id … --note …` 成功，台账自动提交 `9e8960e`（只含 `ledger/owners/*.json` 与 worklog）。任务状态保持 doing，等 5.3 / 5.4 完成后再结案
 - [x] 5.6 迁移完成后删除 `app.css` 与各域 CSS 里被 D9 取代的旧修饰：`.btn.ghost` / `.btn.danger` / `.btn.sm` / `.btn.xs`、`.sticky-btn`、`.kb-strip-btn`、`.kb-folder-add`、`.kb-folder-action`、`.kb-tag-x`、`.todo-mini-btn`、`.sticky-md-btn` 的尺寸与 hover 段（保留 `:where(button,[tabindex]):focus-visible` 兜底），`grep` 确认无引用后再删
   - 进度（第十七轮）：`.btn.ghost` / `.btn.danger` / `.btn.sm` / `.btn.xs` 与 `.input.xs` / `.input.sm` 已从 `primitives.css` 删除；`app.css` 的 `.seg .btn.on`、`.schedule-pop .input.xs`、`.btn.danger` 三处死覆盖同步删除；grep 确认 TSX 已无旧修饰写法（仅 `CaptureWindow.tsx:190` 一行注释残留）。余下 `.sticky-btn` / `.kb-strip-btn` / `.kb-folder-add` / `.kb-folder-action` / `.kb-tag-x` / `.todo-mini-btn` / `.sticky-md-btn` 仍作为布局/盒子类随 `<Button>` 保留，待这些落点收完后删
   - 进度（第十八轮）：TSX 零引用的四组规则整段删除——`app.css` 的 `.titlebar-btn` 3 条（窗口键改 `size="window"`，宽度/无边框/透明由 `.btn[data-size="window"]` 覆盖，hover 由 `.btn:hover` 兜底）、`kb.css` 的 `.kb-strip-btn` 5 条（改 `variant="ghost" size="icon-sm"`）、`.kb-folder-add` 2 条（改 `size="icon-xs"`）、`.kb-outline-close` 3 条（改 `size="icon-xs"`）；CSS 字符数 `app.css 19231→18818`、`kb.css 39533→38622`，13 张表全部解析通过
