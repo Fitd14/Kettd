@@ -159,6 +159,7 @@ UI 层（React）
 | `src-react/src/lib/api.ts` | 命令桥接（`__TAURI__` 惰性取） |
 | `src-react/src/index.css` | 设计令牌：字号 / 颜色 / 材质 / 字体 |
 | `src-react/src/styles/app.css` | 视图骨架、行与行尾动作样式 |
+| `src-react/src/styles/primitives.css` | 原语皮肤：按钮 / 输入 / 勾选 / 弹层 / 浮层 / 菜单 / 标签页（四个窗口入口共用） |
 | `src-react/src/kernel/` | 时间 / 选择器 / 事件总线 / 捕获语法单源 |
 | `scripts/` | `version.mjs` 版本同步 · `check.ps1` 门禁 · `css-parse.mjs` 样式表解析 · `release.ps1` 一键发版 |
 | `test/` | 门禁：命令四方对账 / 主窗口关闭契约 / 打包配置契约 / 文档结构契约 |
@@ -205,7 +206,8 @@ Kettd/
 │   │   ├── todo/           # 待办悬浮窗
 │   │   ├── rendering/      # Markdown / Tiptap 渲染层
 │   │   ├── kernel/         # 共享 JS 内核（时间/选择器/事件总线/捕获语法）
-│   │   └── lib/            # api.ts 类型化桥接
+│   │   ├── lib/            # api.ts 类型化桥接
+│   │   └── styles/         # primitives.css 原语皮肤（四窗共用）· app.css 壳与页面样式
 │   └── test/               # 前端门禁（渲染保真 / round-trip）
 ├── src-tauri/              # Rust 后端
 │   ├── src/

@@ -13,37 +13,42 @@
 
 - [x] 1.1 改造 `src-react/src/components/ui/button.tsx`：按 D9 原型实现 `variant`（default / primary / ghost / soft / danger / window-close）× `size`（xs / sm / md，另含 `icon-xs` / `icon-sm` / `icon-md` / `window` / `caret`），并在 `src-react/src/styles/app.css` 的 `.btn` 段后补 `.btn[data-variant="…"]` / `.btn[data-size="…"]` 选择器（含 `window`、`caret` 特例与 `[data-surface="sticky"]` 换色覆写）；保留 `asChild` 与 `data-slot`；在 `views/SettingsView.tsx` 用它替换 3 个按钮（`sm` 默认、`ghost xs`、`danger xs`）做试点。**已落地**：`npx tsc -b` 退出 0、oxlint 0 warning、`node scripts/css-parse.mjs` 通过；hover / 禁用态与原型的一致性未真机核对（沙箱无法截图），并入 5.3 冒烟一起看
 - [x] 1.2 新建 `components/ui/input.tsx`（复用 `.input`，尺寸走 `.input[data-size]`、无效态走 `.input[aria-invalid="true"]`；`size` 与原生数字 `size` 冲突，已 `Omit` 掉原生声明），在 `views/SettingsView.tsx` 替换快速记录热键输入框一处试点。**已落地**：`npx tsc -b` 退出 0、oxlint 0 warning、CSS 解析通过；焦点环与边框色仍由 `.input:focus` 提供，文件内无裸 hex
-- [ ] 1.3 `textarea` 零使用点（全仓 `<textarea` 计数 0），本轮不建原语；页面若出现，按 1.2 同一套 `.input` 规则补建并在此行注明
+- [x] 1.3 `textarea` 零使用点（全仓 `<textarea` 计数 0），本轮不建原语；页面若出现，按 1.2 同一套 `.input` 规则补建并在此行注明。**结论**：截至 2026-11-17 全仓 `<textarea` 仍为 0，未建 `ui/textarea.tsx`；这是「按需建」而不是遗漏，后续出现时照 1.2 补 `.input` 同一套皮肤与 `data-size` / `aria-invalid` 契约
 - [x] 1.4 新建 `components/ui/checkbox.tsx`（radix `Checkbox` + `Indicator`，lucide `Check`；15×15、勾选态 primary 实心，便签里换 `--sticky-accent`），**5 处原生 `type="checkbox"` 全部替换**：`views/PlannedView.tsx:144`、`components/task-row.tsx:99`/`:108`、`components/kb/kb-attach-picker.tsx:74`、`todo/TodoFloatWindow.tsx:156`。连带改动：`kb-attach-picker` 的 `<label>` 改 `<div onClick>`（radix 按钮在 label 里不会随文字点击切换，改由行点击兜底、按钮 `stopPropagation` 防双触发）；`sticky.css` 三处 `:has(.tcheck:checked)` 补 `.checkbox[data-state="checked"]` 分支，`app.css` 补 `.trow-done .checkbox` 的置灰态。**已落地**：`npx tsc -b` 退出 0、oxlint 0 error（仅 TodoFloatWindow 既有 effect 告警）、CSS 解析通过、`grep type="checkbox"` 计数 0
 - [x] 1.5 新建 `components/ui/dialog.tsx`（radix `Dialog` + `Portal`，皮肤沿用现有遮罩与面板类），在 `components/kb/kb-folder-dialog.tsx:114` 替换，验证 `Esc` 与点遮罩都能关闭、关闭后焦点回到触发按钮、打开时背景不可 tab 进入。**已落地**：`ui/dialog.tsx` 导出 `Dialog` / `DialogTrigger` / `DialogClose` / `DialogTitle` / `DialogDescription` / `DialogContent`（`overlayClassName` 可补差异类；默认 `.dialog-overlay` + `.dialog-content` 皮肤写进 `app.css`，含 120/140ms 入场动画与 `prefers-reduced-motion` 关闭）；`kb-folder-dialog` 删掉自建 portal、Esc 捕获监听、Tab 首尾循环，改用 `onOpenAutoFocus` 聚焦全选、`onCloseAutoFocus` 还焦点、`onPointerDownOutside` 在提交中拦截；三条验证项待真机执行（Esc / 点遮罩 / 焦点归还）
 - [x] 1.6 新建 `components/ui/dropdown-menu.tsx` 与 `ui/context-menu.tsx`，在 `components/task-row.tsx:152` 的「⋯」菜单替换，验证 `↑` / `↓` / `Home` / `End` / `Enter` / `Esc` 六条键盘路径与焦点归还。**已落地**：`dropdown-menu` 导出 Root / Trigger / Group / Label / Content / Item / Separator（Item 支持 `variant="danger"`，Content 走 portal + `sideOffset`），`context-menu` 导出 Trigger / Content / Item / Sub / SubTrigger / SubContent / Separator，共用 `app.css` 新增的 `.dropdown-menu*` 皮肤（`data-highlighted` 高亮、`data-variant="danger"` 红字）；`task-row` 删掉手写 `menu-pop` 与 `aria-expanded` 维护，改由 radix Trigger 承担。`components/kb/kb-context-menu.tsx` 按 D10 保留自建，迁移并入批次 4
 - [x] 1.7 新建 `components/ui/popover.tsx`，在 `components/kb/typo-popover.tsx:76` 替换，验证点击外部与 `Esc` 关闭、点击面板内部不关闭、再点触发按钮可重新打开。**已落地（D11）**：`Popover` / `PopoverTrigger` 上移到 `components/kb/kb-item-detail.tsx`，`TypoPopover` 退化为纯内容（只收 `value` / `onChange`），点外、`Esc`、焦点归还与触发器开合全交 radix；portal 后在 `.kb-typo-pop` 补一套同名令牌映射（`--paper` / `--line-warm` / `--ink-*` / `--seal-*`），内部样式不改
 - [x] 1.8 新建 `components/ui/tabs.tsx`，在 `views/PlannedView.tsx:122` / `:130` 替换，验证 `←` / `→` 切换且焦点跟随、未选中面板不在 tab 序列里。**已落地**：`TabsList` 沿用 `.tabs`、`TabsTrigger` 沿用 `.tab` 并用 `data-state="active"` 表达激活态（`.tab.on` 保留到 4.3 收口），两个面板用 `TabsContent asChild` 直接渲染原 `<section>`，DOM 层距由 `.tabs-root` 的 `flex column + var(--sp-4)` 接住；`ReviewView.tsx:121` 留给 4.3
 - [x] 1.9 把 `components/ui/step-slider.tsx` 改为基于 radix `Slider`（`Root` / `Track` / `Range` / `Thumb`），保留轨道与刻度外观、`pointerdown` 继续 `stopPropagation`；验证 `typo-popover` 拖滑块时浮层不关闭、`←` / `→` 移一档、`Home` / `End` 到端点、`aria-valuetext` 随档位更新。**已落地，含一处口径修正**：`stopPropagation` 不再需要 —— 浮层已换成 radix `Popover`，它的点外判定看的是 `event.target` 是否落在内容里（拖动起点就在内容内），而文档级捕获监听本来也拦不住；继续在 Root 上 `stopPropagation` 只会挡住上层无关逻辑，故删除。刻度仍自渲染（radix 的 `Range` 只画填充条），`Range` 的宽度交给 radix 的 `right` 百分比，Thumb 的 `left` 与 `translateX(-50%)` 也由 radix 计算，CSS 里删掉了 `margin-left` 补偿
-- [ ] 1.10 `switch` / `tooltip` 目前零使用点，本轮不建；若迁移过程中出现需求，按 D1 皮肤规则补建并在此行注明
+- [x] 1.10 `switch` / `tooltip` 目前零使用点，本轮不建；若迁移过程中出现需求，按 D1 皮肤规则补建并在此行注明。**结论**：全仓 `role="switch"` / `role="tooltip"` 均为 0，`title=` 原生属性照旧使用；不预埋空原语（避免死代码），需要时按 D1 在 `primitives.css` 补皮肤、在迁移单开新条目
 
 ## 2. 按钮迁移（161 处）
 
 每批以 `grep -c '<button'` 归零为完成标准；每改一个文件跑一次 `npx tsc -b`。选哪个 `variant` / `size` 一律照 D9 原型的映射表，遇到映射表没有的写法先补表再改代码，不在页面里就地发明尺寸。
 
-- [ ] 2.1 `views/` 71 处全部换成 `ui/button`，验证该目录 `<button` 计数为 0，且 `SettingsView`、`PlannedView` 两个最重的页面在真机上按钮布局无位移
+- [x] 2.1 `views/` 71 处全部换成 `ui/button`，验证该目录 `<button` 计数为 0，且 `SettingsView`、`PlannedView` 两个最重的页面在真机上按钮布局无位移
   - 进度（2026-11-17）：`PlannedView` 7 + `InboxView` 6 + `SettingsView` 31 + `StickyView` 8 + `TodayView` 3 + `ReviewView` 2 + `KbView` 1 已换；`views/` 原生 `<button` 余 6，全仓余 95
   - 余 5 处均卡在映射缺口，非漏改：`SettingsView` 2（font-chip 文字钮）、`KbView` 2（`kb-error-retry`、`kb-list-toggle` 单点专用钮）、`ReviewView` 1（热力图 `heat-cell` 单点专用钮）；周期 tab 已在 4.3 换成 radix Tabs。补齐 D9 口径后 2.1 才能归零
   - 收尾（2026-11-17，D17）：`SettingsView` 的 `.font-chip-name` / `.font-chip-del` 换 `variant="bare"`，该文件按钮缺口清零；`views/` 原生 `<button` 余 3（`KbView` 2 个单点专用钮 + `ReviewView` 1 个热力格，均属 D12 行/格容器或待补口径）
   - 再收尾（2026-11-17，D9 补专钮口径）：`KbView` 的 `.kb-error-retry` 换 `variant="ghost" size="xs"`（`height:auto`、保留 destructive 描边），`.kb-list-toggle` 换 `variant="ghost"` 不传 size（20×44 盒子仍由 `kb.css` 的 `.kb-detail .kb-list-toggle` 决定）；`views/` 原生 `<button` 余 1，仅 `ReviewView` 热力格（D12 明确保留）
-- [ ] 2.2 `components/kb/` 32 处：按 D12 只迁控制钮，整行可点击的行容器保留原生 `<button>`；验证文件内控制钮计数为 0，知识库列表 hover 浮起与工具栏图标钮尺寸不变
+  - 终态（2026-11-17 复核）：`views/` = 1，唯一一处是 `views/ReviewView.tsx` 的热力格 `heat-cell`（D12 行/格容器）；`SettingsView` 与 `PlannedView` 已由用户在真机确认布局无位移（5.3）
+- [x] 2.2 `components/kb/` 32 处：按 D12 只迁控制钮，整行可点击的行容器保留原生 `<button>`；验证文件内控制钮计数为 0，知识库列表 hover 浮起与工具栏图标钮尺寸不变
   - 进度（2026-11-17）：`kb-attach-picker` 2 + `kb-empty-state` 1 + `kb-folder-dialog` 2 + `kb-item-detail` 7（4 个 `.btn*` + 3 个 `kb-strip-btn`）已换；`kb-tree` 5 处控制钮已换（`kb-folder-add` 2 → `icon-xs`，文件夹重命名/删除 2 → `icon-xs`，确认删除 1 → `danger xs`）；`doc-outline` 关闭钮 → `icon-xs`；`kb-pin-row` 归入 D12 行容器（整行点击，非图标钮）。目录原生 `<button` 33 → 15，余下为 D12 行容器 9（`kb-tree` 6 + caret 2 + `kb-outline-link` 1）、`kb-context-menu` 3、`kb-item-detail` 2（`kb-tag-x` / `kb-tag-add`，见 design 映射缺口）、`typo-popover` 1（`kb-typo-seg-btn`，见 design 映射缺口）
   - 再收尾（2026-11-17）：`kb-item-detail` 的 `.kb-tag-x` 换 `variant="bare"`、`.kb-tag-add` 换 `ghost xs`；`typo-popover` 的 `.kb-typo-seg-btn` 换 `variant="ghost" size="sm"` + `aria-pressed`（`.on` 类删除，选择器改 `.kb-typo-seg .kb-typo-seg-btn[aria-pressed="true"]`）；`kb-context-menu` 整体在 4.2 迁 radix。`components/kb/` 原生 `<button` 余 8，全部是 `kb-tree` 的 D12 行容器
-- [ ] 2.3 `rendering/` 19 处，验证该目录计数为 0；`tiptap-editor.tsx:1311` 起的工具条按钮保留 `onMouseDown` + `preventDefault`，点按钮后编辑器保持焦点、选区不丢
+  - 终态（2026-11-17 复核）：`components/kb/` = 11，构成 `kb-tree.tsx` 8（D12 行容器）+ `kb-tag-filter.tsx` 2（标签筛选行）+ `doc-outline.tsx` 1（整行文字链），无控制钮遗漏
+- [x] 2.3 `rendering/` 19 处，验证该目录计数为 0；`tiptap-editor.tsx:1311` 起的工具条按钮保留 `onMouseDown` + `preventDefault`，点按钮后编辑器保持焦点、选区不丢
   - 进度（2026-11-17）：编辑工具条 4 枚（加粗/表格/链接/分割线走 `renderTool` 与单点钮）+ 查找栏 3 枚换成 `size="icon-sm"` / `icon-xs` + `variant="ghost"`，`aria-pressed` 承接原 `.on`；`.kb-editor-tool` 皮肤整段删除（改由 `.btn` 统一）
   - 收尾（2026-11-17，D16）：选区浮动条 4 枚 + 表格浮动条 5 枚换 `<Button data-surface="bubble" size="icon-xs|xs" aria-pressed>`，容器同步加 `data-surface="bubble"`；链接编辑条 2 枚换 `size="sm"`（移除用 `variant="danger"`）。`.kb-bubble button` 6 条规则删除，`.kb-link-inline-btn` 只留 `flex: 0 0 auto`。`rendering/` 9 → 1（仅余 `grid-cell` 网格选择器，见 2.3 原定工具条特例）
+  - 终态（2026-11-17 复核）：`rendering/` = 1，即 `tiptap-editor.tsx` 的 `grid-cell`（表格网格选择格，整格可点）；工具条与两处气泡已清零
   - 未验证：工具条高度 24 → 26px 后工具栏行高与 `HeadingSelect` 基线是否齐；`onMouseDown preventDefault` 保焦点行为未真机点过；气泡按钮 24px 高、26px 宽与 `.kb-bubble` 3px 内边距的实际贴合
-- [ ] 2.4 `components/` 根 19 处，验证该目录计数为 0，任务行与快捷键提示的按钮样式不变
+- [x] 2.4 `components/` 根 19 处，验证该目录计数为 0，任务行与快捷键提示的按钮样式不变
   - 进度（2026-11-17）：`task-row` 3、`completion-timeline` 1（「更早」）已换；`components/` 根余 4：`undo-toast.tsx:91`/`:94`（`.undo-btn` / `.undo-x` 自带 toast 皮肤）、`completion-timeline.tsx:57`/`:70`（`.ctl-dot` 时间轴圆点），均卡 D9 映射缺口
   - 再收尾（2026-11-17）：`undo-toast` 撤销钮换 `variant="ghost" size="xs"`（`.undo-btn` 的 destructive 描边留在 `app.css`）、关闭 ✕ 换 `variant="ghost" size="icon-xs"`；`components/` 根余 2，均为 `completion-timeline` 的时间轴圆点（D12 视为行/图元容器）
-- [ ] 2.5 `sticky/` 8、`todo/` 6、`capture/` 4、`src` 根 2 处，验证这四个位置计数为 0，便签三态切换与快速捕获条仍可用
+  - 终态（2026-11-17 复核）：`components/` 根 = 2，即 `completion-timeline.tsx` 的 `ctl-dot` 圆点；任务行、撤销条、标题栏均已清零
+- [x] 2.5 `sticky/` 8、`todo/` 6、`capture/` 4、`src` 根 2 处，验证这四个位置计数为 0，便签三态切换与快速捕获条仍可用
   - 进度：`sticky/StickyWindow.tsx` 8 → 2（`sticky-mini-text` 行文字钮、`sticky-md-btn on` 文字动作，按 D12/状态 chip 暂留）；`todo/TodoFloatWindow.tsx` 6 → 2（`sticky-btn pin` 状态 chip、`sticky-title` 行文字钮）；`capture/CaptureWindow.tsx` 4 → 1（`.chip` 整块可点按 D12 留原生；注释掉的旧按钮已删）；`src` 根 2 未动。转换时保留 `className="sticky-btn"`，外观仍由 `sticky.css` 决定，等批次 5 删旧皮肤
   - 前提修复：D15 把原语皮肤抽到 `primitives.css` 由 `index.css` 引入——这三个窗口入口此前不加载 `app.css`，`.btn` / `.checkbox` 在小窗里没有底座（`TodoFloatWindow` 的复选框曾因此裸奔）
+  - 终态（2026-11-17 复核）：`sticky/` 2（`sticky-mini-text` 行文字钮、`sticky-md-btn on` 状态钮）、`todo/` 2（`sticky-btn pin` 状态 chip、`sticky-title` 行文字钮）、`capture/` 1（`.chip` 整块可点）、`src` 根 2（`App.tsx:166` / `:178` 侧栏整行）；四处均属 D12 或状态 chip，便签三态与快速捕获由 5.3 真机确认可用
 
 ## 3. 输入框迁移（28 处）
 
@@ -80,11 +85,16 @@
   - 沙箱绕行（非代码问题）：直接 `vite build` 先在 `optimizeSafeRealPathSync` 调 `exec("net use")` 处抛 `spawn EPERM`；临时给 `node_modules/vite/dist/node/chunks/node.js` 的该调用加 try/catch 后构建通过，随后从 `.bak` 还原并核对 SHA-256（`F64038F0…4D80B0`）一致
   - 回归修复：`test/main-window-close.test.mjs` 的 ✕ 选择器由 `</button>` 放宽为 `</Button>`——标题栏关闭键已换成 `ui/button`（`size="window" variant="window-close"`），「只隐藏不销毁」的契约断言保持不变；改后 5/5 通过
   - 门禁替代跑法：`npm run check` 仍因 `node --test` 需管道 spawn（EPERM）中断，改为 8 个 test 文件逐个 `node test/x.test.mjs`，合计 44 tests / 0 fail（command-parity 6、docs 4、heading-select-wiring 6、main-window-close 5、packaging 9、sticky-kbref 4、tray-entry-parity 5、tray-menu 5）
-- [ ] 5.3 按 AGENTS §4.2 做 L4 冒烟五条：快速记录、今天视图计数、提醒触发、便签三态、知识库搜索
-  - 已备好执行清单（2026-11-17）：[verification.md §4](./verification.md) 列出五条路径的观察点与五处已知视觉风险（分段钮 21→26px、便签窗首次加载 `.btn` 底座、弹层 max-height 竞争、链接条翻转与宽限、深色浮条间距）
-  - 静态部分已完成：[verification.md §1–§2](./verification.md) 记录 tsc 0 / oxlint 31 warnings 0 errors / css-parse 13 张 0 失败 / 8 个测试文件 44 tests 0 fail / 全仓 `<button>` 22、`<input>` 4、radix 分包 0
-  - 未做原因：沙箱起不了 dev server、headless Edge 截图被命名管道限制拦死，必须真机执行
-- [ ] 5.4 校对 `AGENTS.md` §2.2 与 `README.md` §目录结构 的文案与最终实现一致（三层描述、例外清单），过 `node test/docs.test.mjs`
+- [x] 5.3 按 AGENTS §4.2 做 L4 冒烟五条：快速记录、今天视图计数、提醒触发、便签三态、知识库搜索
+  - 执行结果（2026-11-17）：用户在真机跑完五条，确认**没问题**（口头确认，未附截图）
+  - 执行清单保留在 [verification.md §4](./verification.md)，附五处已知视觉风险；沙箱内无法起前端的原因记在 §3
+- [x] 5.4 校对 `AGENTS.md` §2.2 与 `README.md` §目录结构 的文案与最终实现一致（三层描述、例外清单），过 `node test/docs.test.mjs`
+  - 已落地（2026-11-17，用户批准后提交）：
+    - `AGENTS.md` §2.2「组件单一入口」补三类例外（D12 整行容器 / 隐藏 file 与 range / 尚无原语的单点控件）与判定口径「看有没有按钮轮廓」
+    - §2.2「radix 承载行为」补原语皮肤位置：只在 `styles/primitives.css`，由 `index.css` 引入、四窗共用，`app.css` 不再定义原语皮肤
+    - §2.2「存量冻结」改写为「存量已收口」：161 → 22、28 → 4，例外之外出现原生控件即回归
+    - `README.md` 目录树补 `styles/` 一行、文件表补 `primitives.css` 一行
+  - 验证：`node test/docs.test.mjs` → 4 tests / 4 pass / 0 fail
 - [x] 5.5 更新 ledger 任务 `20261116-1316-313c-原生控件迁移到-components-ui-封装` 的 worklog 结论，与本变更的五批一一对应
   - 已落地（2026-11-17）：worklog 的 Process / Conclusion / Next 三节重写——五批逐条对应「完成 / 结果 / 遗留」，`To Do` 标注为立项时的历史计划；结论表写清 `<button>` 161→22、`<input>` 28→4、弹层菜单标签页全换 radix，以及 5.3 冒烟与 5.4 文档待批
   - 台账 CLI：本机不在 PATH，实际路径 `C:\Users\simy\.dsh\profiles\desktop\node_modules\dsh-task-ledger\skill\scripts\bin\ledger-windows-amd64.exe`；`log --id … --note …` 成功，台账自动提交 `9e8960e`（只含 `ledger/owners/*.json` 与 worklog）。任务状态保持 doing，等 5.3 / 5.4 完成后再结案

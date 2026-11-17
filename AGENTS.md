@@ -34,10 +34,10 @@
 - **字号只用四档令牌**：chrome 只许 `--fs-meta`（11px）/ `--fs-sub`（12.5px）/ `--fs-body`（14px）/ `--fs-masthead`（22px）；编辑器正文只许 `--fs-reading`（默认 15px，可在 12–24px 逐像素 13 档间切换，仅 `.kb-detail` 子树；字距三档）；禁止新增字号值或按像素就近选档。
 - **阅读偏好三档位**：字号 / 字距 / 列宽上限只能经 `src-react/src/lib/reading-prefs.ts` 写 `data-reading-*` 属性驱动，档位表在 `src-tauri/src/models.rs`（`READING_SIZES` / `READING_TRACKING_MAX` / `READING_MEASURES`），前后端各一份、改动必须同步；禁止在组件里内联 style 传档位。
 - **一级页面只用 `.view` 外壳**：`padding` / `gap` 走 `--sp-*`，禁止页面自带第二套根内边距。（以上两条待人工审核后随文档提交）
-- **组件单一入口**：交互控件只许来自 `src-react/src/components/ui/`；`views/`、`capture/`、`sticky/`、`todo/`、`rendering/` 与 `components/` 下的业务组件禁止直接写原生 `<button>` / `<input>` / `<select>` / `<textarea>`，也禁止手写弹层、菜单、标签页。原生元素只允许出现在 `ui/` 封装内部，一处封装、全站引用。
-- **radix 承载行为**：弹层 / 菜单 / 下拉 / 标签页 / 浮层 / 提示 / 滑块 / 勾选 / 开关一律基于 `radix-ui` 统一包封装，导入写 `import { Dialog } from 'radix-ui'`；禁止新增 `@radix-ui/react-*` 分包（沿用依赖冻结线）。radix 没有 Button / Input / Textarea 原语，这三类由 `ui/` 内的 cva + token 样式封装承担。
+- **组件单一入口**：交互控件只许来自 `src-react/src/components/ui/`；`views/`、`capture/`、`sticky/`、`todo/`、`rendering/` 与 `components/` 下的业务组件禁止直接写原生 `<button>` / `<input>` / `<select>` / `<textarea>`，也禁止手写弹层、菜单、标签页。原生元素只允许出现在 `ui/` 封装内部，一处封装、全站引用。三类例外可留在页面层：整行即可点击的列表 / 树 / 菜单行（`.kb-tree-item`、`.kb-folder-row`、`.kb-pin-row` 这类，判定看有没有按钮轮廓）、隐藏的 `type="file"` 与 `type="range"` 输入、尚无对应原语的单点控件（清单见迁移单 5.1）。
+- **radix 承载行为**：弹层 / 菜单 / 下拉 / 标签页 / 浮层 / 提示 / 滑块 / 勾选 / 开关一律基于 `radix-ui` 统一包封装，导入写 `import { Dialog } from 'radix-ui'`；禁止新增 `@radix-ui/react-*` 分包（沿用依赖冻结线）。radix 没有 Button / Input / Textarea 原语，这三类由 `ui/` 内的 cva + token 样式封装承担。原语皮肤集中在 `src-react/src/styles/primitives.css`（`.btn` / `.input` / `.checkbox` / `.dialog-*` / `.popover` / `.dropdown-menu` / `.tabs`），由 `index.css` 引入、四个窗口入口共用；`app.css` 只放壳与页面样式，不得再定义原语皮肤。
 - **组件分层**：`ui/` 原语（无业务语义，radix 管行为、token 管样式）→ `components/<domain>/`（如 `kb/`、`editor/`）→ `components/` 根（跨视图壳，如 `title-bar`、`undo-toast`）。新增层级必须先改 README §目录结构并写明理由，不许临时造目录。
-- **存量冻结**：规则生效前已写的原生元素不随功能改动顺手重写；被触碰的文件按本规则替换，存量清单与分批顺序记在 ledger 迁移单，禁止一次性大改。
+- **存量已收口**：2026-11-17 完成原生控件迁移，原生 `<button>` 161 → 22、`<input>` 28 → 4，余量全部落在上面三类例外内。此后页面里出现例外之外的原生控件即视为回归，须先补 `ui/` 原语再写页面；迁移决策、例外清单与验证记录在 `openspec/changes/radix-component-layer/`。
 
 ### 2.3 后端
 
@@ -180,4 +180,4 @@ npm run check → 21 项：20 OK + 1 SKIP（Markdown round-trip：缺 jsdom）�
 
 ---
 
-**最后更新**：2026-11-14 · 版本 0.0.2-rc.1
+**最后更新**：2026-11-17 · 版本 0.0.2-rc.1
