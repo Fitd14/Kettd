@@ -30,6 +30,12 @@
   --input: 40 12% 56%;
   --ring: 240 6% 10%;
 
+  /* 深色气泡表面（选区浮条 / 表格浮条）：固定深底，不随明暗主题翻转，
+     所以它自己的墨色与危险色单独成令牌，避免在 primitives.css 里写死色值。 */
+  --bubble-ink: 0 0% 100%;
+  --bubble-danger-ink: 12 56% 95%;
+  --bubble-danger: 4 47% 53%;
+
   /* extract 语义档位：radius 12/10/6/pill · shadow 三档（纯黑低透明）· spacing 锚 4px
      （与 vanilla 逐字对齐，R2 令牌一致性） */
   --r-lg: 12px;
