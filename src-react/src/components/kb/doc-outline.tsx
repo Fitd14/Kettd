@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button'
 import type { OutlineItem } from '@/lib/doc-outline'
 
 interface Props {
@@ -31,15 +32,9 @@ export function DocOutline({ items, active, onPick, variant = 'rail', onClose, h
           <span className="kb-outline-head-right">
             {items.length > 0 && <span className="kb-outline-count">{items.length}</span>}
             {onClose && (
-              <button
-                type="button"
-                className="kb-outline-close"
-                onClick={onClose}
-                aria-label="关闭大纲"
-                title="关闭（Esc）"
-              >
-                ×
-              </button>
+              <Button size="icon-xs" onClick={onClose} aria-label="关闭大纲" title="关闭（Esc）">
+                <span aria-hidden="true">×</span>
+              </Button>
             )}
           </span>
         </div>

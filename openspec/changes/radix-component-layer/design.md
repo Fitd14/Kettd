@@ -84,6 +84,8 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 **映射缺口（2026-11-17，迁移 `SettingsView` 时发现）**：`.font-chip-name`（字体名）与 `.font-chip-del`（chip 内 × 删除）是 chip 里的纯文字钮，不在 12 组专用类内，D9 没有给出对应变体。按「先补表再改代码」本轮跳过这 2 处，待补一条 chip/文字钮口径后单独迁。
 
+**另两处待补口径（2026-11-17，迁移 `components/kb/` 时确认）**：① `.kb-typo-seg-btn`（`typo-popover.tsx:73` 起，列宽三档）是 26px 高的排印分段钮，选中态用 `--seal` 强调色（`hsl(var(--seal)/.07)` + `--seal-ink`），套 `ghost` 会丢掉这层色；需要像便签那样补一个 `data-accent="seal"` 口径再迁。② `.kb-tag-x`（`kb-item-detail.tsx` 标签 chip 内的 ×，原生约 11px）抬到 `icon-xs` 的 22px 会把 chip 撑高，D9 虽列了 `icon-xs`，实测尺寸冲突，待 chip 尺寸口径。
+
 **专用图标钮的过渡写法（2026-11-17）**：迁 `kb-folder-caret` / `kb-folder-add` / `kb-folder-action` / `kb-pin-row` 这类树内图标钮时，`size` 决定盒子（`caret` 18×20、`icon-xs` 22、`icon-sm` 26），**布局类仍留在 `className`**——`.kb-folder-caret` 的 `flex:none`、`.is-empty{visibility:hidden}`、`.kb-pin-row` 的行内定位都靠它，删掉会让树缩进错位；被 `size` 取代的 `width`/`height`/`hover` 段留到 5.6 统一删。这一条同样适用于 `.titlebar-btn`（保留 44px 宽由 `size="window"` 管）。
 
 **替代方案**：只补 `.btn.outline` / `.btn.primary` 两个空转类的定义（否决 —— 12 组专用类仍各自漂移，用户 2026-11-17 要求「专用样式按钮统一视觉体验」）。
