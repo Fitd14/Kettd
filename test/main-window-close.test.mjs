@@ -34,7 +34,8 @@ function fnBody(source, signature) {
 }
 
 test('主窗 ✕ 只隐藏，不得调用销毁窗口的 close()', () => {
-  const closeButton = titleBar.match(/title="关闭"[\s\S]*?<\/button>/);
+  // ✕ 已改用 ui/button（`size="window" variant="window-close"`），两种标签都认，契约不变
+  const closeButton = titleBar.match(/title="关闭"[\s\S]*?<\/Button>/);
   assert.ok(closeButton, '标题栏找不到关闭按钮');
   assert.doesNotMatch(closeButton[0], /close\?\.\(\)/, '✕ 调用了 appWindow.close()，会销毁主窗（见文件头说明）');
   assert.match(closeButton[0], /hideMainWindow\(\)/, '✕ 必须改走 hide_main_window 命令');

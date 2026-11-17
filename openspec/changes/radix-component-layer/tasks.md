@@ -75,7 +75,11 @@
   - 审计（2026-11-17，批次 2/3/4 收口后复扫）：全仓 `<button` **22**、`<input` **4**（`ui/input.tsx` 自身 1 + `SettingsView` 白名单 3，文件内无 `<select` / `<textarea`）；`role="dialog"` 3（`kb-item-detail.tsx:511` 按 D14 暂留、`ui/popover.tsx:42` 注释、`StickyWindow.tsx:45` 选择器字符串）；`role="menu"` / `role="tab"` / `role="tablist"` 均为 0；`role="listbox"` 3（D8 两处 + `StickyWindow.tsx:45` 选择器字符串）
   - 22 处分类（无漏改）：D12 行/图元 21 + D8 listbox 行 1。分布 `kb-tree.tsx` 8（树行 / 文件夹行 / caret / 扁平结果行，含 D8 的 `:704`）、`App.tsx` 2、`sticky/StickyWindow.tsx` 2、`todo/TodoFloatWindow.tsx` 2、`completion-timeline.tsx` 2（时间轴圆点）、`kb/kb-tag-filter.tsx` 2、`capture/CaptureWindow.tsx` 1（`.chip` 整块可点）、`kb/doc-outline.tsx` 1（大纲链接行）、`views/ReviewView.tsx` 1（热力格）、`rendering/tiptap-editor.tsx` 1（网格选择器）
   - 结论：批次 2/3/4 的可迁项已 100% 迁完，余量全部落在 D8 / D12 / 无外观控件白名单内；D9 映射缺口（font-chip、`kb-tag-x`、`kb-typo-seg-btn`、`kb-error-retry`、`kb-list-toggle`、`undo-toast`、列宽段选）已由 D17 / D18 补齐并迁移，缺口清单清零
-- [ ] 5.2 跑 `npx tsc -b`、`npm run lint`、`npm run build`，三项全过并记录输出
+- [x] 5.2 跑 `npx tsc -b`、`npm run lint`、`npm run build`，三项全过并记录输出
+  - 证据（2026-11-17）：`node node_modules/typescript/bin/tsc -b` → exit 0；`oxlint .`（82 文件）→ 31 warnings / 0 errors（全部既有 `set-state-in-effect` 等）；`vite build` → `✓ built in 555ms`，`dist/` 产出 `index.html` / `float.html` / `todo.html` / `capture.html` 与 assets，退出码 0
+  - 沙箱绕行（非代码问题）：直接 `vite build` 先在 `optimizeSafeRealPathSync` 调 `exec("net use")` 处抛 `spawn EPERM`；临时给 `node_modules/vite/dist/node/chunks/node.js` 的该调用加 try/catch 后构建通过，随后从 `.bak` 还原并核对 SHA-256（`F64038F0…4D80B0`）一致
+  - 回归修复：`test/main-window-close.test.mjs` 的 ✕ 选择器由 `</button>` 放宽为 `</Button>`——标题栏关闭键已换成 `ui/button`（`size="window" variant="window-close"`），「只隐藏不销毁」的契约断言保持不变；改后 5/5 通过
+  - 门禁替代跑法：`npm run check` 仍因 `node --test` 需管道 spawn（EPERM）中断，改为 8 个 test 文件逐个 `node test/x.test.mjs`，合计 44 tests / 0 fail（command-parity 6、docs 4、heading-select-wiring 6、main-window-close 5、packaging 9、sticky-kbref 4、tray-entry-parity 5、tray-menu 5）
 - [ ] 5.3 按 AGENTS §4.2 做 L4 冒烟五条：快速记录、今天视图计数、提醒触发、便签三态、知识库搜索
 - [ ] 5.4 校对 `AGENTS.md` §2.2 与 `README.md` §目录结构 的文案与最终实现一致（三层描述、例外清单），过 `node test/docs.test.mjs`
 - [ ] 5.5 更新 ledger 任务 `20261116-1316-313c-原生控件迁移到-components-ui-封装` 的 worklog 结论，与本变更的五批一一对应
