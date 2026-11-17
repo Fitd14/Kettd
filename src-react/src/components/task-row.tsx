@@ -3,6 +3,12 @@ import type { Task } from '@/lib/api'
 import { formatDue, getCategoryColor } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 export type RowActions = 'today' | 'inbox' | 'none'
 
@@ -129,16 +135,25 @@ export function TaskRow({
         {/* hover 动作：默认不占位（opacity-0），focus-within 同样浮出（键盘等价） */}
         <span className="row-actions" onClick={(e) => e.stopPropagation()}>
           {onDelete && (
-            <button
-              className="btn ghost xs row-actions-trigger"
-              title="详情 / 删除"
-              aria-label="更多动作"
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((v) => !v)}
-            >
-              ⋯
-            </button>
+            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="btn ghost xs row-actions-trigger"
+                  title="详情 / 删除"
+                  aria-label="更多动作"
+                >
+                  ⋯
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" aria-label="更多动作">
+                <DropdownMenuItem onSelect={() => onOpen?.(task.id)}>
+                  详情（Enter）
+                </DropdownMenuItem>
+                <DropdownMenuItem variant="danger" onSelect={() => onDelete(task.id)}>
+                  删除（X）
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           {actions === 'inbox' && onPlanToday && (
             <button className="btn ghost xs row-actions-secondary" title="加入今天（T）" onClick={() => onPlanToday(task.id)}>→今天</button>
@@ -148,25 +163,6 @@ export function TaskRow({
           )}
         </span>
       </span>
-
-      {menuOpen && (
-        <span className="menu-pop" role="menu" aria-label="更多动作">
-          <button
-            className="btn ghost xs"
-            role="menuitem"
-            onClick={() => { setMenuOpen(false); onOpen?.(task.id) }}
-          >
-            详情（Enter）
-          </button>
-          <button
-            className="btn ghost xs"
-            role="menuitem"
-            onClick={() => { setMenuOpen(false); onDelete?.(task.id) }}
-          >
-            删除（X）
-          </button>
-        </span>
-      )}
 
       {scheduling && (
         <span className="schedule-pop">

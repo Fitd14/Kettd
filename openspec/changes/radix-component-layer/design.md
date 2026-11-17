@@ -82,6 +82,14 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 **替代方案**：只补 `.btn.outline` / `.btn.primary` 两个空转类的定义（否决 —— 12 组专用类仍各自漂移，用户 2026-11-17 要求「专用样式按钮统一视觉体验」）。
 
+### D10 菜单拆两步：先落 `dropdown-menu`，`kb-context-menu` 并入批次 4
+
+`components/kb/kb-context-menu.tsx` 是 429 行自建实现，承担四类右键区域（文件夹 / 条目 / 空白 / 输入框编辑菜单）、坐标弹出与四边 clamp、子菜单「移动到…」、以及**选中后不自动关闭**（删除的「第一次确认、3 秒回退」依赖菜单保持打开）。radix `ContextMenu` 要求用 `Trigger` 包住右键区域、且默认选中即关，直接替换会同时改掉关闭语义与四类区域的挂载方式。
+
+**决策**：1.6 只交付 `components/ui/dropdown-menu.tsx`（落点 `components/task-row.tsx:152` 的「⋯」菜单，radix 负责 portal、翻转、↑↓ / Home / End / Enter / Esc 与 typeahead）与 `components/ui/context-menu.tsx` 原语（含 `Sub` / `SubTrigger` / `SubContent`），供批次 4 使用；`kb-context-menu.tsx` 本轮保留，批次 4 迁移时把四类区域改成 `ContextMenu.Trigger` 包裹，并把「删除二次确认」改由 `AlertDialog` 或 `Popover` 承载，菜单本身回到「选中即关」的标准语义。
+
+**替代方案**：本轮硬迁 `kb-context-menu`（否决 —— 一次改动同时触及右键分区、子菜单定位与删除确认，且无法在本轮做真机键盘验收）。
+
 ## Risks / Trade-offs
 
 - [radix 弹层默认行为与现有手写弹层不一致（关闭时机、滚动锁定、层级）] → 先在 `kb-folder-dialog` 一个点上做对照验证，确认后再批量；皮肤类保持不动，只换行为层。

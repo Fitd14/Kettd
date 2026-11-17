@@ -779,6 +779,51 @@ details.overdue[open] summary::before {
   justify-content: flex-start;
 }
 
+/* 菜单原语：radix DropdownMenu / ContextMenu 共用；data-highlighted 由 radix 维护键盘高亮 */
+.dropdown-menu {
+  z-index: 130;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 128px;
+  padding: 4px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--r-md);
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-md);
+}
+.dropdown-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-start;
+  min-height: 22px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  font-size: var(--fs-sub);
+  text-align: left;
+  cursor: default;
+  user-select: none;
+  outline: none;
+}
+.dropdown-menu-item[data-highlighted] { background: hsl(var(--muted)); }
+.dropdown-menu-item[data-disabled] { opacity: 0.5; }
+.dropdown-menu-item[data-variant="danger"] { color: hsl(var(--destructive)); }
+.dropdown-menu-sub-trigger::after {
+  content: "›";
+  margin-left: auto;
+  opacity: 0.6;
+}
+.dropdown-menu-separator {
+  height: 1px;
+  margin: 4px 2px;
+  background: hsl(var(--border));
+}
+
 /* 行尾动作列：常驻「⋯」（25px 固定列），次要动作在同一列里展开——
    展开前后行宽恒定，任一时刻可见的次要动作至多多一行、且互斥（tasks 4.2 / spec §A.2）。 */
 .row-actions-trigger {

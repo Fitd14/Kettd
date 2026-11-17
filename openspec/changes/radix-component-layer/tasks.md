@@ -15,7 +15,7 @@
 - [ ] 1.3 `textarea` 零使用点（全仓 `<textarea` 计数 0），本轮不建原语；页面若出现，按 1.2 同一套 `.input` 规则补建并在此行注明
 - [x] 1.4 新建 `components/ui/checkbox.tsx`（radix `Checkbox` + `Indicator`，lucide `Check`；15×15、勾选态 primary 实心，便签里换 `--sticky-accent`），**5 处原生 `type="checkbox"` 全部替换**：`views/PlannedView.tsx:144`、`components/task-row.tsx:99`/`:108`、`components/kb/kb-attach-picker.tsx:74`、`todo/TodoFloatWindow.tsx:156`。连带改动：`kb-attach-picker` 的 `<label>` 改 `<div onClick>`（radix 按钮在 label 里不会随文字点击切换，改由行点击兜底、按钮 `stopPropagation` 防双触发）；`sticky.css` 三处 `:has(.tcheck:checked)` 补 `.checkbox[data-state="checked"]` 分支，`app.css` 补 `.trow-done .checkbox` 的置灰态。**已落地**：`npx tsc -b` 退出 0、oxlint 0 error（仅 TodoFloatWindow 既有 effect 告警）、CSS 解析通过、`grep type="checkbox"` 计数 0
 - [x] 1.5 新建 `components/ui/dialog.tsx`（radix `Dialog` + `Portal`，皮肤沿用现有遮罩与面板类），在 `components/kb/kb-folder-dialog.tsx:114` 替换，验证 `Esc` 与点遮罩都能关闭、关闭后焦点回到触发按钮、打开时背景不可 tab 进入。**已落地**：`ui/dialog.tsx` 导出 `Dialog` / `DialogTrigger` / `DialogClose` / `DialogTitle` / `DialogDescription` / `DialogContent`（`overlayClassName` 可补差异类；默认 `.dialog-overlay` + `.dialog-content` 皮肤写进 `app.css`，含 120/140ms 入场动画与 `prefers-reduced-motion` 关闭）；`kb-folder-dialog` 删掉自建 portal、Esc 捕获监听、Tab 首尾循环，改用 `onOpenAutoFocus` 聚焦全选、`onCloseAutoFocus` 还焦点、`onPointerDownOutside` 在提交中拦截；三条验证项待真机执行（Esc / 点遮罩 / 焦点归还）
-- [ ] 1.6 新建 `components/ui/dropdown-menu.tsx` 与 `ui/context-menu.tsx`，在 `components/kb/kb-context-menu.tsx:157` 替换，验证 `↑` / `↓` / `Home` / `End` / `Enter` / `Esc` 六条键盘路径与原来一致且焦点归还
+- [x] 1.6 新建 `components/ui/dropdown-menu.tsx` 与 `ui/context-menu.tsx`，在 `components/task-row.tsx:152` 的「⋯」菜单替换，验证 `↑` / `↓` / `Home` / `End` / `Enter` / `Esc` 六条键盘路径与焦点归还。**已落地**：`dropdown-menu` 导出 Root / Trigger / Group / Label / Content / Item / Separator（Item 支持 `variant="danger"`，Content 走 portal + `sideOffset`），`context-menu` 导出 Trigger / Content / Item / Sub / SubTrigger / SubContent / Separator，共用 `app.css` 新增的 `.dropdown-menu*` 皮肤（`data-highlighted` 高亮、`data-variant="danger"` 红字）；`task-row` 删掉手写 `menu-pop` 与 `aria-expanded` 维护，改由 radix Trigger 承担。`components/kb/kb-context-menu.tsx` 按 D10 保留自建，迁移并入批次 4
 - [ ] 1.7 新建 `components/ui/popover.tsx`，在 `components/kb/typo-popover.tsx:76` 替换，验证点击外部与 `Esc` 关闭、点击面板内部不关闭、再点触发按钮可重新打开
 - [ ] 1.8 新建 `components/ui/tabs.tsx`，在 `views/PlannedView.tsx:122` / `:130` 替换，验证 `←` / `→` 切换且焦点跟随、未选中面板不在 tab 序列里
 - [ ] 1.9 把 `components/ui/step-slider.tsx` 改为基于 radix `Slider`（`Root` / `Track` / `Range` / `Thumb`），保留轨道与刻度外观、`pointerdown` 继续 `stopPropagation`；验证 `typo-popover` 拖滑块时浮层不关闭、`←` / `→` 移一档、`Home` / `End` 到端点、`aria-valuetext` 随档位更新
@@ -40,8 +40,8 @@
 
 ## 4. 弹层、菜单与标签页收尾
 
-- [ ] 4.1 剩余 3 个手写 dialog 换成 `ui/dialog`：`rendering/link-inline-editor.tsx:84`、`components/task-detail.tsx:50`、`views/SettingsView.tsx:165`；验证三处都能 `Esc` 关闭且焦点归还，链接内联编辑的选区不被弹层打开动作清掉
-- [ ] 4.2 剩余的 `components/task-row.tsx:156` 换成 `ui/dropdown-menu`，验证右键与按钮触发两条入口都能开菜单、定位不越界
+- [ ] 4.1 剩余 4 个手写 dialog 换成 `ui/dialog`：`components/task-detail.tsx:50`、`views/SettingsView.tsx:167`、`components/kb/kb-item-detail.tsx:505`、`rendering/link-inline-editor.tsx:90`；验证都能 `Esc` 关闭且焦点归还，链接内联编辑的选区不被弹层打开动作清掉
+- [ ] 4.2 按 D10 迁移 `components/kb/kb-context-menu.tsx`：四类右键区域（文件夹 / 条目 / 空白 / 输入框）改 `ui/context-menu` 的 `Trigger` 包裹，子菜单「移动到…」用 `Sub` / `SubTrigger` / `SubContent`，删除的「第一次确认、3 秒回退」改由 `ui/dialog` 或 `ui/popover` 承载，菜单本身回到选中即关；验证四类区域、子菜单与六条键盘路径
 - [ ] 4.3 `views/ReviewView.tsx:121` 换成 `ui/tabs`，验证切换后 KPI 区与列表同步刷新
 - [ ] 4.4 listbox 按 D8 保持现状：`views/KbView.tsx:1308`、`components/kb/kb-tree.tsx:646` 的结构、`role` 与行按钮都不动，验证本变更的 diff 未触及这两处；零引用的 `components/kb/kb-item-row.tsx` 已按 0.2 删除
 
