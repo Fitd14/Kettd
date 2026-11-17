@@ -108,9 +108,9 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 ### D12 整行可点击的列表/树/菜单行不迁 `ui/button`
 
-清点 `components/kb/` 的 13 个原生按钮时发现，其中 9 个是**整行命中**的容器：`kb-tree-item`（知识树行）、`kb-folder-row`（文件夹行，4 处）、`kb-folder-caret`（折叠箭头所在的整行按钮）、`kb-item-row kb-flat-row`（扁平结果行）、`kb-context-menu-item`（右键菜单项）、`kb-tag-chip`（标签筛选 chip）。它们的外观、行高、hover 与缩进全部由行容器类决定，本身没有按钮轮廓。
+清点 `components/kb/` 的 13 个原生按钮时发现，其中 10 个是**整行命中**的容器：`kb-tree-item`（知识树行）、`kb-folder-row`（文件夹行，4 处）、`kb-folder-caret`（折叠箭头所在的整行按钮）、`kb-item-row kb-flat-row`（扁平结果行）、`kb-context-menu-item`（右键菜单项）、`kb-tag-chip`（标签筛选 chip）、`kb-pin-row`（置顶列表行：`min-height:26px`、`padding:.2rem .35rem`、`text-align:left`，点整行跳转）。它们的外观、行高、hover 与缩进全部由行容器类决定，本身没有按钮轮廓。
 
-**决策**：这类行保留原生 `<button>`，只把**控制钮**迁到 `ui/button`——即带 `.btn*` 的普通按钮，以及 D9 映射表里明确列出的图标钮（`kb-folder-add` / `kb-folder-action` / `kb-pin-row` / `kb-tag-x` / `kb-strip-btn` / `kb-find-btn`）。理由：`ui/button` 会带上 `.btn` 的 `border` / `padding` / `height`，塞进行布局会破坏行高与缩进；且行的可访问语义来自行本身（`aria-current`、`aria-selected`、`role="option"`），套按钮原语反而把两层语义叠在一起。判定口径：**看外观**——有按钮轮廓的迁，整行即命中区域的留。
+**决策**：这类行保留原生 `<button>`，只把**控制钮**迁到 `ui/button`——即带 `.btn*` 的普通按钮，以及 D9 映射表里明确列出的图标钮（`kb-folder-add` / `kb-folder-action` / `kb-tag-x` / `kb-strip-btn` / `kb-find-btn`）。理由：`ui/button` 会带上 `.btn` 的 `border` / `padding` / `height`，塞进行布局会破坏行高与缩进；且行的可访问语义来自行本身（`aria-current`、`aria-selected`、`role="option"`），套按钮原语反而把两层语义叠在一起。判定口径：**看外观**——有按钮轮廓的迁，整行即命中区域的留。
 
 **替代方案**：给 `ui/button` 加 `variant="row"` 抹掉全部按钮样式（否决 —— 变体越加越多，且行布局仍要依赖调用方的类，等于换个名字继续手写；一旦有人给 row 变体加 padding 又会悄悄改变行高）。
 

@@ -21,6 +21,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import type { KbFolder, KbItem } from '@/lib/api'
+import { Button } from '@/components/ui/button'
 import { KbContextMenu } from '@/components/kb/kb-context-menu'
 import type { KbMenuItem } from '@/components/kb/kb-context-menu'
 import {
@@ -446,34 +447,32 @@ export function KbFileTree({
           </button>
           <span className="kb-folder-actions">
             {confirming ? (
-              <button
-                type="button"
-                className="kb-folder-action is-danger"
+              <Button
+                variant="danger"
+                size="xs"
                 title="确认删除文件夹"
                 onClick={() => handleDeleteClick(node.folder)}
               >
                 确认删除
-              </button>
+              </Button>
             ) : (
               <>
-                <button
-                  type="button"
-                  className="kb-folder-action"
+                <Button
+                  size="icon-xs"
                   title="重命名文件夹"
                   aria-label="重命名文件夹"
                   onClick={() => onRenameFolder(node.folder)}
                 >
                   <Pencil size={11} />
-                </button>
-                <button
-                  type="button"
-                  className="kb-folder-action"
+                </Button>
+                <Button
+                  size="icon-xs"
                   title="删除文件夹"
                   aria-label="删除文件夹"
                   onClick={() => handleDeleteClick(node.folder)}
                 >
                   <Trash2 size={11} />
-                </button>
+                </Button>
               </>
             )}
           </span>
@@ -527,20 +526,18 @@ export function KbFileTree({
         <span className="kb-tree-title">目录</span>
         <div className="kb-tree-head-actions">
           {onOpenDataFolder && (
-            <button
-              type="button"
-              className="kb-folder-add"
+            <Button
+              size="icon-xs"
               title="打开本地数据目录"
               aria-label="打开本地数据目录"
               onClick={onOpenDataFolder}
             >
               <FolderOpen size={13} />
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             ref={headMoreRef}
-            type="button"
-            className="kb-folder-add"
+            size="icon-xs"
             title="更多操作：新建文件夹 / 新建文件"
             aria-label="更多操作"
             aria-haspopup="menu"
@@ -552,7 +549,7 @@ export function KbFileTree({
             }}
           >
             <MoreHorizontal size={13} />
-          </button>
+          </Button>
         </div>
       </div>
 
