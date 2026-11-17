@@ -187,7 +187,6 @@ export default function CaptureWindow() {
           <Button variant="ghost" className="icon" title="记下（Enter）" aria-label="记下" onClick={() => { void commit() }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
           </Button>
-          {/* <button className="btn ghost xs" title="关闭（Esc）" aria-label="关闭" onClick={() => { void closeOverlay() }}>✕</button> */}
         </div>
       ) : (
         <div className="cap-receipt">

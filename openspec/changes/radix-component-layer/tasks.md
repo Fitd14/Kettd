@@ -28,15 +28,16 @@
 
 - [ ] 2.1 `views/` 71 处全部换成 `ui/button`，验证该目录 `<button` 计数为 0，且 `SettingsView`、`PlannedView` 两个最重的页面在真机上按钮布局无位移
   - 进度（2026-11-17）：`PlannedView` 7 + `InboxView` 6 + `SettingsView` 31 + `StickyView` 8 + `TodayView` 3 + `ReviewView` 2 + `KbView` 1 已换；`views/` 原生 `<button` 余 6，全仓余 95
-  - 余 6 处均卡在映射缺口，非漏改：`SettingsView` 2（font-chip 文字钮）、`KbView` 2（`kb-error-retry`、`kb-list-toggle` 单点专用钮）、`ReviewView` 2（周期 tab 归 4.3、热力图 `heat-cell` 单点专用钮）。补齐 D9 口径后 2.1 才能归零
+  - 余 5 处均卡在映射缺口，非漏改：`SettingsView` 2（font-chip 文字钮）、`KbView` 2（`kb-error-retry`、`kb-list-toggle` 单点专用钮）、`ReviewView` 1（热力图 `heat-cell` 单点专用钮）；周期 tab 已在 4.3 换成 radix Tabs。补齐 D9 口径后 2.1 才能归零
 - [ ] 2.2 `components/kb/` 32 处：按 D12 只迁控制钮，整行可点击的行容器保留原生 `<button>`；验证文件内控制钮计数为 0，知识库列表 hover 浮起与工具栏图标钮尺寸不变
   - 进度（2026-11-17）：`kb-attach-picker` 2 + `kb-empty-state` 1 + `kb-folder-dialog` 2 + `kb-item-detail` 7（4 个 `.btn*` + 3 个 `kb-strip-btn`）已换；`kb-tree` 5 处控制钮已换（`kb-folder-add` 2 → `icon-xs`，文件夹重命名/删除 2 → `icon-xs`，确认删除 1 → `danger xs`）；`doc-outline` 关闭钮 → `icon-xs`；`kb-pin-row` 归入 D12 行容器（整行点击，非图标钮）。目录原生 `<button` 33 → 15，余下为 D12 行容器 9（`kb-tree` 6 + caret 2 + `kb-outline-link` 1）、`kb-context-menu` 3、`kb-item-detail` 2（`kb-tag-x` / `kb-tag-add`，见 design 映射缺口）、`typo-popover` 1（`kb-typo-seg-btn`，见 design 映射缺口）
 - [ ] 2.3 `rendering/` 19 处，验证该目录计数为 0；`tiptap-editor.tsx:1311` 起的工具条按钮保留 `onMouseDown` + `preventDefault`，点按钮后编辑器保持焦点、选区不丢
   - 进度（2026-11-17）：编辑工具条 4 枚（加粗/表格/链接/分割线走 `renderTool` 与单点钮）+ 查找栏 3 枚换成 `size="icon-sm"` / `icon-xs` + `variant="ghost"`，`aria-pressed` 承接原 `.on`；`.kb-editor-tool` 皮肤整段删除（改由 `.btn` 统一）。`rendering/` 余 12：`tiptap-editor` 10（`grid-cell` 网格选择器 1 + 选区浮动条 B/I/行内码/删除线 4 + 表格浮动条 +行/−行/+列/−列/删表 5）、`link-inline-editor` 2（深色浮条 `.kb-link-inline-btn`）
   - 未验证：工具条高度 24 → 26px 后工具栏行高与 `HeadingSelect` 基线是否齐；`onMouseDown preventDefault` 保焦点行为未真机点过
 - [ ] 2.4 `components/` 根 19 处，验证该目录计数为 0，任务行与快捷键提示的按钮样式不变
+  - 进度（2026-11-17）：`task-row` 3、`completion-timeline` 1（「更早」）已换；`components/` 根余 4：`undo-toast.tsx:91`/`:94`（`.undo-btn` / `.undo-x` 自带 toast 皮肤）、`completion-timeline.tsx:57`/`:70`（`.ctl-dot` 时间轴圆点），均卡 D9 映射缺口
 - [ ] 2.5 `sticky/` 8、`todo/` 6、`capture/` 4、`src` 根 2 处，验证这四个位置计数为 0，便签三态切换与快速捕获条仍可用
-  - 进度：`sticky/StickyWindow.tsx` 8 → 2（`sticky-mini-text` 行文字钮、`sticky-md-btn on` 文字动作，按 D12/状态 chip 暂留）；`todo/TodoFloatWindow.tsx` 6 → 2（`sticky-btn pin` 状态 chip、`sticky-title` 行文字钮）；`capture/CaptureWindow.tsx` 4 → 2（`.chip` 整块可点按 D12 留原生、另一处是注释掉的旧按钮）；`src` 根 2 未动。转换时保留 `className="sticky-btn"`，外观仍由 `sticky.css` 决定，等批次 5 删旧皮肤
+  - 进度：`sticky/StickyWindow.tsx` 8 → 2（`sticky-mini-text` 行文字钮、`sticky-md-btn on` 文字动作，按 D12/状态 chip 暂留）；`todo/TodoFloatWindow.tsx` 6 → 2（`sticky-btn pin` 状态 chip、`sticky-title` 行文字钮）；`capture/CaptureWindow.tsx` 4 → 1（`.chip` 整块可点按 D12 留原生；注释掉的旧按钮已删）；`src` 根 2 未动。转换时保留 `className="sticky-btn"`，外观仍由 `sticky.css` 决定，等批次 5 删旧皮肤
   - 前提修复：D15 把原语皮肤抽到 `primitives.css` 由 `index.css` 引入——这三个窗口入口此前不加载 `app.css`，`.btn` / `.checkbox` 在小窗里没有底座（`TodoFloatWindow` 的复选框曾因此裸奔）
 
 ## 3. 输入框迁移（28 处）
@@ -66,6 +67,9 @@
 ## 5. 收口
 
 - [ ] 5.1 全仓检索 `<button` / `<input` / `<select` / `<textarea` 与 `role="dialog|menu|tab"`，除 `components/ui/` 内部外计数为 0；白名单四类：① D8 的 listbox 行按钮（`components/kb/kb-tree.tsx:650` 起）② D12 的整行可点击行容器（`kb-tree-item`、`kb-folder-row`、`kb-folder-caret`、`kb-item-row`、`kb-tag-chip`、`kb-pin-row`、`heat-cell`；`kb-context-menu-item` 已随 4.2 换成 radix Item）③ 无外观控件（隐藏的 `type="file"` 输入：`SettingsView.tsx` 的 `.font-file` / `.backup-file-input`）④ D13 的编辑器内皮肤输入（`.kb-link-inline-input`、`.kb-find-input`、`.kb-tag-input`）⑤ D12 判定前的临时单点钮。记录白名单行号与剩余数
+  - 审计（2026-11-17）：全仓 `<button` 43、`<input` 4（原语自身 1 + 白名单 3）；`role="dialog"` 3（`kb-item-detail.tsx:511` 按 D14 暂留、`ui/popover.tsx:42` 注释、`StickyWindow.tsx:45` 选择器字符串）；`role="menu"` / `role="tab"` / `role="tablist"` 均为 0；`role="listbox"` 3（D8 两处 + `StickyWindow.tsx:45` 选择器字符串）
+  - 43 处分类（无漏改）：D12 行/整块 17 = `App.tsx:166`/`:178`、`capture/CaptureWindow.tsx:203`（chip）、`components/kb/doc-outline.tsx:47`、`kb/kb-tag-filter.tsx:12`/`:19`、`kb/kb-tree.tsx:354`/`:409`/`:422`/`:581`/`:627`/`:640`/`:653`、`sticky/StickyWindow.tsx:333`、`todo/TodoFloatWindow.tsx:163`、`views/ReviewView.tsx:133`、`rendering/tiptap-editor.tsx:1076`；D8 listbox 行 1 = `kb/kb-tree.tsx:704`；D9 映射缺口 24 = `kb-item-detail.tsx:449`/`:474`、`kb/typo-popover.tsx:73`、`SettingsView.tsx:652`/`:660`、`KbView.tsx:1272`/`:1337`、`StickyWindow.tsx:375`、`TodoFloatWindow.tsx:126`、`undo-toast.tsx:91`/`:94`、`link-inline-editor.tsx:106`/`:114`、`tiptap-editor.tsx:1332`–`:1335`、`:1347`/`:1348`/`:1356`/`:1357`/`:1359`、`completion-timeline.tsx:57`/`:70`；另有 1 处注释掉的旧按钮已删（`CaptureWindow.tsx:190`）
+  - 结论：批次 2 的「有 D9 写法可套」部分已全部迁完；43 处余量 100% 落在已登记的白名单或映射缺口内，缺口补齐前不再改动
 - [ ] 5.2 跑 `npx tsc -b`、`npm run lint`、`npm run build`，三项全过并记录输出
 - [ ] 5.3 按 AGENTS §4.2 做 L4 冒烟五条：快速记录、今天视图计数、提醒触发、便签三态、知识库搜索
 - [ ] 5.4 校对 `AGENTS.md` §2.2 与 `README.md` §目录结构 的文案与最终实现一致（三层描述、例外清单），过 `node test/docs.test.mjs`
