@@ -86,6 +86,8 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 **另两处待补口径（2026-11-17，迁移 `components/kb/` 时确认）**：① `.kb-typo-seg-btn`（`typo-popover.tsx:73` 起，列宽三档）是 26px 高的排印分段钮，选中态用 `--seal` 强调色（`hsl(var(--seal)/.07)` + `--seal-ink`），套 `ghost` 会丢掉这层色；需要像便签那样补一个 `data-accent="seal"` 口径再迁。② `.kb-tag-x`（`kb-item-detail.tsx` 标签 chip 内的 ×，原生约 11px）抬到 `icon-xs` 的 22px 会把 chip 撑高，D9 虽列了 `icon-xs`，实测尺寸冲突，待 chip 尺寸口径。
 
+**无外观控件不换原语（2026-11-17，批次 3 清 `views/` 时确定）**：`SettingsView.tsx` 还剩 3 个原生 `<input>`，都不该进 `ui/input`——两个是隐藏的 `type="file"`（`.font-file`、`.backup-file-input`，CSS 已 `display:none`，由相邻按钮触发，换原语反而会把 `.input` 的边框/内边距带进来），一个是 `type="range"` 的 `.fade-slider`（不是文本输入，按 D9 映射表归 `ui/slider`，随批次 4/5 处理）。口径：**没有可见外形的控件（隐藏 file input、隐藏桥接输入）不算「原生控件」**，归入 5.1 白名单；`range` 归滑块批次，不计入输入框批。
+
 **专用图标钮的过渡写法（2026-11-17）**：迁 `kb-folder-caret` / `kb-folder-add` / `kb-folder-action` / `kb-pin-row` 这类树内图标钮时，`size` 决定盒子（`caret` 18×20、`icon-xs` 22、`icon-sm` 26），**布局类仍留在 `className`**——`.kb-folder-caret` 的 `flex:none`、`.is-empty{visibility:hidden}`、`.kb-pin-row` 的行内定位都靠它，删掉会让树缩进错位；被 `size` 取代的 `width`/`height`/`hover` 段留到 5.6 统一删。这一条同样适用于 `.titlebar-btn`（保留 44px 宽由 `size="window"` 管）。
 
 **替代方案**：只补 `.btn.outline` / `.btn.primary` 两个空转类的定义（否决 —— 12 组专用类仍各自漂移，用户 2026-11-17 要求「专用样式按钮统一视觉体验」）。
@@ -110,7 +112,7 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 ### D12 整行可点击的列表/树/菜单行不迁 `ui/button`
 
-清点 `components/kb/` 的 13 个原生按钮时发现，其中 10 个是**整行命中**的容器：`kb-tree-item`（知识树行）、`kb-folder-row`（文件夹行，4 处）、`kb-folder-caret`（折叠箭头所在的整行按钮）、`kb-item-row kb-flat-row`（扁平结果行）、`kb-context-menu-item`（右键菜单项）、`kb-tag-chip`（标签筛选 chip）、`kb-pin-row`（置顶列表行：`min-height:26px`、`padding:.2rem .35rem`、`text-align:left`，点整行跳转）。它们的外观、行高、hover 与缩进全部由行容器类决定，本身没有按钮轮廓。
+清点 `components/kb/` 的 13 个原生按钮时发现，其中 10 个是**整行命中**的容器：`kb-tree-item`（知识树行）、`kb-folder-row`（文件夹行，4 处）、`kb-folder-caret`（折叠箭头所在的整行按钮）、`kb-item-row kb-flat-row`（扁平结果行）、`kb-context-menu-item`（右键菜单项）、`kb-tag-chip`（标签筛选 chip）、`kb-pin-row`（置顶列表行：`min-height:26px`、`padding:.2rem .35rem`、`text-align:left`，点整行跳转）。另 `views/ReviewView.tsx:136` 的 `heat-cell` 是周回顾热力格子（`lv-${level}` 决定底色、点格子下钻），同属整格命中。它们的外观、行高、hover 与缩进全部由行容器类决定，本身没有按钮轮廓。
 
 **决策**：这类行保留原生 `<button>`，只把**控制钮**迁到 `ui/button`——即带 `.btn*` 的普通按钮，以及 D9 映射表里明确列出的图标钮（`kb-folder-add` / `kb-folder-action` / `kb-tag-x` / `kb-strip-btn` / `kb-find-btn`）。理由：`ui/button` 会带上 `.btn` 的 `border` / `padding` / `height`，塞进行布局会破坏行高与缩进；且行的可访问语义来自行本身（`aria-current`、`aria-selected`、`role="option"`），套按钮原语反而把两层语义叠在一起。判定口径：**看外观**——有按钮轮廓的迁，整行即命中区域的留。
 

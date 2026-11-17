@@ -15,6 +15,7 @@ import { TimeText } from '@/components/time-text'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 interface Props {
   boot: Bootstrap
@@ -175,9 +176,9 @@ export function PlannedView({ boot, refresh }: Props) {
                 <span className="schedule-pop rem-edit" aria-label={`编辑提醒时间：${r.title}`}>
                   <label className="tiny text-muted">
                     日期（留空 = 每天循环）
-                    <input
+                    <Input
                       type="date"
-                      className="input xs"
+                      size="xs"
                       value={editDate}
                       onChange={(e) => setEditDate(e.target.value)}
                     />
@@ -198,8 +199,9 @@ export function PlannedView({ boot, refresh }: Props) {
           <details className="add-rem">
             <summary>＋ 手动加提醒</summary>
             <div className="trow">
-              <input
-                className="input xs grow"
+              <Input
+                size="xs"
+                className="grow"
                 placeholder="提醒内容…"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
