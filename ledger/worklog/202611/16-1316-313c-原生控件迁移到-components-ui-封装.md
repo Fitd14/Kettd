@@ -1,7 +1,7 @@
 # 20261116-1316-313c-原生控件迁移到-components-ui-封装: 原生控件迁移到 components/ui 封装
 
 - **Tags**: 前端, radix, 组件封装, 迁移
-- **Status**: doing · 2026-11-17 01:48:21 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
+- **Status**: doing · 2026-11-17 02:12:58 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 - **Created**: 2026-11-16 13:16:59 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 
 <!-- Header lines are maintained by the script, fixed order: Tags → Status → Created → Sealed.
@@ -62,7 +62,9 @@
 | ④ 弹层/菜单/浮层 | 完成 | 三处 dialog 换 radix（`task-detail`、`ImportPreviewDialog`、`kb-folder-dialog`）；右键菜单 429 → 152 行；`typo-popover` 与链接编辑条换 radix Popover；三处 tabs 换 radix Tabs |
 | ⑤ 收口 | 完成 | 审计表落 `tasks.md` 5.1；零引用旧 CSS 四组删除；`tsc` 0、`oxlint` 31 warnings / 0 errors、`vite build` 通过（沙箱内需绕过 vite 的 `net use` 探测）、8 个测试文件 44 tests / 0 fail |
 
-遗留：5.3 真机冒烟五条未做（沙箱起不了前端）、5.4 的 AGENTS / README 文案待人工批准、`npm run build` 官方脚本待在有桌面会话的机器复跑。台账状态保持 doing。
+2026-11-17 收尾：用户在真机跑完 L4 五条并确认「没问题」，`AGENTS.md` §2.2（三类例外 / 原语皮肤位置 / 存量已收口）与 `README.md` 目录树经批准后提交（`176ac75`），`tasks.md` 全部复选框勾选，`openspec validate --strict` valid。
+
+遗留：`npm run build` / `npm run check` 官方脚本仍待在有桌面会话的机器复跑（沙箱内 `node --test` 需管道 spawn、vite 会调 `net use`，均已用等价手段绕过，不是代码问题）。
 
 ## Execution Log
 
@@ -72,3 +74,4 @@
 - 2026-11-16 13:17:31 · claim · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · claimed → doing
 - 2026-11-16 13:18:10 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 写入分批迁移清单（五批 + 两条例外：Tiptap 工具条焦点、listbox 选型）
 - 2026-11-17 01:48:21 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 回写五批执行结论：②按钮 161→22、③输入 28→4、④弹层菜单标签页全部换 radix；遗留真机冒烟与文档待批
+- 2026-11-17 02:12:58 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 真机五条通过、文档批准并提交 176ac75；openspec 变更已归档，9 条规格同步进主规格
