@@ -1,8 +1,9 @@
 # 20261116-1316-313c-原生控件迁移到-components-ui-封装: 原生控件迁移到 components/ui 封装
 
 - **Tags**: 前端, radix, 组件封装, 迁移
-- **Status**: doing · 2026-11-17 02:12:58 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
+- **Status**: done · 2026-11-17 02:13:27 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 - **Created**: 2026-11-16 13:16:59 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
+- **Sealed**: 2026-11-17 02:13:27 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 
 <!-- Header lines are maintained by the script, fixed order: Tags → Status → Created → Sealed.
      The `- **Tags**: …` line is inserted at the top by new --tags; omitted when there are no tags
@@ -75,3 +76,4 @@
 - 2026-11-16 13:18:10 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 写入分批迁移清单（五批 + 两条例外：Tiptap 工具条焦点、listbox 选型）
 - 2026-11-17 01:48:21 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 回写五批执行结论：②按钮 161→22、③输入 28→4、④弹层菜单标签页全部换 radix；遗留真机冒烟与文档待批
 - 2026-11-17 02:12:58 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 真机五条通过、文档批准并提交 176ac75；openspec 变更已归档，9 条规格同步进主规格
+- 2026-11-17 02:13:27 · close · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · sealed: 五批全部交付并验收：按钮 161→22、输入 28→4，余量为 D8/D12 例外；OpenSpec 变更已归档并同步 ui-components 主规格；AGENTS/README 经批准提交；真机 L4 五条由用户确认通过。仅剩官方 npm run check 待在有桌面会话的机器复跑
