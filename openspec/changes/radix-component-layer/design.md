@@ -90,6 +90,16 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 **替代方案**：本轮硬迁 `kb-context-menu`（否决 —— 一次改动同时触及右键分区、子菜单定位与删除确认，且无法在本轮做真机键盘验收）。
 
+### D11 Popover 只做内容层，portal 后按同名变量重新映射纸面令牌
+
+排版弹层原来自己管两件事：面板长什么样，以及「什么时候关」（`open` 由 `kb-item-detail` 的 `typoOpen` 维护，面板内部再挂捕获阶段的 `mousedown` / `keydown`）。radix `Popover` 把这两件事绑在 `Root` + `Trigger` + `Content` 三个部件上，`Content` 不能单独拥有开关状态。
+
+**决策**：`TypoPopover` 退化为纯内容组件（props 只剩 `value` / `onChange`），`Popover` / `PopoverTrigger` 上移到 `components/kb/kb-item-detail.tsx` 的触发按钮处；`aria-haspopup` 与 `aria-expanded` 交给 radix Trigger，删掉手写值与 `setTypoOpen((v) => !v)`。好处是关闭语义（点外、Esc、焦点归还、再点触发器重开）由原语统一，调用方不再各写一份。
+
+**portal 带来的副作用**：内容渲染到 `body` 后脱离了 `.kb-detail` 子树，读不到该作用域定义的 `--paper-deep` / `--line-warm` / `--ink-1..3` / `--seal-track`，滑块与分段钮会退化成默认色。处理办法是在 `.kb-typo-pop` 上按同一批变量名重新映射一次共享令牌（`--paper` ← `--background`、`--line-warm` ← `--border`、`--ink-*` ← `--foreground` / `--muted-foreground`、`--seal-*` ← `--seal`），内部子样式一行不改。**这也是后续所有 portal 型浮层的通用注意点：子样式引用了作用域变量时，必须在浮层根上补映射。**
+
+**替代方案**：把 portal 容器指回 `.kb-detail`（否决 —— 该子树有 overflow 与层叠上下文，弹层可能被裁切；且要为每个调用点传容器引用）。
+
 ## Risks / Trade-offs
 
 - [radix 弹层默认行为与现有手写弹层不一致（关闭时机、滚动锁定、层级）] → 先在 `kb-folder-dialog` 一个点上做对照验证，确认后再批量；皮肤类保持不动，只换行为层。

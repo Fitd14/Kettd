@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { PopoverContent } from '@/components/ui/popover'
 import { StepSlider } from '@/components/ui/step-slider'
 import {
   READING_MEASURES,
@@ -17,9 +17,7 @@ export interface ReadingPrefsValues {
 }
 
 interface Props {
-  open: boolean
   value: ReadingPrefsValues
-  onClose: () => void
   /** 只回传改动的键，落库与预览走同一条 setSettings → applyReadingPrefs 链路 */
   onChange: (patch: { readingSize?: number; readingTracking?: number; readingMeasure?: string }) => void
 }
@@ -35,44 +33,16 @@ function trackingLabel(index: number): string {
 }
 
 /**
- * 排版弹层（文档内，替代设置页里的三行档位）：
+ * 排版弹层内容（文档内，替代设置页里的三行档位）：
  * 字号 / 字距用分级滑块，列宽只有两档，用分段钮而不是滑块。
- * 关闭：Esc、点弹层外（捕获阶段判 contains，拖动滑块时不误关）。
+ * 开关、点外关闭、Esc 与焦点归还都由调用方的 `Popover` 承担。
  */
-export function TypoPopover({ open, value, onClose, onChange }: Props) {
-  const panelRef = useRef<HTMLDivElement>(null)
-  const closeRef = useRef(onClose)
-  closeRef.current = onClose
-
-  useEffect(() => {
-    if (!open) return
-    const onDown = (event: MouseEvent) => {
-      const panel = panelRef.current
-      if (!panel) return
-      if (panel.contains(event.target as Node)) return
-      // 触发按钮自己负责开合，这里只看「面板外」
-      const anchor = panel.parentElement
-      if (anchor && anchor.contains(event.target as Node)) return
-      closeRef.current()
-    }
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeRef.current()
-    }
-    document.addEventListener('mousedown', onDown, true)
-    document.addEventListener('keydown', onKey, true)
-    return () => {
-      document.removeEventListener('mousedown', onDown, true)
-      document.removeEventListener('keydown', onKey, true)
-    }
-  }, [open])
-
-  if (!open) return null
-
+export function TypoPopover({ value, onChange }: Props) {
   const measure = (READING_MEASURES as readonly { key: ReadingMeasureKey; label: string; note: string }[])
     .find((m) => m.key === value.measure) ?? READING_MEASURES[0]
 
   return (
-    <div className="kb-typo-pop" ref={panelRef} role="dialog" aria-label="排版">
+    <PopoverContent className="kb-typo-pop" aria-label="排版" align="end" side="bottom">
       <div className="kb-typo-head">
         <span>排版</span>
         <span className="kb-typo-note">所有条目共用</span>
@@ -114,6 +84,6 @@ export function TypoPopover({ open, value, onClose, onChange }: Props) {
         </div>
       </div>
       <p className="kb-typo-foot">{measure.note}</p>
-    </div>
+    </PopoverContent>
   )
 }

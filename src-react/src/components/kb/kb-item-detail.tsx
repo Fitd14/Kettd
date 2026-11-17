@@ -7,6 +7,7 @@ import { TipTapEditor, type EditorApi } from '@/rendering/tiptap-editor'
 import { applyReadingPrefs } from '@/lib/reading-prefs'
 import type { OutlineItem } from '@/lib/doc-outline'
 import { TypoPopover } from './typo-popover'
+import { Popover, PopoverTrigger } from '@/components/ui/popover'
 import { DocOutline } from './doc-outline'
 
 interface Props {
@@ -348,23 +349,22 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
 
         <div className="kb-strip-actions">
           <div className="kb-strip-anchor">
-            <button
-              type="button"
-              className={'kb-strip-btn' + (typoOpen ? ' on' : '')}
-              title="排版"
-              aria-label="排版"
-              aria-haspopup="dialog"
-              aria-expanded={typoOpen}
-              onClick={() => setTypoOpen((v) => !v)}
-            >
-              <Type size={15} strokeWidth={1.7} />
-            </button>
-            <TypoPopover
-              open={typoOpen}
-              value={{ size: prefs.size, tracking: prefs.tracking, measure: prefs.measure }}
-              onClose={() => setTypoOpen(false)}
-              onChange={changePrefs}
-            />
+            <Popover open={typoOpen} onOpenChange={setTypoOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className={'kb-strip-btn' + (typoOpen ? ' on' : '')}
+                  title="排版"
+                  aria-label="排版"
+                >
+                  <Type size={15} strokeWidth={1.7} />
+                </button>
+              </PopoverTrigger>
+              <TypoPopover
+                value={{ size: prefs.size, tracking: prefs.tracking, measure: prefs.measure }}
+                onChange={changePrefs}
+              />
+            </Popover>
           </div>
 
           <button

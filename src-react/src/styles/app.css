@@ -824,6 +824,19 @@ details.overdue[open] summary::before {
   background: hsl(var(--border));
 }
 
+/* 轻量浮层（radix Popover）：定位与关闭交给原语，这里只定皮肤。
+   特殊外观（如知识库排版弹层）由调用方 className 叠加覆盖。 */
+.popover {
+  z-index: 70;
+  max-width: min(92vw, 320px);
+  padding: 10px 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--r-md, 10px);
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  box-shadow: 0 12px 28px hsl(var(--foreground) / 0.14);
+}
+
 /* 行尾动作列：常驻「⋯」（25px 固定列），次要动作在同一列里展开——
    展开前后行宽恒定，任一时刻可见的次要动作至多多一行、且互斥（tasks 4.2 / spec §A.2）。 */
 .row-actions-trigger {

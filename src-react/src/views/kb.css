@@ -519,17 +519,25 @@
 
 /* 排版弹层：挂在「排版」钮下方，宽度只够放两条滑块 */
 .kb-typo-pop {
-  position: absolute;
-  top: 28px;
-  right: 0;
-  z-index: 60;
+  /* 定位由 radix Popover 的 popper 承担（portal 到 body），这里只管尺寸与纸面色。
+     portal 在 .kb-detail 之外，不能读该作用域的 --paper-deep / --ink-1，
+     所以改用共享令牌（--secondary 是同一档暖底色，暗色主题自动跟随）。 */
   width: 268px;
   padding: 12px 14px 10px;
-  border: 1px solid var(--line-warm);
+  border: 1px solid hsl(var(--border));
   border-radius: 6px;
-  background: var(--paper-deep);
+  background: hsl(var(--secondary));
   box-shadow: 0 12px 28px hsl(var(--foreground) / 0.14);
-  color: var(--ink-1);
+  color: hsl(var(--foreground));
+  /* 内部滑块 / 分段钮沿用的是 .kb-detail 作用域的变量名，portal 出来后在这里补一份映射，
+     数值与 .kb-detail 同源（共享令牌），亮暗主题自动跟随。 */
+  --paper: hsl(var(--background));
+  --line-warm: hsl(var(--border));
+  --ink-1: hsl(var(--foreground));
+  --ink-2: hsl(var(--muted-foreground));
+  --ink-3: hsl(var(--muted-foreground) / 0.75);
+  --seal-track: hsl(var(--seal));
+  --seal-ink: hsl(var(--seal));
 }
 .kb-typo-head {
   display: flex;
