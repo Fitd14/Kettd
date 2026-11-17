@@ -217,7 +217,7 @@ function shouldShowInlineBubble({
 
 /* ─── 表格悬浮操作：表格右上（表级）与单元格右上（行列级）─────────── */
 
-type ToolsAnchor = { left: number; top: number }
+type ToolsAnchor = { left: number; top: number; flip: boolean }
 
 /** 当前选区所在的表格节点（不在表格里返回 null） */
 function tableNodeAt(editor: Editor) {
@@ -264,36 +264,54 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
       const { from } = editor.state.selection
       const at = editor.view.domAtPos(from)
       const el = (at.node.nodeType === 1 ? at.node : at.node.parentElement) as HTMLElement | null
+      // 光标可能停在表格边界（落在 <table> 而非单元格）——表级把手仍要出来
       const cellEl = el?.closest('td,th') as HTMLElement | null
-      const tableEl = cellEl?.closest('table') as HTMLTableElement | null
-      if (!cellEl || !tableEl) {
+      const tableEl = (cellEl ?? el)?.closest('table') as HTMLTableElement | null
+      const rootRect = root.getBoundingClientRect()
+      if (!tableEl) {
         setTable(null)
         setCell(null)
         return
       }
-      const rootRect = root.getBoundingClientRect()
       const t = tableEl.getBoundingClientRect()
-      const c = cellEl.getBoundingClientRect()
+      // 表格整体滚出编辑区时收起，避免把手贴着顶边悬浮
+      if (t.bottom < rootRect.top || t.top > rootRect.bottom) {
+        setTable(null)
+        setCell(null)
+        return
+      }
+      const tableLeft = Math.max(0, Math.min(t.right - rootRect.left - 22, rootRect.width - 22))
       setTable({
-        left: Math.max(0, Math.min(t.right - rootRect.left - 22, rootRect.width - 22)),
+        left: tableLeft,
         top: Math.max(0, t.top - rootRect.top - 12),
+        flip: tableLeft < 240,
       })
-      setCell({
-        left: Math.max(0, Math.min(c.right - rootRect.left - 20, rootRect.width - 20)),
-        top: Math.max(0, c.top - rootRect.top + 2),
-      })
+      if (cellEl) {
+        const c = cellEl.getBoundingClientRect()
+        const cellLeft = Math.max(0, Math.min(c.right - rootRect.left - 20, rootRect.width - 20))
+        setCell({
+          left: cellLeft,
+          top: Math.max(0, c.top - rootRect.top + 2),
+          flip: cellLeft < 200,
+        })
+      } else {
+        setCell(null)
+      }
       setRows(tableEl.rows.length)
       setCols(tableEl.rows[0]?.cells.length ?? 0)
       setOnHeader(editor.isActive('tableHeader'))
     }
 
     measure()
+    // 挂载瞬间编辑区可能还没完成布局，下一帧再量一次
+    const frame = requestAnimationFrame(measure)
     editor.on('selectionUpdate', measure)
     window.addEventListener('resize', measure)
     window.addEventListener('scroll', measure, true)
     const observer = new ResizeObserver(measure)
     observer.observe(root)
     return () => {
+      cancelAnimationFrame(frame)
       editor.off('selectionUpdate', measure)
       window.removeEventListener('resize', measure)
       window.removeEventListener('scroll', measure, true)
@@ -319,13 +337,14 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
     run(editor.chain().focus().setTextSelection(p)).run()
   }
 
-  if (!table && !cell) return null
-
+  // 容器必须无条件渲染：rootRef 是测量的锚点，早退会让 effect 拿不到节点，
+  // 首帧永远量不到位置，把手也就永远不出现。
   return (
     <div className="kb-tbl-tools-root" ref={rootRef}>
       {table && (
         <div
           className={'kb-tbl-tools kb-tbl-tools-table' + (open === 'table' ? ' is-open' : '')}
+          data-flip={table.flip ? 'left' : undefined}
           style={{ left: table.left, top: table.top }}
         >
           <Button
@@ -409,6 +428,7 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
       {cell && (
         <div
           className={'kb-tbl-tools kb-tbl-tools-cell' + (open === 'cell' ? ' is-open' : '')}
+          data-flip={cell.flip ? 'left' : undefined}
           style={{ left: cell.left, top: cell.top }}
         >
           <Button

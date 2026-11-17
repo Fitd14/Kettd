@@ -249,14 +249,14 @@
   pointer-events: auto;
 }
 
-/* 手柄下方 6px 的隐形搭桥：hover 从手柄移到面板时不丢 hover */
+/* 手柄下方 10px 的隐形搭桥：hover 从手柄斜着移到面板时不丢 hover */
 .kb-tbl-tools::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
   top: 100%;
-  height: 6px;
+  height: 10px;
 }
 
 /* 盒子由 ui/button 的 ghost 变体打底，这里用三层选择器把 18×18 的把手盒子抢回来 */
@@ -301,6 +301,12 @@
 .kb-tbl-tools:hover .kb-tbl-panel,
 .kb-tbl-tools.is-open .kb-tbl-panel {
   display: flex;
+}
+
+/* 表格贴着编辑区左边界时，面板向左展开会顶出去：翻到把手右侧 */
+.kb-tbl-tools[data-flip="left"] .kb-tbl-panel {
+  left: 0;
+  right: auto;
 }
 
 .kb-tbl-axis {
