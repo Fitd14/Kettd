@@ -37,7 +37,7 @@
 - **组件单一入口**：交互控件只许来自 `src-react/src/components/ui/`；`views/`、`capture/`、`sticky/`、`todo/`、`rendering/` 与 `components/` 下的业务组件禁止直接写原生 `<button>` / `<input>` / `<select>` / `<textarea>`，也禁止手写弹层、菜单、标签页。原生元素只允许出现在 `ui/` 封装内部，一处封装、全站引用。三类例外可留在页面层：整行即可点击的列表 / 树 / 菜单行（`.kb-tree-item`、`.kb-folder-row`、`.kb-pin-row` 这类，判定看有没有按钮轮廓）、隐藏的 `type="file"` 与 `type="range"` 输入、尚无对应原语的单点控件（清单见迁移单 5.1）。
 - **radix 承载行为**：弹层 / 菜单 / 下拉 / 标签页 / 浮层 / 提示 / 滑块 / 勾选 / 开关一律基于 `radix-ui` 统一包封装，导入写 `import { Dialog } from 'radix-ui'`；禁止新增 `@radix-ui/react-*` 分包（沿用依赖冻结线）。radix 没有 Button / Input / Textarea 原语，这三类由 `ui/` 内的 cva + token 样式封装承担。原语皮肤集中在 `src-react/src/styles/primitives.css`（`.btn` / `.input` / `.checkbox` / `.dialog-*` / `.popover` / `.dropdown-menu` / `.tabs`），由 `index.css` 引入、四个窗口入口共用；`app.css` 只放壳与页面样式，不得再定义原语皮肤。
 - **组件分层**：`ui/` 原语（无业务语义，radix 管行为、token 管样式）→ `components/<domain>/`（如 `kb/`、`editor/`）→ `components/` 根（跨视图壳，如 `title-bar`、`undo-toast`）。新增层级必须先改 README §目录结构并写明理由，不许临时造目录。
-- **存量已收口**：2026-11-17 完成原生控件迁移，原生 `<button>` 161 → 22、`<input>` 28 → 4，余量全部落在上面三类例外内。此后页面里出现例外之外的原生控件即视为回归，须先补 `ui/` 原语再写页面；迁移决策、例外清单与验证记录在 `openspec/changes/radix-component-layer/`。
+- **存量已收口**：2026-11-17 完成原生控件迁移，原生 `<button>` 161 → 22、`<input>` 28 → 4，余量全部落在上面三类例外内。此后页面里出现例外之外的原生控件即视为回归，须先补 `ui/` 原语再写页面；迁移决策、例外清单与验证记录在 `openspec/changes/archive/2026-11-17-radix-component-layer/`，规格见 `openspec/specs/ui-components/spec.md`。
 
 ### 2.3 后端
 
