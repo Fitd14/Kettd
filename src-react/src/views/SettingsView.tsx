@@ -203,16 +203,16 @@ function ImportPreviewDialog({ fileName, report, applying, error, onCancel, onCo
         {error && <div className="inline-err" role="alert">{error}</div>}
 
         <div className="backup-dialog-actions">
-          <button className="btn xs ghost" type="button" disabled={applying} onClick={onCancel}>取消</button>
-          <button
-            className="btn xs primary"
+          <Button variant="ghost" size="xs" type="button" disabled={applying} onClick={onCancel}>取消</Button>
+          <Button
+            variant="primary" size="xs"
             type="button"
             disabled={applying}
             aria-busy={applying}
             onClick={onConfirm}
           >
             {applying ? '导入中…' : '确认导入'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>,
@@ -616,8 +616,8 @@ export function SettingsView({ boot, refresh }: Props) {
         <div className="section-head"><b>外观</b></div>
         <div className="set-row"><span>主题</span>
           <div className="seg" role="group" aria-label="主题">
-            <button className={`btn sm ${s.theme !== 'dark' ? 'on' : ''}`} onClick={() => { void patch({ theme: 'light' }) }}>纸白</button>
-            <button className={`btn sm ${s.theme === 'dark' ? 'on' : ''}`} onClick={() => { void patch({ theme: 'dark' }) }}>暗色</button>
+            <Button size="sm" aria-pressed={s.theme !== 'dark'} onClick={() => { void patch({ theme: 'light' }) }}>纸白</Button>
+            <Button size="sm" aria-pressed={s.theme === 'dark'} onClick={() => { void patch({ theme: 'dark' }) }}>暗色</Button>
           </div>
         </div>
         <div className="set-row"><span>便签纸色
@@ -625,14 +625,14 @@ export function SettingsView({ boot, refresh }: Props) {
         </span>
           <div className="seg" role="group" aria-label="便签纸色">
             {STICKY_PAPERS.map((p) => (
-              <button
+              <Button
                 key={p.key}
-                className={`btn sm ${s.stickyPaper === p.key ? 'on' : ''}`}
+                size="sm" aria-pressed={s.stickyPaper === p.key}
                 onClick={() => { void patch({ stickyPaper: p.key }) }}
               >
                 <span className={`paper-dot paper-${p.key}`} aria-hidden />
                 {p.label}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -648,15 +648,15 @@ export function SettingsView({ boot, refresh }: Props) {
           <div className="tiny text-muted">系统字体调用本机已装字体；上传的字体存进数据目录 fonts/，只留在这台机器</div>
         </span>
           <div className="seg" role="group" aria-label="阅读字体">
-            <button className={`btn sm ${!s.readingFont ? 'on' : ''}`} onClick={() => { void chooseFont('') }}>跟随正文</button>
+            <Button size="sm" aria-pressed={!s.readingFont} onClick={() => { void chooseFont('') }}>跟随正文</Button>
             {READING_FONT_SYSTEMS.map((f) => (
-              <button
+              <Button
                 key={f.key}
-                className={`btn sm ${s.readingFont === `system:${f.key}` ? 'on' : ''}`}
+                size="sm" aria-pressed={s.readingFont === `system:${f.key}`}
                 onClick={() => { void chooseFont(`system:${f.key}`) }}
               >
                 {f.label}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -726,13 +726,13 @@ export function SettingsView({ boot, refresh }: Props) {
         </span>
           <div className="seg" role="group" aria-label="纸面花纹">
             {[{ key: 'none', label: '无' }, { key: 'bamboo', label: '墨竹' }, { key: 'mountain', label: '远山' }].map((p) => (
-              <button
+              <Button
                 key={p.key}
-                className={`btn sm ${s.stickyPattern === p.key ? 'on' : ''}`}
+                size="sm" aria-pressed={s.stickyPattern === p.key}
                 onClick={() => { void patch({ stickyPattern: p.key }) }}
               >
                 {p.label}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -741,8 +741,8 @@ export function SettingsView({ boot, refresh }: Props) {
         </span>
           <span className="row-flex items-center gap-2">
             <div className="seg" role="group" aria-label="移出淡化">
-              <button className={`btn sm ${s.stickyFade ? 'on' : ''}`} onClick={() => { void patch({ stickyFade: true }) }}>开</button>
-              <button className={`btn sm ${!s.stickyFade ? 'on' : ''}`} onClick={() => { void patch({ stickyFade: false }) }}>关</button>
+              <Button size="sm" aria-pressed={s.stickyFade} onClick={() => { void patch({ stickyFade: true }) }}>开</Button>
+              <Button size="sm" aria-pressed={!s.stickyFade} onClick={() => { void patch({ stickyFade: false }) }}>关</Button>
             </div>
             <input
               className="fade-slider"
@@ -766,13 +766,13 @@ export function SettingsView({ boot, refresh }: Props) {
           <div className="tiny text-muted">随手写一张纸（≤500 字）· 可见 {visibleCount}/5 · 隐藏 {hiddenCount} · 热键 {stickyCombo.trim() || '（未绑定）'}</div>
         </span>
           <span className="row-flex items-center gap-1.5">
-            <button className="btn xs outline" onClick={() => { void doCreateSticky() }}>新建便签</button>
+            <Button size="xs" onClick={() => { void doCreateSticky() }}>新建便签</Button>
           </span>
         </div>
         <div className="set-row"><span>管理便签
           <div className="tiny text-muted">卡片墙：搜索正文与知识标题，打开、删除一屏完成</div>
         </span>
-          <button className="btn xs" onClick={() => { window.location.hash = '#/sticky' }}>管理便签</button>
+          <Button size="xs" onClick={() => { window.location.hash = '#/sticky' }}>管理便签</Button>
         </div>
         {stickyList.length > 0 && (
           <div className="set-row" style={{ alignItems: 'flex-start' }}><span>便签清单
@@ -794,13 +794,13 @@ export function SettingsView({ boot, refresh }: Props) {
                     </span>
                     {!visible && <span className="badge sticky-badge-hidden">已隐藏</span>}
                     {st.mini && <span className="badge">已缩小</span>}
-                    <button
-                      className="btn ghost xs"
+                    <Button
+                      variant="ghost" size="xs"
                       onClick={() => { void doOpenSticky(st) }}
                       aria-label={`打开便签：${preview}`}
                     >
                       打开
-                    </button>
+                    </Button>
                     <Button variant="ghost" size="xs" onClick={() => { void doToggleSticky(st) }}>{st.mini ? '展开' : '缩小'}</Button>
                     {confirmDel === st.id ? (
                       <span className="row-flex items-center gap-1">
@@ -812,16 +812,16 @@ export function SettingsView({ boot, refresh }: Props) {
                         >
                           确认删除
                         </Button>
-                        <button className="btn ghost xs" onClick={() => setConfirmDel(null)}>取消</button>
+                        <Button variant="ghost" size="xs" onClick={() => setConfirmDel(null)}>取消</Button>
                       </span>
                     ) : (
-                      <button
-                        className="btn ghost xs"
+                      <Button
+                        variant="ghost" size="xs"
                         onClick={() => setConfirmDel(st.id)}
                         title="删除后不可恢复；关闭便签只是隐藏"
                       >
                         删除
-                      </button>
+                      </Button>
                     )}
                   </span>
                 )
@@ -841,7 +841,7 @@ export function SettingsView({ boot, refresh }: Props) {
         </span>
           <span className="row-flex">
             <Input size="xs" value={capCombo} onChange={(e) => setCapCombo(e.target.value)} aria-label="快速记录热键" />
-            <button className="btn xs outline" onClick={() => { void rebind('capture') }}>换绑</button>
+            <Button size="xs" onClick={() => { void rebind('capture') }}>换绑</Button>
           </span>
         </div>
         <div className="set-row"><span>打开主界面
@@ -849,7 +849,7 @@ export function SettingsView({ boot, refresh }: Props) {
         </span>
           <span className="row-flex">
             <input className="input xs" value={mainCombo} onChange={(e) => setMainCombo(e.target.value)} aria-label="主界面热键" />
-            <button className="btn xs outline" onClick={() => { void rebind('main') }}>换绑</button>
+            <Button size="xs" onClick={() => { void rebind('main') }}>换绑</Button>
           </span>
         </div>
         <div className="set-row"><span>新建便签
@@ -859,7 +859,7 @@ export function SettingsView({ boot, refresh }: Props) {
         </span>
           <span className="row-flex">
             <input className="input xs" value={stickyCombo} onChange={(e) => setStickyCombo(e.target.value)} aria-label="新建便签热键" />
-            <button className="btn xs outline" onClick={() => { void rebind('sticky') }}>换绑</button>
+            <Button size="xs" onClick={() => { void rebind('sticky') }}>换绑</Button>
           </span>
         </div>
         <div className="set-row"><span>待办悬浮窗
@@ -869,7 +869,7 @@ export function SettingsView({ boot, refresh }: Props) {
         </span>
           <span className="row-flex">
             <input className="input xs" value={todoCombo} onChange={(e) => setTodoCombo(e.target.value)} aria-label="待办悬浮窗热键" />
-            <button className="btn xs outline" onClick={() => { void rebind('todo') }}>换绑</button>
+            <Button size="xs" onClick={() => { void rebind('todo') }}>换绑</Button>
           </span>
         </div>
         <div className="set-row"><span>直达知识库
@@ -879,13 +879,13 @@ export function SettingsView({ boot, refresh }: Props) {
         </span>
           <span className="row-flex">
             <input className="input xs" value={kbCombo} onChange={(e) => setKbCombo(e.target.value)} aria-label="直达知识库热键" />
-            <button className="btn xs outline" onClick={() => { void rebind('kb') }}>换绑</button>
+            <Button size="xs" onClick={() => { void rebind('kb') }}>换绑</Button>
           </span>
         </div>
         <div className="set-row"><span>恢复默认
           <div className="tiny text-muted">快速记录 {DEFAULT_CAPTURE} · 打开主界面 {DEFAULT_MAIN} · 新建便签 {DEFAULT_STICKY} · 待办悬浮窗 {DEFAULT_TODO} · 直达知识库 {DEFAULT_KB}</div>
         </span>
-          <button className="btn xs outline" onClick={() => { void restoreDefaults() }}>恢复默认快捷键</button>
+          <Button size="xs" onClick={() => { void restoreDefaults() }}>恢复默认快捷键</Button>
         </div>
       </section>
 
@@ -896,13 +896,13 @@ export function SettingsView({ boot, refresh }: Props) {
         </span>
           <div className="seg" role="group" aria-label="每小时提醒上限">
             {[3, 5, 10].map((n) => (
-              <button
+              <Button
                 key={n}
-                className={`btn sm ${s.remindCapPerHour === n ? 'on' : ''}`}
+                size="sm" aria-pressed={s.remindCapPerHour === n}
                 onClick={() => { void patch({ remindCapPerHour: n }) }}
               >
                 {n} 条
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -916,23 +916,23 @@ export function SettingsView({ boot, refresh }: Props) {
               : `${boot.health.health} · ${boot.health.lastError ?? ''}`}
           </div>
         </span>
-          <button className="btn xs outline" onClick={() => { void openDataFolder() }}>打开数据文件夹</button>
+          <Button size="xs" onClick={() => { void openDataFolder() }}>打开数据文件夹</Button>
         </div>
         <div className="set-row"><span>本地度量
           <div className="tiny text-muted">仅本机统计，绝不出网 · 用于验证功能是否真被用上</div>
         </span>
           <span className="row-flex items-center gap-1.5">
             <div className="seg" role="group" aria-label="本地度量">
-              <button className={`btn sm ${s.telemetryEnabled ? 'on' : ''}`} onClick={() => { void patch({ telemetryEnabled: true }) }}>开</button>
-              <button className={`btn sm ${!s.telemetryEnabled ? 'on' : ''}`} onClick={() => { void patch({ telemetryEnabled: false }) }}>关</button>
+              <Button size="sm" aria-pressed={s.telemetryEnabled} onClick={() => { void patch({ telemetryEnabled: true }) }}>开</Button>
+              <Button size="sm" aria-pressed={!s.telemetryEnabled} onClick={() => { void patch({ telemetryEnabled: false }) }}>关</Button>
             </div>
-            <button
-              className={`btn xs outline${confirmClear ? ' danger' : ''}`}
+            <Button
+              variant={confirmClear ? 'danger' : 'default'} size="xs"
               aria-label={confirmClear ? '再次点击确认清空本地统计' : '清空本地统计'}
               onClick={() => { void doClearEvents() }}
             >
               {confirmClear ? '确认清空？' : '清空本地统计'}
-            </button>
+            </Button>
           </span>
         </div>
       </section>
@@ -977,8 +977,8 @@ export function SettingsView({ boot, refresh }: Props) {
                           {backupErrText(info.error)}
                         </span>
                       )}
-                      <button
-                        className={`btn xs ${confirming ? 'danger' : 'outline'}`}
+                      <Button
+                        variant={confirming ? 'danger' : 'default'} size="xs"
                         disabled={!info.readable || restoringSlot !== null}
                         aria-busy={busy}
                         aria-label={
@@ -994,7 +994,7 @@ export function SettingsView({ boot, refresh }: Props) {
                         onClick={() => { void doRestoreBackup(info) }}
                       >
                         {busy ? '恢复中…' : confirming ? '确认恢复' : '恢复'}
-                      </button>
+                      </Button>
                     </span>
                   )
                 })}
@@ -1037,8 +1037,8 @@ export function SettingsView({ boot, refresh }: Props) {
                           {backupErrText(info.error)}
                         </span>
                       )}
-                      <button
-                        className={`btn xs ${confirming ? 'danger' : 'outline'}`}
+                      <Button
+                        variant={confirming ? 'danger' : 'default'} size="xs"
                         disabled={!info.readable || restoringKbSlot !== null}
                         aria-busy={busy}
                         aria-label={
@@ -1054,7 +1054,7 @@ export function SettingsView({ boot, refresh }: Props) {
                         onClick={() => { void doRestoreKbBackup(info) }}
                       >
                         {busy ? '恢复中…' : confirming ? '确认恢复' : '恢复'}
-                      </button>
+                      </Button>
                     </span>
                   )
                 })}
@@ -1078,16 +1078,16 @@ export function SettingsView({ boot, refresh }: Props) {
           </span>
           <span className="backup-list">
             <span className="row-flex items-center gap-1.5">
-              <button
-                className="btn xs outline"
+              <Button
+                size="xs"
                 disabled={exporting}
                 aria-busy={exporting}
                 onClick={() => { void doExportBackup() }}
               >
                 {exporting ? '导出中…' : '导出备份'}
-              </button>
+              </Button>
               {exportResult && (
-                <button className="btn xs ghost" onClick={() => { void openDataFolder() }}>打开数据文件夹</button>
+                <Button variant="ghost" size="xs" onClick={() => { void openDataFolder() }}>打开数据文件夹</Button>
               )}
             </span>
             {exportError && <span className="inline-err" role="alert">{exportError}</span>}
@@ -1120,14 +1120,14 @@ export function SettingsView({ boot, refresh }: Props) {
               }}
             />
             <span className="row-flex items-center gap-1.5">
-              <button
-                className="btn xs outline"
+              <Button
+                size="xs"
                 disabled={importBusy || preview !== null}
                 aria-busy={importBusy}
                 onClick={() => backupFile.current?.click()}
               >
                 {importBusy ? '读取中…' : '选择备份文件'}
-              </button>
+              </Button>
               <span className="tiny text-muted">仅 .kettdbackup，不超过 256MB</span>
             </span>
             {importError && <span className="inline-err" role="alert">{importError}</span>}

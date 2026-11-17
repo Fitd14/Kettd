@@ -82,6 +82,8 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 **评审结论（2026-11-17，用户确认）**：四项全部通过 —— ① 允许尺寸上移（`xs` 约 19→22、字号 11→12.5，工具条 24→26）；② `primary` 实心补成全局变体，不再靠页面作用域补丁；③ 便签按钮沿用 `[data-surface="sticky"]` 只换色，尺寸与圆角跟随全局；④ 窗口按钮保持 44×32、无圆角、close 走 destructive 实心 `size="window"`，不参与三档阶梯。原型 `design-review/button-system.html` 自此为按钮视觉基线，实现与评审都以它为准。
 
+**映射缺口（2026-11-17，迁移 `SettingsView` 时发现）**：`.font-chip-name`（字体名）与 `.font-chip-del`（chip 内 × 删除）是 chip 里的纯文字钮，不在 12 组专用类内，D9 没有给出对应变体。按「先补表再改代码」本轮跳过这 2 处，待补一条 chip/文字钮口径后单独迁。
+
 **替代方案**：只补 `.btn.outline` / `.btn.primary` 两个空转类的定义（否决 —— 12 组专用类仍各自漂移，用户 2026-11-17 要求「专用样式按钮统一视觉体验」）。
 
 ### D10 菜单拆两步：先落 `dropdown-menu`，`kb-context-menu` 并入批次 4

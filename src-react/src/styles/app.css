@@ -644,7 +644,8 @@ details.overdue[open] summary::before {
   gap: 4px;
   flex: none;
 }
-.seg .btn.on {
+.seg .btn.on,
+.seg .btn[aria-pressed="true"] {
   background: hsl(var(--secondary));
   font-weight: 600;
   border-color: hsl(var(--border));
