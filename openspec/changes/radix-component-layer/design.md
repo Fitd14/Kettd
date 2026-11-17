@@ -58,7 +58,9 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 `components/ui/step-slider.tsx` 的手写 `role="slider"` 改为 radix `Slider`（`Root` + `Track` + `Range` + `Thumb`），`steps` 映射为 `min=0` / `max=steps-1` / `step=1`，`aria-valuetext` 透传 `format(current)`；轨道、刻度、读数外观保持不变。
 
-**约束**：组件只有一处调用（`components/kb/typo-popover.tsx:82` / `:91`，字号与字距各七档），改动面小；轨道上的 `pointerdown` 仍要 `stopPropagation`，否则浮层把「按滑块」当成「点了外面」直接关闭；刻度 radix 不提供，继续由本组件按 `(i/max)*100%` 渲染。
+**约束**：组件只有一处调用（`components/kb/typo-popover.tsx`，字号与字距各七档），改动面小；刻度 radix 不提供，继续由本组件按 `(i/max)*100%` 渲染；`Range` 的宽度与 `Thumb` 的 `left` / `translateX(-50%)` 都由 radix 计算，CSS 不能再补 `margin-left`（会双重偏移）。
+
+**实现时修正的口径**：原计划「轨道 `pointerdown` 继续 `stopPropagation`，否则浮层把按滑块当成点了外面」在 1.7 之后已不成立 —— 浮层换成 radix `Popover` 后，点外判定看的是 `event.target` 是否落在内容里（拖动起点在内容内），而文档级捕获监听也无法被 Root 上的冒泡处理器拦住。继续保留只会挡住无关的上层逻辑，故删除；`step-slider` 的交互完全交给 radix。
 
 **替代方案**：保留手写（否决 —— 用户 2026-11-16 明确要求换 radix；且能白得 `PageUp` / `PageDown`、触摸与方向键的标准化处理）。
 
