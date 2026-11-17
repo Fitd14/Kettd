@@ -132,14 +132,6 @@ kbd {
   align-items: center;
   padding: 2px 0 2px 8px;
 }
-.input.xs {
-  font-size: var(--fs-sub);
-  padding: 2px 6px;
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--r-sm);
-  background: hsl(var(--card));
-  color: hsl(var(--foreground));
-}
 
 /* ---------------- 鐟欏棗娴樻銊︾仸 ---------------- */
 .view {
@@ -483,7 +475,6 @@ details.overdue[open] summary::before {
   gap: 4px;
   flex: none;
 }
-.seg .btn.on,
 .seg .btn[aria-pressed="true"] {
   background: hsl(var(--secondary));
   font-weight: 600;
@@ -703,10 +694,6 @@ details.overdue[open] summary::before {
   padding: 6px 10px;
   font-size: var(--fs-body);
   margin: 6px 0;
-}
-.btn.danger {
-  border-color: hsl(var(--destructive));
-  color: hsl(var(--destructive));
 }
 .version-line {
   margin-top: 18px;

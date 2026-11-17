@@ -24,13 +24,6 @@
 }
 .btn:hover { background: hsl(var(--muted)); }
 .btn:active { transform: translateY(1px) scale(0.985); }
-/* 旧修饰类：迁移期保留，批次 5 收口时删（新代码只写 data-*） */
-.btn.ghost { background: transparent; color: hsl(var(--muted-foreground)); border-color: transparent; }
-.btn.ghost:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
-.btn.danger { color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.4); }
-.btn.danger:hover { background: hsl(var(--destructive) / 0.08); }
-.btn.sm { font-size: var(--fs-meta); padding: 3px 9px; }
-.btn.xs { font-size: var(--fs-meta); padding: 2px 7px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* 尺寸只由 data-size 决定：xs 22 / sm 26 / md 30，图标钮同档，window 与 caret 是两个特例 */
@@ -107,8 +100,6 @@
   box-shadow: 0 0 0 2px hsl(var(--ring) / 0.18);
 }
 .input.invalid { border-color: hsl(var(--destructive)); box-shadow: 0 0 0 2px hsl(var(--destructive) / 0.18); }
-.input.xs { font-size: var(--fs-sub); padding: 3px 7px; }
-.input.sm { font-size: var(--fs-body); padding: 6px 10px; }
 
 /* 输入框原语的属性选择器（与 .btn 同口径，新代码只写 data-*，旧 .xs/.sm 迁移期保留） */
 .input[data-size="xs"] { font-size: var(--fs-sub); padding: 3px 7px; }

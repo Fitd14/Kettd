@@ -70,6 +70,7 @@
 - [ ] 5.4 校对 `AGENTS.md` §2.2 与 `README.md` §目录结构 的文案与最终实现一致（三层描述、例外清单），过 `node test/docs.test.mjs`
 - [ ] 5.5 更新 ledger 任务 `20261116-1316-313c-原生控件迁移到-components-ui-封装` 的 worklog 结论，与本变更的五批一一对应
 - [ ] 5.6 迁移完成后删除 `app.css` 与各域 CSS 里被 D9 取代的旧修饰：`.btn.ghost` / `.btn.danger` / `.btn.sm` / `.btn.xs`、`.sticky-btn`、`.kb-strip-btn`、`.kb-folder-add`、`.kb-folder-action`、`.kb-tag-x`、`.todo-mini-btn`、`.sticky-md-btn` 的尺寸与 hover 段（保留 `:where(button,[tabindex]):focus-visible` 兜底），`grep` 确认无引用后再删
+  - 进度（第十七轮）：`.btn.ghost` / `.btn.danger` / `.btn.sm` / `.btn.xs` 与 `.input.xs` / `.input.sm` 已从 `primitives.css` 删除；`app.css` 的 `.seg .btn.on`、`.schedule-pop .input.xs`、`.btn.danger` 三处死覆盖同步删除；grep 确认 TSX 已无旧修饰写法（仅 `CaptureWindow.tsx:190` 一行注释残留）。余下 `.sticky-btn` / `.kb-strip-btn` / `.kb-folder-add` / `.kb-folder-action` / `.kb-tag-x` / `.todo-mini-btn` / `.sticky-md-btn` 仍作为布局/盒子类随 `<Button>` 保留，待这些落点收完后删
 
 ## Workflow follow-up
 
