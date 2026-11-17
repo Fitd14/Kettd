@@ -1,6 +1,5 @@
 {
   "tasks": {
-    "20261117-0229-ee3c-优化文档表格的界面样式": {"category": "界面优化", "created": "2026-11-17 02:29:30", "creator": "afcfcca0-be4c-4afd-931b-16fdade9d4fd", "creator_name": "simy", "finished": null, "owner": null, "owner_name": null, "started": null, "status": "open", "tags": ["知识库", "表格", "编辑器", "视觉"], "title": "优化文档表格的界面样式", "updated": "2026-11-17 02:29:30", "worklog": "worklog/202611/17-0229-ee3c-优化文档表格的界面样式.md"}
   },
   "version": "20261022000000"
 }
