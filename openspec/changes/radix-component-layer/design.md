@@ -160,6 +160,17 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 验证：`tsc -b` exit 0；`oxlint` 11 文件 6 warnings / 0 error（既有）；`css-parse` 13 张 0 失败；原生 `<button>` 31 → 27（`SettingsView` 与 `kb-item-detail` 的按钮缺口清零）。
 
+### D18 专用盒子钮：不传 `size`，盒子留域内 CSS，选择器加重一层
+
+批次 2 剩下两枚「有按钮轮廓、但盒子不是三档之一」的控件：知识库错误横幅的「重试」（`.kb-error-retry`，1px destructive 描边、高约 20px）与知识库列表的竖排折叠把手（`.kb-list-toggle`，20×44、只有右侧圆角、贴左边缘）。
+
+决策：
+- 两者都换成 `variant="ghost"`；「重试」再传 `size="xs"`（22px 与 20px 视觉差可接受），把手**不传 `size`**，20×44 的盒子完全由 `kb.css` 决定。
+- 为了让域内规则稳定压过 `primitives.css` 的 `.btn[data-variant]`（同为 0,2,0），把选择器加重一层写成 `.kb-error-banner .kb-error-retry` / `.kb-detail .kb-list-toggle`。层叠顺序上 `kb.css` 晚于 `primitives.css`（`index.css` 最先、视图 CSS 随后），因此同特异性时域内胜出。
+- 这是「专用盒子」的通用写法，后续遇到非标准盒子的单点钮照此办理：`ghost` + 不传 size + 域内类保留盒子 + 选择器加重一层；真需要新档位时才扩 D9 表。
+
+验证：`tsc -b` exit 0；`oxlint` 3 文件 12 warnings / 0 error（既有 `set-state-in-effect`）；`css-parse` 13 张 0 失败；原生 `<button>` 27 → 22（`KbView` 两处、`undo-toast` 两处、`typo-popover` 一处清零）。未真机验证把手 20×44 与「重试」22px 的实际观感。
+
 ## Risks / Trade-offs
 
 - [radix 弹层默认行为与现有手写弹层不一致（关闭时机、滚动锁定、层级）] → 先在 `kb-folder-dialog` 一个点上做对照验证，确认后再批量；皮肤类保持不动，只换行为层。

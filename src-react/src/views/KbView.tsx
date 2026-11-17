@@ -1269,14 +1269,16 @@ export function KbView({ boot }: Props) {
             <div className="kb-error-banner" role="alert">
               <AlertTriangle size={13} className="kb-error-ico" aria-hidden="true" />
               <span className="kb-error-text">{loadError}</span>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="xs"
                 className="kb-error-retry"
                 onClick={() => void refresh()}
                 title="重新加载知识库"
               >
                 重试
-              </button>
+              </Button>
             </div>
           )}
           {/* 加载中轻提示：绝对定位、不占位，不清空/顶掉旧列表（#1 保存闪烁） */}
@@ -1334,14 +1336,15 @@ export function KbView({ boot }: Props) {
         {/* 右详情面板 */}
         <div className="kb-detail" ref={detailPaneRef}>
           {/* 折叠清单切换（常驻，未选中条目也可用） */}
-          <button
+          <Button
+            variant="ghost"
             className="kb-list-toggle"
             onClick={toggleList}
             title={listCollapsed ? '展开列表' : '收起列表'}
             aria-label={listCollapsed ? '展开列表' : '收起列表'}
           >
             {listCollapsed ? '⟩' : '⟨'}
-          </button>
+          </Button>
           {!selected && !loading && visibleItems.length > 0 && (
             <div className="kb-empty">选择一条知识查看详情</div>
           )}

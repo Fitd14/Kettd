@@ -93,7 +93,8 @@
 }
 
 /* 鎶樺彔鍒囨崲閽細璇︽儏闈㈡澘宸︾紭绔栨潯 */
-.kb-list-toggle {
+/* D9 补齐：竖排折叠把手是 20x44 的专用盒子，ghost 只给手感，盒子仍由本文件决定；选择器加重一层以压过 primitives 的变体规则 */
+.kb-detail .kb-list-toggle {
   position: absolute;
   left: 0;
   top: 0.5rem;
@@ -116,7 +117,7 @@
   z-index: 3;
 }
 
-.kb-list-toggle:hover {
+.kb-detail .kb-list-toggle:hover {
   color: hsl(var(--foreground));
   background: var(--muted, hsl(var(--muted)));
 }
@@ -534,7 +535,7 @@
 .kb-typo-measure { margin-top: 10px; }
 .kb-typo-measure-label { display: block; margin-bottom: 4px; font-size: var(--fs-sub); color: var(--ink-2); }
 .kb-typo-seg { display: flex; gap: 4px; }
-.kb-typo-seg-btn {
+.kb-typo-seg .kb-typo-seg-btn {
   flex: 1;
   height: 26px;
   border: 1px solid var(--line-warm);
@@ -544,8 +545,8 @@
   font-size: var(--fs-sub);
   cursor: pointer;
 }
-.kb-typo-seg-btn:hover { border-color: var(--seal-track); color: var(--ink-1); }
-.kb-typo-seg-btn.on { border-color: var(--seal-track); color: var(--seal-ink); background: hsl(var(--seal) / 0.07); }
+.kb-typo-seg .kb-typo-seg-btn:hover { border-color: var(--seal-track); color: var(--ink-1); }
+.kb-typo-seg .kb-typo-seg-btn[aria-pressed="true"] { border-color: var(--seal-track); color: var(--seal-ink); background: hsl(var(--seal) / 0.07); }
 .kb-typo-foot { margin: 8px 0 0; font-size: var(--fs-meta); color: var(--ink-3); }
 
 /* 分级滑块：刻度点即档位，指针只能落在点上（不会停在两档之间） */
@@ -1212,9 +1213,10 @@
   overflow-wrap: anywhere;
 }
 
-.kb-error-retry {
+.kb-error-banner .kb-error-retry {
   flex: none;
   align-self: center;
+  height: auto;
   padding: 1px 7px;
   border: 1px solid hsl(var(--destructive) / 0.4);
   border-radius: 4px;
@@ -1225,7 +1227,7 @@
   cursor: pointer;
 }
 
-.kb-error-retry:hover {
+.kb-error-banner .kb-error-retry:hover {
   background: hsl(var(--destructive) / 0.08);
 }
 

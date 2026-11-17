@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button'
 import { PopoverContent } from '@/components/ui/popover'
 import { StepSlider } from '@/components/ui/step-slider'
 import {
@@ -70,16 +71,18 @@ export function TypoPopover({ value, onChange }: Props) {
         <span className="kb-typo-measure-label">列宽</span>
         <div className="kb-typo-seg" role="group" aria-label="正文列宽上限">
           {READING_MEASURES.map((m) => (
-            <button
+            <Button
               key={m.key}
               type="button"
-              className={'kb-typo-seg-btn' + (m.key === measure.key ? ' on' : '')}
+              variant="ghost"
+              size="sm"
+              className="kb-typo-seg-btn"
               aria-pressed={m.key === measure.key}
               title={m.note}
               onClick={() => onChange({ readingMeasure: m.key })}
             >
               {m.label}
-            </button>
+            </Button>
           ))}
         </div>
       </div>

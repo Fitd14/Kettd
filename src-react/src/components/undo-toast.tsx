@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
 
 /**
  * 软删 10s 撤销链路的 UI 侧（PRD 6.6 / M2 底座）。
@@ -88,10 +89,10 @@ export function UndoToast({
         已删除「{state.title}」
       </span>
       {state.error && <span className="undo-err">{state.error}</span>}
-      <button className="undo-btn" onClick={onUndo}>
+      <Button variant="ghost" size="xs" className="undo-btn" onClick={onUndo}>
         撤销（{state.secondsLeft}s）
-      </button>
-      <button className="undo-x" aria-label="关闭" onClick={onDismiss}>✕</button>
+      </Button>
+      <Button variant="ghost" size="icon-xs" className="undo-x" aria-label="关闭" onClick={onDismiss}>✕</Button>
     </div>
   )
 }
