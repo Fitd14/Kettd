@@ -13,6 +13,7 @@ import { localToday } from '../kernel/time.js'
 import { nextReminderTime } from '../kernel/selectors.js'
 import { TimeText } from '@/components/time-text'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface Props {
   boot: Bootstrap
@@ -117,27 +118,14 @@ export function PlannedView({ boot, refresh }: Props) {
 
       {err && <div className="inline-err" role="alert">{err}</div>}
 
-      <div className="tabs" role="tablist" aria-label="计划分区">
-        <button
-          className={`tab${tab === 'plan' ? ' on' : ''}`}
-          role="tab"
-          aria-selected={tab === 'plan'}
-          onClick={() => setTab('plan')}
-        >
-          安排
-        </button>
-        <button
-          className={`tab${tab === 'remind' ? ' on' : ''}`}
-          role="tab"
-          aria-selected={tab === 'remind'}
-          onClick={() => setTab('remind')}
-        >
-          提醒
-        </button>
-      </div>
+      <Tabs className="tabs-root" value={tab} onValueChange={(v) => setTab(v as Tab)}>
+        <TabsList aria-label="计划分区">
+          <TabsTrigger value="plan">安排</TabsTrigger>
+          <TabsTrigger value="remind">提醒</TabsTrigger>
+        </TabsList>
 
-      {tab === 'remind' && (
-        <section className="section" aria-label="提醒">
+        <TabsContent value="remind" asChild>
+          <section className="section" aria-label="提醒">
           <div className="section-head"><b>提醒</b><span>到点弹系统通知</span></div>
           {activeReminders.map((r) => (
             <div key={r.id} className="trow" data-id={r.id}>
@@ -223,10 +211,10 @@ export function PlannedView({ boot, refresh }: Props) {
             </div>
           </details>
         </section>
-      )}
+        </TabsContent>
 
-      {tab === 'plan' && (
-        <section className="section" aria-label="安排">
+        <TabsContent value="plan" asChild>
+          <section className="section" aria-label="安排">
           <div className="section-head"><b>安排</b><span>{scheduled.length} 件</span></div>
           {byDay.length === 0 && <div className="empty">还没有带日期的任务。在任务详情里排期，或用行尾「排期…」。</div>}
           {byDay.map(([day, list]) => (
@@ -256,7 +244,8 @@ export function PlannedView({ boot, refresh }: Props) {
             </div>
           ))}
         </section>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

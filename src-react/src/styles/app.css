@@ -733,10 +733,17 @@ details.overdue[open] summary::before {
 .tab:hover {
   color: hsl(var(--foreground));
 }
-.tab.on {
+.tab.on,
+.tab[data-state="active"] {
   color: hsl(var(--foreground));
   font-weight: 600;
   border-bottom-color: hsl(var(--primary));
+}
+/* radix Tabs 的根节点：替代原来「tabs 与面板都是 .view 直接子元素」的层距 */
+.tabs-root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
 }
 .add-rem summary {
   cursor: pointer;
