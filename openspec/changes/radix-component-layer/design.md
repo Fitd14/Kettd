@@ -140,6 +140,16 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 验证：`node scripts/css-parse.mjs` → 13 张样式表 0 失败（`app.css 23805→13643` 字符、`primitives.css in=10895 out=7169`）；`node node_modules/typescript/bin/tsc -b` exit 0。视觉未真机核对（沙箱不能起 dev server），风险点是便签/悬浮/捕获三窗首次拿到 `.btn` 底座后与各自局部皮肤（`capture.css` 的 `.cap-frame .btn`、`sticky.css` 的 `.sticky-md-btn`）的叠放结果。
 
+### D16 深色浮动工具条用 `data-surface="bubble"`，不新增尺寸档
+
+编辑器选区气泡与表格气泡是深色底（`.kb-bubble` 背景 `#3a332e` 92%）、24px 高的紧凑按钮：图标钮 26px 宽、文字钮 `min-width:26px` + `padding:0 7px`、`--fs-meta` 字号，hover/按下用 `rgba(255,255,255,.16)`，删除表格用 `#f9edea` 文字 + `rgba(192,87,79,.55)` 底。它既不是 `.btn` 的三档尺寸（22/26/30），也不属于便签纸表面。
+
+决策：沿用 D9 的 surface 机制——容器加 `data-surface="bubble"`，每个按钮也带同名属性（气泡 portal 到 body，祖先选择器在 radix 的 portal 里不一定命中；两处都写才稳）。`primitives.css` 只加 `[data-surface="bubble"] .btn` 的颜色/圆角/高度覆盖，尺寸仍走 `size="icon-xs"` / `size="xs"`，不新增 `ButtonSize`。原 `.kb-bubble button` 与 `.kb-bubble-table button*` 共 6 条规则删除，容器与分隔条保留。
+
+同轮把链接编辑条的两枚 `.kb-link-inline-btn` 换 `ui/button`（`size="sm"`，移除用 `variant="danger"`），`.kb-link-inline-btn` 只留 `flex: 0 0 auto`。`ui/button` 同时补默认 `type="button"`（`asChild` 时不注入，避免覆盖子元素），此前迁移点都靠调用处显式传 `type`。
+
+验证：`tsc -b` exit 0；`oxlint src/rendering src/components/ui` 1 warning / 0 error（既有）；`css-parse` 13 张 0 失败；原生 `<button>` 42 → 31。
+
 ## Risks / Trade-offs
 
 - [radix 弹层默认行为与现有手写弹层不一致（关闭时机、滚动锁定、层级）] → 先在 `kb-folder-dialog` 一个点上做对照验证，确认后再批量；皮肤类保持不动，只换行为层。

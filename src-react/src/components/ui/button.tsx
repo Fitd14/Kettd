@@ -32,7 +32,7 @@ export type ButtonProps = React.ComponentProps<"button"> & {
 /**
  * 按钮唯一出口（openspec/radix-component-layer D9）。
  *
- * 外观全部由 `src-react/src/styles/app.css` 的 `.btn[data-variant]` / `.btn[data-size]`
+ * 外观全部由 `src-react/src/styles/primitives.css` 的 `.btn[data-variant]` / `.btn[data-size]`
  * 驱动，组件本身不拼 Tailwind 皮肤类：页面只给语义（变体 + 尺寸），
  * 像素、颜色、hover 与按下态集中在样式层，保证存量迁移后视觉零漂移。
  */
@@ -41,6 +41,7 @@ function Button({
   variant = "default",
   size = "sm",
   asChild = false,
+  type,
   ...props
 }: ButtonProps) {
   const Comp = asChild ? Slot.Root : "button"
@@ -51,6 +52,7 @@ function Button({
       data-variant={variant}
       data-size={size}
       className={cn("btn", className)}
+      {...(asChild ? null : { type: type ?? "button" })}
       {...props}
     />
   )

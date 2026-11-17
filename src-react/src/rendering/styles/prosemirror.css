@@ -406,19 +406,7 @@
   background: color-mix(in srgb, #3a332e 92%, transparent);
   box-shadow: 0 8px 24px -10px rgba(40,40,30,.45);
 }
-.kb-bubble button {
-  width: 26px; height: 24px; border: none; border-radius: 3px;
-  background: transparent; color: #fff; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.kb-bubble button:hover, .kb-bubble button.on { background: rgba(255,255,255,.16); }
-.kb-bubble-table button {
-  width: auto; min-width: 26px; padding: 0 7px;
-  font-size: var(--fs-meta); font-family: var(--font-ui);
-}
-.kb-bubble-table button.danger { color: #F9EDEA; }
-.kb-bubble-table button.danger:hover { background: rgba(192,87,79,.55); }
-.kb-bubble-table button:disabled { opacity: .35; cursor: not-allowed; }
+/* 气泡内的按钮改用 ui/button（data-surface="bubble"），尺寸与配色在 styles/primitives.css */
 .kb-bubble-sep { width: 1px; height: 14px; background: rgba(255,255,255,.25); margin: auto 4px; }
 
 /* 鈹€鈹€鈹€ 灞呬腑閾炬帴寮圭獥锛堢煡璇嗗簱璇︽儏涓庝究绛剧獥鍏辩敤锛宲ortal 鎸傚埌 body锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
@@ -461,22 +449,10 @@
   box-shadow: 0 0 0 2px hsl(var(--link) / 0.12);
 }
 
+/* 按钮外观改用 ui/button（size="sm"，移除为 variant="danger"），这里只留布局约束 */
 .kb-link-inline-btn {
   flex: 0 0 auto;
-  height: 26px;
-  padding: 0 9px;
-  border: 1px solid var(--line-warm, hsl(var(--muted-foreground) / 0.25));
-  border-radius: 4px;
-  background: transparent;
-  color: hsl(var(--foreground));
-  font-family: inherit;
-  font-size: var(--fs-sub);
-  line-height: 1;
-  cursor: pointer;
 }
-.kb-link-inline-btn:hover { background: hsl(var(--muted)); }
-.kb-link-inline-btn.danger { color: hsl(var(--destructive)); }
-.kb-link-inline-btn:focus-visible { outline: 1px solid hsl(var(--muted-foreground) / 0.4); outline-offset: 1px; }
 
 .kb-link-inline-err {
   flex: 1 1 100%;

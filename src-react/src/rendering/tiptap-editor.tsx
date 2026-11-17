@@ -1328,11 +1328,11 @@ export function TipTapEditor({
         options={BUBBLE_OPTIONS}
         shouldShow={shouldShowInlineBubble}
       >
-        <div className="kb-bubble">
-          <button type="button" className={flags.bold ? 'on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => chain().toggleBold().run()}><Bold size={13} strokeWidth={1.7} /></button>
-          <button type="button" className={flags.italic ? 'on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => chain().toggleItalic().run()}><Italic size={13} strokeWidth={1.7} /></button>
-          <button type="button" className={flags.code ? 'on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => chain().toggleCode().run()}><Code size={13} strokeWidth={1.7} /></button>
-          <button type="button" className={flags.strike ? 'on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => chain().toggleStrike().run()}><Strikethrough size={13} strokeWidth={1.7} /></button>
+        <div className="kb-bubble" data-surface="bubble">
+          <Button data-surface="bubble" size="icon-xs" aria-label="加粗" aria-pressed={flags.bold} onMouseDown={(e) => e.preventDefault()} onClick={() => chain().toggleBold().run()}><Bold size={13} strokeWidth={1.7} /></Button>
+          <Button data-surface="bubble" size="icon-xs" aria-label="斜体" aria-pressed={flags.italic} onMouseDown={(e) => e.preventDefault()} onClick={() => chain().toggleItalic().run()}><Italic size={13} strokeWidth={1.7} /></Button>
+          <Button data-surface="bubble" size="icon-xs" aria-label="行内代码" aria-pressed={flags.code} onMouseDown={(e) => e.preventDefault()} onClick={() => chain().toggleCode().run()}><Code size={13} strokeWidth={1.7} /></Button>
+          <Button data-surface="bubble" size="icon-xs" aria-label="删除线" aria-pressed={flags.strike} onMouseDown={(e) => e.preventDefault()} onClick={() => chain().toggleStrike().run()}><Strikethrough size={13} strokeWidth={1.7} /></Button>
         </div>
       </BubbleMenu>
 
@@ -1343,20 +1343,21 @@ export function TipTapEditor({
           options={BUBBLE_OPTIONS}
           shouldShow={shouldShowTableBubble}
         >
-          <div className="kb-bubble kb-bubble-table">
-            <button type="button" title="在下方插入行" onMouseDown={(e) => e.preventDefault()} onClick={() => chain().addRowAfter().run()}>+行</button>
-            <button
-              type="button"
+          <div className="kb-bubble kb-bubble-table" data-surface="bubble">
+            <Button data-surface="bubble" size="xs" title="在下方插入行" onMouseDown={(e) => e.preventDefault()} onClick={() => chain().addRowAfter().run()}>+行</Button>
+            <Button
+              data-surface="bubble"
+              size="xs"
               title={flags.tableHeader ? '表头行不可删除（删除会破坏 Markdown 表格结构）' : '删除当前行'}
               disabled={flags.tableHeader}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => { if (!flags.tableHeader) chain().deleteRow().run() }}
-            >−行</button>
+            >−行</Button>
             <span className="kb-bubble-sep" />
-            <button type="button" title="在右侧插入列" onMouseDown={(e) => e.preventDefault()} onClick={() => chain().addColumnAfter().run()}>+列</button>
-            <button type="button" title="删除当前列" onMouseDown={(e) => e.preventDefault()} onClick={() => chain().deleteColumn().run()}>−列</button>
+            <Button data-surface="bubble" size="xs" title="在右侧插入列" onMouseDown={(e) => e.preventDefault()} onClick={() => chain().addColumnAfter().run()}>+列</Button>
+            <Button data-surface="bubble" size="xs" title="删除当前列" onMouseDown={(e) => e.preventDefault()} onClick={() => chain().deleteColumn().run()}>−列</Button>
             <span className="kb-bubble-sep" />
-            <button type="button" className="danger" title="删除整张表格" onMouseDown={(e) => e.preventDefault()} onClick={() => chain().deleteTable().run()}>删表</button>
+            <Button data-surface="bubble" size="xs" variant="danger" title="删除整张表格" onMouseDown={(e) => e.preventDefault()} onClick={() => chain().deleteTable().run()}>删表</Button>
           </div>
         </BubbleMenu>
       )}

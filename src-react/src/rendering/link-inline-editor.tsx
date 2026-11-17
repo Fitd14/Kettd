@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 
@@ -103,22 +104,23 @@ export function LinkInlineEditor({ href, anchor, onSubmit, onRemove, onClose }: 
           submit()
         }}
       />
-      <button
-        type="button"
-        className="kb-link-inline-btn danger"
+      <Button
+        variant="danger"
+        size="sm"
+        className="kb-link-inline-btn"
         onMouseDown={(event) => event.preventDefault()}
         onClick={onRemove}
       >
         移除
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        size="sm"
         className="kb-link-inline-btn"
         onMouseDown={(event) => event.preventDefault()}
         onClick={onClose}
       >
         关闭
-      </button>
+      </Button>
       {error && <span className="kb-link-inline-err" role="alert">{error}</span>}
       </PopoverContent>
     </Popover>

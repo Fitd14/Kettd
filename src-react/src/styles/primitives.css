@@ -75,6 +75,25 @@
   color: var(--sticky-ink);
 }
 
+/* 编辑区深色浮动工具条（选区气泡 / 表格气泡）：只换色与盒子，尺寸仍由 data-size 决定。
+   来源：openspec/radix-component-layer D16。 */
+[data-surface="bubble"] .btn {
+  height: 24px;
+  border-color: transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #fff;
+  font-size: var(--fs-meta);
+}
+[data-surface="bubble"] .btn:hover,
+[data-surface="bubble"] .btn[aria-pressed="true"] { background: rgba(255, 255, 255, 0.16); color: #fff; }
+[data-surface="bubble"] .btn[data-size^="icon-"] { width: 26px; }
+[data-surface="bubble"] .btn[data-size="xs"] { width: auto; min-width: 26px; padding: 0 7px; }
+[data-surface="bubble"] .btn[data-variant="danger"] { color: #f9edea; border-color: transparent; }
+[data-surface="bubble"] .btn[data-variant="danger"]:hover { background: rgba(192, 87, 79, 0.55); }
+[data-surface="bubble"] .btn:disabled { opacity: 0.35; }
+[data-surface="bubble"] .btn:focus-visible { outline: 1px solid rgba(255, 255, 255, 0.6); outline-offset: 0; }
+
 :where(button, [tabindex]):focus-visible {
   outline: 2px solid hsl(var(--ring));
   outline-offset: 1px;
