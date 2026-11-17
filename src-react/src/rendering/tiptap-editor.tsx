@@ -5,8 +5,7 @@ import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import { TableWithAlignment } from './table-alignment'
-import { TableRow } from '@tiptap/extension-table-row'
+import { TableWithAlignment, TableRowWithHeight } from './table-alignment'
 import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
 import { TaskList } from '@tiptap/extension-task-list'
@@ -21,6 +20,7 @@ import {
   ListTodo, TextQuote, Code, Table as TableIcon, Link2, Minus, Pilcrow,
   Search, ChevronUp, ChevronDown, X, MoreHorizontal,
   Trash2, BetweenHorizontalEnd, BetweenVerticalEnd,
+  BetweenHorizontalStart, BetweenVerticalStart,
   TableRowsSplit, TableColumnsSplit,
 } from 'lucide-react'
 import { LinkInlineEditor } from './link-inline-editor'
@@ -242,14 +242,19 @@ function lastCellTextPos(editor: Editor): number | null {
  * 两个悬浮把手：表级（表格右上角外侧）与单元格级（当前单元格右下角内侧）。
  * - 表级：悬停/点击弹出「表格」面板 —— 删表 + 行列尺寸网格（点击一次把表格改成该尺寸）。
  *   面板默认贴在表格右上角右侧；右侧留白不足时 data-flip="left" 翻到左侧（不改正文宽度）。
- * - 单元格级：悬停/点击弹出「行列」面板 —— 插入/删除当前行与当前列；
+ * - 单元格级：悬停/点击弹出「行列」面板 —— 在当前行上/下插行、当前列左/右插列、删当前行/列；
  *   面板默认向下展开，贴近编辑区底部时 data-flip="up" 向上翻。
+ * - 每条表格行底边有一条透明的行高拖拽带（row-resize），拖动改该行高度，存在 tableRow 的
+ *   rowHeight attr 上（data-row-height + inline height），Markdown 不落盘。
  * 位置由 root 容器内的相对坐标决定（measure 在 selectionUpdate / resize / scroll / ResizeObserver 时重算）。
  */
 function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolean }) {
   const rootRef = useRef<HTMLDivElement | null>(null)
-  const [table, setTable] = useState<{ left: number; top: number; flip: boolean } | null>(null)
+  const tableElRef = useRef<HTMLTableElement | null>(null)
+  const dragRef = useRef<{ index: number; startY: number; startHeight: number } | null>(null)
+  const [table, setTable] = useState<{ left: number; top: number; flip: boolean; edgeLeft: number } | null>(null)
   const [cell, setCell] = useState<{ left: number; top: number; flipUp: boolean } | null>(null)
+  const [rowStrips, setRowStrips] = useState<{ index: number; top: number; height: number; width: number; left: number }[]>([])
   const [rows, setRows] = useState(0)
   const [cols, setCols] = useState(0)
   const [onHeader, setOnHeader] = useState(false)
@@ -275,8 +280,10 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
       const cellEl = (el?.closest('td, th') ?? null) as HTMLElement | null
       const tableEl = ((cellEl ?? el)?.closest('table') ?? null) as HTMLElement | null
       if (!tableEl) {
+        tableElRef.current = null
         setTable(null)
         setCell(null)
+        setRowStrips([])
         return
       }
       const t = tableEl.getBoundingClientRect()
@@ -285,17 +292,54 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
         setCell(null)
         return
       }
+      tableElRef.current = tableEl as HTMLTableElement
+      // 行高拖拽带只占表格左侧的行首槽位，不盖正文：表格贴左边时退化成 4px 贴边条
+      const edgeLeft = t.left - rootRect.left
+      const stripLeft = Math.max(0, edgeLeft - 16)
+      const stripWidth = edgeLeft >= 16 ? 20 : 4
+      const rowEls = Array.from((tableEl as HTMLTableElement).rows ?? [])
+      setRowStrips(
+        rowEls.map((rowEl, index) => {
+          const r = rowEl.getBoundingClientRect()
+          return {
+            index,
+            top: r.bottom - rootRect.top - 2,
+            height: r.height,
+            width: stripWidth,
+            left: stripLeft,
+          }
+        }),
+      )
       const tableNode = tableNodeAt(editor)
       if (tableNode) {
         setRows(tableNode.node.childCount)
         setCols(tableNode.node.firstChild?.childCount ?? 0)
       }
+      // createColGroup 恒渲染 colgroup（无 colwidth 时用 minWidth 兜底），不能拿它判断
+      // 「调过列宽没有」；只有首行单元格真带 colwidth 才把 table-layout 切成 fixed。
+      let sized = false
+      const headRow = tableNode?.node.firstChild ?? null
+      if (headRow) {
+        for (let i = 0; i < headRow.childCount; i += 1) {
+          const width = headRow.child(i).attrs.colwidth
+          if (Array.isArray(width) && width.some((v: unknown) => typeof v === 'number' && v > 0)) {
+            sized = true
+            break
+          }
+        }
+      }
+      tableEl.classList.toggle('kb-tbl-sized', sized)
       const handle = 18
       const panelW = 168
       const clamp = (v: number, max: number) => Math.min(Math.max(v, 0), Math.max(max, 0))
       const tableLeft = clamp(t.right - rootRect.left - 22, rootRect.width - handle)
       const tableTop = clamp(t.top - rootRect.top - 12, rootRect.height - handle)
-      setTable({ left: tableLeft, top: tableTop, flip: tableLeft + handle + 12 + panelW > rootRect.width })
+      setTable({
+        left: tableLeft,
+        top: tableTop,
+        flip: tableLeft + handle + 12 + panelW > rootRect.width,
+        edgeLeft: t.left - rootRect.left,
+      })
       if (!cellEl) {
         setCell(null)
         return
@@ -321,12 +365,14 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
     const resizeObserver = new ResizeObserver(measure)
     resizeObserver.observe(root)
     editor.on('selectionUpdate', onSelection)
+    editor.on('transaction', onSelection)
     window.addEventListener('resize', onResize)
     window.addEventListener('scroll', onScroll, true)
     return () => {
       cancelAnimationFrame(frame)
       resizeObserver.disconnect()
       editor.off('selectionUpdate', onSelection)
+      editor.off('transaction', onSelection)
       window.removeEventListener('resize', onResize)
       window.removeEventListener('scroll', onScroll, true)
     }
@@ -371,7 +417,9 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
     setHover(null)
   }
 
-  const cellActions = (action: 'addRow' | 'delRow' | 'addCol' | 'delCol') => {
+  type CellAction = 'addRowAfter' | 'addRowBefore' | 'delRow' | 'addColAfter' | 'addColBefore' | 'delCol'
+
+  const cellActions = (action: CellAction) => {
     const { from } = editor.state.selection
     const el = (() => {
       try {
@@ -381,17 +429,51 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
         return null
       }
     })()
-    const inCell = el?.closest('td, th')
-    if (inCell) {
-      const chain = editor.chain().focus()
-      if (action === 'addRow') chain.addRowAfter().run()
+    const chain = editor.chain().focus()
+    if (el?.closest('td, th')) {
+      if (action === 'addRowAfter') chain.addRowAfter().run()
+      if (action === 'addRowBefore') chain.addRowBefore().run()
       if (action === 'delRow') chain.deleteRow().run()
-      if (action === 'addCol') chain.addColumnAfter().run()
+      if (action === 'addColAfter') chain.addColumnAfter().run()
+      if (action === 'addColBefore') chain.addColumnBefore().run()
       if (action === 'delCol') chain.deleteColumn().run()
-    } else {
-      editAtTableEnd(action)
-    }
+    } else if (action === 'addRowAfter') editAtTableEnd('addRow')
+    else if (action === 'delRow') editAtTableEnd('delRow')
+    else if (action === 'addColAfter') editAtTableEnd('addCol')
+    else if (action === 'delCol') editAtTableEnd('delCol')
     setOpen(null)
+  }
+
+  const rowOfSelection = () => tableNodeAt(editor)
+
+  const startRowDrag = (event: React.PointerEvent<HTMLDivElement>, index: number) => {
+    const rowEl = tableElRef.current?.rows?.[index]
+    if (!rowEl) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragRef.current = { index, startY: event.clientY, startHeight: rowEl.getBoundingClientRect().height }
+  }
+
+  const moveRowDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (!drag) return
+    const found = rowOfSelection()
+    if (!found) return
+    const rowNode = found.node.child(drag.index)
+    if (!rowNode) return
+    const next = Math.round(Math.max(26, Math.min(480, drag.startHeight + (event.clientY - drag.startY))))
+    let pos = found.pos + 1
+    for (let i = 0; i < drag.index; i += 1) pos += found.node.child(i).nodeSize
+    const tr = editor.state.tr.setNodeMarkup(pos, undefined, { ...rowNode.attrs, rowHeight: next })
+    editor.view.dispatch(tr)
+  }
+
+  const endRowDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return
+    dragRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
   }
 
   const gridN = Math.min(8, Math.max(6, rows + 1, cols + 1))
@@ -486,9 +568,18 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
               <Button
                 variant="ghost"
                 size="icon-xs"
+                title="在上方插入行"
+                aria-label="在上方插入行"
+                onClick={() => cellActions('addRowBefore')}
+              >
+                <BetweenHorizontalStart size={13} strokeWidth={1.8} aria-hidden />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 title="在下方插入行"
                 aria-label="在下方插入行"
-                onClick={() => cellActions('addRow')}
+                onClick={() => cellActions('addRowAfter')}
               >
                 <BetweenHorizontalEnd size={13} strokeWidth={1.8} aria-hidden />
               </Button>
@@ -502,13 +593,23 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
               >
                 <TableRowsSplit size={13} strokeWidth={1.8} aria-hidden />
               </Button>
-              <span className="kb-tbl-sep" aria-hidden />
+            </div>
+            <div className="kb-tbl-row">
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="在左侧插入列"
+                aria-label="在左侧插入列"
+                onClick={() => cellActions('addColBefore')}
+              >
+                <BetweenVerticalStart size={13} strokeWidth={1.8} aria-hidden />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon-xs"
                 title="在右侧插入列"
                 aria-label="在右侧插入列"
-                onClick={() => cellActions('addCol')}
+                onClick={() => cellActions('addColAfter')}
               >
                 <BetweenVerticalEnd size={13} strokeWidth={1.8} aria-hidden />
               </Button>
@@ -525,6 +626,21 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
           </div>
         </div>
       ) : null}
+
+      {rowStrips.map((strip) => (
+        <div
+          key={strip.index}
+          className="kb-tbl-row-strip"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="调整行高"
+          style={{ left: strip.left, top: strip.top, width: strip.width }}
+          onPointerDown={(event) => startRowDrag(event, strip.index)}
+          onPointerMove={moveRowDrag}
+          onPointerUp={endRowDrag}
+          onPointerCancel={endRowDrag}
+        />
+      ))}
     </div>
   )
 }
@@ -945,7 +1061,7 @@ export function TipTapEditor({
       ...(allowImages ? [ImageExtension] : []),
       // 表格能力可关：便签窗只需纯文本 + 轻量格式（未加载则不可能出现表格节点）
       ...(allowTables
-        ? [TableWithAlignment.configure({ resizable: false }), TableRow, TableHeader, TableCell]
+        ? [TableWithAlignment.configure({ resizable: true }), TableRowWithHeight, TableHeader, TableCell]
         : []),
       // 文案随 props 变化但不重建扩展：Placeholder 支持函数形式，渲染时经 ref 取最新值
       Placeholder.configure({ placeholder: () => placeholderRef.current }),

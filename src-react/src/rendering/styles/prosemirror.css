@@ -459,6 +459,44 @@
   color: hsl(var(--muted-foreground));
   text-align: right;
 }
+
+/* 行高拖拽带：占表格左侧行首槽位（不盖正文），悬停显一条 seal 细线，拖动改该行高度 */
+.kb-tbl-row-strip {
+  position: absolute;
+  z-index: 44;
+  height: 6px;
+  pointer-events: auto;
+  cursor: row-resize;
+  background: transparent;
+  border-radius: 2px;
+}
+
+.kb-tbl-row-strip:hover,
+.kb-tbl-row-strip:active {
+  background: hsl(var(--seal) / 0.45);
+}
+
+/* 列宽拖拽：prosemirror-tables 在单元格右边界插 .column-resize-handle。
+   colgroup 恒存在（无 colwidth 时是 minWidth 兜底），所以用 measure 打的
+   .kb-tbl-sized 类判断——只有真调过列宽才切 fixed，初始观感不变。 */
+.kb-editor-content table.kb-tbl-sized {
+  table-layout: fixed;
+}
+
+.kb-editor-content.resize-cursor {
+  cursor: col-resize;
+}
+
+.kb-editor-content .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 5px;
+  border-radius: 2px;
+  background: hsl(var(--seal) / 0.45);
+  pointer-events: none;
+}
 /* 鈹€鈹€鈹€ 鍐欎綔鍖哄垪鍐呮孩鍑猴紙tasks 4.1锛夛細瀹借〃鏍?/ 闀夸覆鍦ㄦ鏂囧垪鍐呰嚜琛屾粴鍔ㄦ垨鎶樿锛?   涓嶆拺鐮磋鎯呴潰鏉匡紙鍒楀涓婇檺鐢?.kb-detail-inner 鐨?--kb-measure 鎺у埗锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 /* tiptap Table 榛樿 TableView 鐢熸垚 div.tableWrapper > table锛?   瀹借〃鍦ㄦ鏂囧垪鍐呮í鍚戞粴鍔紝璇︽儏闈㈡澘鏈韩涓嶅嚭鐜版í鍚戞粴鍔ㄦ潯銆?*/

@@ -29,7 +29,7 @@
  * - 性能：只在保存（800ms 防抖）时由 `getMarkdown()` 调用一次，不参与编辑期渲染。
  */
 
-import { Table } from '@tiptap/extension-table'
+import { Table, TableRow } from '@tiptap/extension-table'
 import type { MarkdownNodeSpec } from 'tiptap-markdown'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 
@@ -312,6 +312,33 @@ export const TableWithAlignment = Table.extend({
   addStorage() {
     return {
       markdown: tableMarkdownSpec,
+    }
+  },
+})
+
+/**
+ * 行高：在 `tableRow` 上加 `rowHeight` attr（px），渲染成 `data-row-height` + inline `height`。
+ *
+ * 只是视图态——Markdown 序列化不写行高（与 prosemirror-tables 的 `colwidth` 一样），
+ * 重新打开文档时回到内容自然高度；`default: null` 表示没调过。
+ */
+export const TableRowWithHeight = TableRow.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      rowHeight: {
+        default: null as number | null,
+        parseHTML: (element: HTMLElement) => {
+          const raw = element.getAttribute('data-row-height')
+          const value = raw ? Number.parseInt(raw, 10) : Number.NaN
+          return Number.isFinite(value) ? value : null
+        },
+        renderHTML: (attributes: Record<string, unknown>) => {
+          const height = attributes.rowHeight
+          if (typeof height !== 'number') return {}
+          return { 'data-row-height': String(height), style: `height:${height}px` }
+        },
+      },
     }
   },
 })
