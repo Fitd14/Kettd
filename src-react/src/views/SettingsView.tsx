@@ -848,7 +848,7 @@ export function SettingsView({ boot, refresh }: Props) {
           <div className="tiny text-muted">当前绑定：{hotkeys?.main ?? '未绑定'}（留空 = 解绑）</div>
         </span>
           <span className="row-flex">
-            <input className="input xs" value={mainCombo} onChange={(e) => setMainCombo(e.target.value)} aria-label="主界面热键" />
+            <Input size="xs" value={mainCombo} onChange={(e) => setMainCombo(e.target.value)} aria-label="主界面热键" />
             <Button size="xs" onClick={() => { void rebind('main') }}>换绑</Button>
           </span>
         </div>
@@ -858,7 +858,7 @@ export function SettingsView({ boot, refresh }: Props) {
           </div>
         </span>
           <span className="row-flex">
-            <input className="input xs" value={stickyCombo} onChange={(e) => setStickyCombo(e.target.value)} aria-label="新建便签热键" />
+            <Input size="xs" value={stickyCombo} onChange={(e) => setStickyCombo(e.target.value)} aria-label="新建便签热键" />
             <Button size="xs" onClick={() => { void rebind('sticky') }}>换绑</Button>
           </span>
         </div>
@@ -868,7 +868,7 @@ export function SettingsView({ boot, refresh }: Props) {
           </div>
         </span>
           <span className="row-flex">
-            <input className="input xs" value={todoCombo} onChange={(e) => setTodoCombo(e.target.value)} aria-label="待办悬浮窗热键" />
+            <Input size="xs" value={todoCombo} onChange={(e) => setTodoCombo(e.target.value)} aria-label="待办悬浮窗热键" />
             <Button size="xs" onClick={() => { void rebind('todo') }}>换绑</Button>
           </span>
         </div>
@@ -878,7 +878,7 @@ export function SettingsView({ boot, refresh }: Props) {
           </div>
         </span>
           <span className="row-flex">
-            <input className="input xs" value={kbCombo} onChange={(e) => setKbCombo(e.target.value)} aria-label="直达知识库热键" />
+            <Input size="xs" value={kbCombo} onChange={(e) => setKbCombo(e.target.value)} aria-label="直达知识库热键" />
             <Button size="xs" onClick={() => { void rebind('kb') }}>换绑</Button>
           </span>
         </div>

@@ -36,7 +36,8 @@
 
 ## 3. 输入框迁移（28 处）
 
-- [ ] 3.1 `views/` 14 处换成 `ui/input`，验证该目录 `<input` 计数为 0，设置页各输入框焦点环与禁用态不变
+- [ ] 3.1 `views/` 换成 `ui/input`，验证该目录 `<input` 计数为 0，设置页各输入框焦点环与禁用态不变
+  - 进度（2026-11-17）：`SettingsView` 4 个热键框、`InboxView` 批量排期日期、`TodayView` 快速记录、`StickyView` 便签搜索、`components/task-row.tsx` 排期日期已换；全仓 `<input>` 22 → 14（含 `ui/input.tsx` 自身 1 处），views 余 `SettingsView` 3、`PlannedView` 2
 - [ ] 3.2 `components/kb/` 6 处，验证计数为 0，附件选择器的复选框与搜索框行为不变
 - [ ] 3.3 `components/` 根 4 处，验证计数为 0
 - [ ] 3.4 `rendering/` 2、`todo/` 1、`capture/` 1 处，验证计数为 0，快速捕获回车入库仍可用

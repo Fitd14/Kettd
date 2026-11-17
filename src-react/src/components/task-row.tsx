@@ -2,7 +2,9 @@ import { useState } from 'react'
 import type { Task } from '@/lib/api'
 import { formatDue, getCategoryColor } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -166,9 +168,9 @@ export function TaskRow({
 
       {scheduling && (
         <span className="schedule-pop">
-          <input
+          <Input
             type="date"
-            className="input xs"
+            size="xs"
             value={scheduleValue}
             autoFocus
             onChange={(e) => setScheduleValue(e.target.value)}
@@ -177,7 +179,7 @@ export function TaskRow({
               if (e.key === 'Escape') setScheduling(false)
             }}
           />
-          <button className="btn xs outline" onClick={commitSchedule}>定</button>
+          <Button size="xs" onClick={commitSchedule}>定</Button>
         </span>
       )}
     </div>

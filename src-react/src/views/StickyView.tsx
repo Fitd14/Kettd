@@ -12,6 +12,7 @@ import {
 import type { StickyNoteItem } from '@/lib/api'
 import { stickyMatches } from '@/lib/sticky-filter'
 import { plainPreview } from '@/lib/sticky-text'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import './sticky-wall.css'
 
@@ -139,8 +140,7 @@ export function StickyView() {
         <div className="sticky-wall-toolbar">
           <label className="sticky-wall-search">
             <Search size={14} aria-hidden="true" />
-            <input
-              className="input"
+            <Input
               type="search"
               value={query}
               placeholder="搜索便签正文或知识标题"

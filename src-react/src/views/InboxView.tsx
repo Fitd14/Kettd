@@ -4,6 +4,7 @@ import { deleteTask, undoDelete, updateTask } from '@/lib/api'
 import { inboxGroups } from '../kernel/selectors.js'
 import { localToday } from '../kernel/time.js'
 import { TaskRow } from '@/components/task-row'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { TaskDetail } from '@/components/task-detail'
 import { useRowNav } from '@/lib/list-nav'
@@ -137,9 +138,9 @@ export function InboxView({ boot, refresh, undo }: Props) {
             <Button size="xs" onClick={() => { setBatchSchedule(true); setScheduleDate('') }}>排期…</Button>
           ) : (
             <span className="row-flex items-center gap-1.5">
-              <input
+              <Input
                 type="date"
-                className="input xs"
+                size="xs"
                 autoFocus
                 value={scheduleDate}
                 aria-label="批量排期到哪天"

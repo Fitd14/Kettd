@@ -6,6 +6,7 @@ import { localToday } from '../kernel/time.js'
 import { TaskRow } from '@/components/task-row'
 import { TaskDetail } from '@/components/task-detail'
 import { useRowNav } from '@/lib/list-nav'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import type { useUndoToast } from '@/components/undo-toast'
 
@@ -118,8 +119,9 @@ export function TodayView({ boot, refresh, undo }: Props) {
       </div>
 
       <form className="capture-bar" onSubmit={(e) => { e.preventDefault(); void captureCommit() }}>
-        <input
-          className="input sm grow"
+        <Input
+          size="sm"
+          className="grow"
           placeholder="记一条，回车放进今天"
           aria-label="记一条放进今天"
           value={capture}
