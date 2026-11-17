@@ -580,6 +580,31 @@ pub fn read_reading_theme(name: String) -> Result<String, String> {
   crate::infra::themes::read(&name)
 }
 
+// ---------------------------------------------------------------- 导出（knowledge-base/export）
+
+/// 把当前知识条目导出成 `.docx`。
+///
+/// 分工：前端把 `bodyMd` 解析成块模型，Rust 只负责生成 OOXML、组 ZIP 与落盘。
+/// 锁内只做三件事（校验可写、确认条目存在、取 assets 目录），生成与写盘都在锁外。
+#[tauri::command]
+pub fn export_kb_docx(
+  state: State<'_, Shared>,
+  item_id: String,
+  target_path: String,
+  blocks: Vec<crate::docx::model::ExportBlock>,
+) -> Result<String, String> {
+  let assets_dir = {
+    let store = lock(&state);
+    store.ensure_writable()?;
+    let exists = store.kb.iter().any(|item| item.id == item_id);
+    if !exists {
+      return Err("这篇文档已经不存在了".to_string());
+    }
+    store.assets_dir()
+  };
+  crate::docx::export_document(true, &blocks, &assets_dir, &target_path)
+}
+
 // ---------------------------------------------------------------- 便签（多便签 H1 · multi-sticky-spec）
 
 #[derive(serde::Serialize)]

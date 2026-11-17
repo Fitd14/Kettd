@@ -17,6 +17,7 @@ mod app;
 mod backup;
 mod commands;
 mod digest;
+mod docx;
 mod infra;
 mod kb;
 mod kb_errors;
@@ -156,6 +157,7 @@ fn main() {
       commands::save_reading_theme,
       commands::delete_reading_theme,
       commands::read_reading_theme,
+      commands::export_kb_docx,
       commands::add_task,
       commands::update_task,
       commands::toggle_task,

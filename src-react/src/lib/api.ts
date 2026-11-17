@@ -7,6 +7,7 @@
  */
 import { createEventBus } from '../kernel/event-bus.js'
 import { localToday, localNowHHMM, addDays, fullDueParts, WEEK_CN } from '../kernel/time.js'
+import type { ExportBlock } from './docx-blocks'
 
 export { localToday, localNowHHMM, addDays }
 
@@ -308,6 +309,19 @@ type TauriGlobal = {
   listen?: (name: string, handler: (ev: unknown) => void) => Promise<() => void>
   emit?: (name: string, payload?: unknown) => Promise<void>
   window?: { appWindow?: TauriWindowApi }
+  /** v1 原生保存/目录对话框（allowlist 全开）：返回 null 表示用户取消 */
+  dialog?: {
+    save?: (options: {
+      defaultPath?: string
+      filters?: { name: string; extensions: string[] }[]
+    }) => Promise<string | null>
+    open?: (options: { directory?: boolean }) => Promise<string | string[] | null>
+  }
+  /** v1 路径 API：取系统下载目录 / 文档目录，用来给保存对话框兜默认位置 */
+  path?: {
+    downloadDir?: () => Promise<string>
+    documentDir?: () => Promise<string>
+  }
 }
 
 /** 调用时惰性取桥（v2.2 加固）：__TAURI__ 注入晚于模块求值也能接上，不再信任加载时序 */
@@ -523,6 +537,57 @@ export const deleteKbItem = (id: string) => call<void>('delete_kb_item', { id })
  * 返回 **id 数组**（已按相关度排序），前端据此过滤并保留 rank 顺序；空查询返回全量（updatedAt 倒序）。
  */
 export const searchKb = (query?: string) => call<string[]>('search_kb', { query: query ?? null })
+
+/**
+ * 导出单篇知识条目为 Word（kb-export-word D3/D4）：
+ * blocks 为前端解析出的块模型，后端据此写 OOXML；targetPath 必须是绝对路径，
+ * 后端会校验父目录存在、必要时补 `.docx`、同目录临时文件再 rename。
+ * 返回最终落盘路径（用户可见提示直接用它）。
+ */
+export const exportKbItemDocx = (itemId: string, targetPath: string, blocks: ExportBlock[]) =>
+  call<string>('export_kb_docx', { itemId, targetPath, blocks })
+
+export interface ExportPathChoice {
+  /** 用户选定的绝对路径；取消时为 null */
+  path: string | null
+  /** 对话框本身打不开时的中文错误；取消不算错误 */
+  err: string | null
+}
+
+/** 把目录与文件名拼成绝对路径（Windows 反斜杠；目录尾分隔符先削掉） */
+function joinExportPath(dir: string, name: string): string {
+  return `${dir.replace(/[\\/]+$/, '')}\\${name}`
+}
+
+/**
+ * 让用户选导出落点（kb-export-word D3）：
+ * 默认位置取系统下载目录，失败退回文档目录；都没有就只给文件名、让用户在对话框里自己挑。
+ * 取消返回 path=null / err=null（调用方直接静默返回，不提示错误）。
+ */
+export async function pickExportPath(defaultName: string): Promise<ExportPathChoice> {
+  const T = tauriBridge()
+  const save = T.dialog?.save
+  if (typeof save !== 'function') return { path: null, err: '未连接桌面运行时，命令未执行' }
+  let dir: string | undefined
+  try {
+    dir = await T.path?.downloadDir?.()
+  } catch { dir = undefined }
+  if (!dir) {
+    try {
+      dir = await T.path?.documentDir?.()
+    } catch { dir = undefined }
+  }
+  const defaultPath = dir ? joinExportPath(dir, defaultName) : defaultName
+  try {
+    const picked = await save({
+      defaultPath,
+      filters: [{ name: 'Word 文档', extensions: ['docx'] }],
+    })
+    return { path: picked || null, err: null }
+  } catch {
+    return { path: null, err: '无法打开保存对话框' }
+  }
+}
 
 /* 知识库文件夹与备份（fix-known-defects 批次 4）：文件夹树 + notes.json 轮转备份 */
 export const listFolders = () => call<KbFolder[]>('list_folders')

@@ -1,8 +1,6 @@
 import { useMemo } from 'react'
-import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
-import { getRendererForLang, highlightCode } from './renderer-registry'
-import { resolveAssetUrl } from './asset-url'
+import { md } from './markdown'
 
 interface Props {
   /** Markdown 源文本 */
@@ -11,46 +9,9 @@ interface Props {
   className?: string
 }
 
-const md = new MarkdownIt({
-  html: false,    // 禁止原始 HTML（安全）
-  linkify: true,  // 自动链接 URL
-  breaks: true,   // 单换行→<br>
-})
-
-// 覆盖 fenced renderer：优先查 RendererRegistry，否则 highlight.js
-md.renderer.rules.fence = (tokens, idx) => {
-  const token = tokens[idx]
-  const info = token.info.trim().split(/\s+/)[0]
-  const code = token.content
-
-  // 1. 尝试注册表扩展（mermaid / chart 等——后续版本注册）
-  const extRenderer = getRendererForLang(info)
-  if (extRenderer) {
-    const html = extRenderer(code)
-    return `<pre class="kb-code-block kb-code-ext" data-lang="${info}">${html}</pre>`
-  }
-
-  // 2. 回落：highlight.js 语法高亮
-  const highlighted = highlightCode(code, info || undefined)
-  return `<pre class="kb-code-block hljs" data-lang="${info || 'auto'}"><code>${highlighted}</code></pre>`
-}
-
-// 表格：统一 class（kb-table）以便 CSS 美化（见 prosemirror.css）
-md.renderer.rules.table_open = () => '<table class="kb-table">\n'
-
-// 图片（D2）：正文只存 assets/<sha>.<ext> 相对引用，渲染时解析成 convertFileSrc 地址；
-// alt 沿用 markdown-it 默认口径（renderInlineAsText），data URL / 远程图原样不动。
-md.renderer.rules.image = (tokens, idx, options, env, self) => {
-  const token = tokens[idx]
-  const src = token.attrGet('src')
-  if (typeof src === 'string' && src) token.attrSet('src', resolveAssetUrl(src))
-  token.attrSet('alt', self.renderInlineAsText(token.children ?? [], options, env))
-  return self.renderToken(tokens, idx, options)
-}
-
 /**
  * 阅读态 Markdown→React 渲染器。
- * - markdown-it 转 HTML
+ * - markdown-it 转 HTML（实例与 renderer 覆盖在 `./markdown.ts`，与导出共用）
  * - DOMPurify 消毒（防 XSS；允许 data-lang 属性给代码块使用）
  * - 渲染内核复用：主窗 KB 视图 + 自由便签预览 + 知识便签阅读态
  */

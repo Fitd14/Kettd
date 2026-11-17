@@ -487,6 +487,23 @@
 
 .kb-strip-sep { width: 1px; height: 16px; margin: 0 4px; background: hsl(var(--muted-foreground) / 0.2); }
 
+/* 导出结果一行提示：路径可能很长，只占一行、超出省略，完整内容在 title 里 */
+.kb-strip-note {
+  max-width: 280px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-meta);
+  color: hsl(var(--muted-foreground));
+}
+
+/* 导出中：图标转起来（reduced-motion 下停下） */
+@keyframes kb-spin { to { transform: rotate(360deg); } }
+.spin { animation: kb-spin 0.9s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+}
+
 /* 排版弹层：挂在「排版」钮下方，宽度只够放两条滑块 */
 .kb-typo-pop {
   /* 定位由 radix Popover 的 popper 承担（portal 到 body），这里只管尺寸与纸面色。
