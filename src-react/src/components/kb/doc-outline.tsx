@@ -30,7 +30,6 @@ export function DocOutline({ items, active, onPick, variant = 'rail', onClose, h
         <div className="kb-outline-head">
           <span>大纲</span>
           <span className="kb-outline-head-right">
-            {items.length > 0 && <span className="kb-outline-count">{items.length}</span>}
             {onClose && (
               <Button size="icon-xs" onClick={onClose} aria-label="关闭大纲" title="关闭（Esc）">
                 <span aria-hidden="true">×</span>
