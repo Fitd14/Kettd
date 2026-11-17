@@ -1,7 +1,7 @@
 # 20261117-1500-be76-知识库文档导出-word-与-pdf: 知识库文档导出 Word 与 PDF
 
 - **Tags**: Word, PDF, 导出, 下载目录
-- **Status**: doing · 2026-11-17 15:40:28 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
+- **Status**: doing · 2026-11-17 16:26:46 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 - **Created**: 2026-11-17 15:00:34 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 
 <!-- Header lines are maintained by the script, fixed order: Tags → Status → Created → Sealed.
@@ -53,3 +53,4 @@
 - 2026-11-17 15:01:43 · claim · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · claimed → doing
 - 2026-11-17 15:03:53 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 可行性调研：crates.io 不可达且无 docx/pdf 缓存 crate，暂不能加依赖；Word 走手写 OOXML+ZIP，PDF 三选一（Edge headless / 等网络加 crate / 先只做 Word）；目录走 dialog.save 默认下载目录
 - 2026-11-17 15:40:28 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 实现完成：共享 MarkdownIt、块模型 18 项单测、详情页导出入口、Rust OOXML+store-only ZIP 34 项单测、export_kb_docx 契约四方同步 76、门禁 21 项全绿（logs/check-20261117-233944.log）；真机 5.2/5.3 待验
+- 2026-11-17 16:26:46 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · PDF 技术验证 spike 通过（分支 tauri-2-upgrade，提交 117a3ee）：不升 Tauri，仅用 webview2-com 0.39 + Windows 0.62，在独立窗口里 CreateCoreWebView2EnvironmentWithOptions → CreateCoreWebView2Controller → NavigateToString → ICoreWebView2_7::PrintToPdf(path, null, handler)，实际产出 %PDF-1.4、1 页、47191 字节、Skia/PDF m157。坑：user data 目录必须可写，放 %TEMP% 时 controller 创建报 0x8000FFFF 灾难性故障。
