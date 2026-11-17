@@ -99,7 +99,7 @@ radix 能力 SHALL 只从统一包 `radix-ui` 引入；MUST NOT 引入 `@radix-u
 
 ### Requirement: 按钮尺寸与变体统一
 
-`components/ui/button` SHALL 只暴露三档尺寸与五个变体：尺寸 `xs`（22px）/ `sm`（26px）/ `md`（30px），图标钮用同档位的 `icon-xs` / `icon-sm` / `icon-md`；变体 `default` / `primary` / `ghost` / `soft` / `danger`，按下态用 `aria-pressed` 表达而非新增类。页面 MUST NOT 为单处需要扩尺寸表或变体表，MUST NOT 使用未定义的按钮修饰类。
+`components/ui/button` SHALL 只暴露三档尺寸与五个变体：尺寸 `xs`（22px）/ `sm`（26px）/ `md`（30px），图标钮用同档位的 `icon-xs` / `icon-sm` / `icon-md`；变体 `default` / `primary` / `ghost` / `soft` / `danger`，按下态用 `aria-pressed` 表达而非新增类。另有一个不成档的 `bare` 变体，只清盒子（无边框、无底色、无内边距），专供 chip 内部的文字与 × 钮，颜色和宽度仍由所在域的类决定；页面 MUST NOT 用 `bare` 给普通按钮去描边。页面 MUST NOT 为单处需要扩尺寸表或变体表，MUST NOT 使用未定义的按钮修饰类。
 
 #### Scenario: 页面需要次操作按钮
 

@@ -446,14 +446,15 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
               {item.tags?.map((t) => (
                 <span key={t} className="kb-tag-chip">
                   {t}
-                  <button
+                  <Button
+                    variant="bare"
                     className="kb-tag-x"
                     title="删除标签"
                     aria-label={`删除标签 ${t}`}
                     onClick={() => { void saveTags(item.tags.filter((x) => x !== t)) }}
                   >
                     <X size={10} strokeWidth={2} />
-                  </button>
+                  </Button>
                 </span>
               ))}
               {tagEditing ? (
@@ -471,9 +472,9 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
                   }}
                 />
               ) : (
-                <button className="kb-tag-add" onClick={() => setTagEditing(true)}>
+                <Button variant="ghost" size="xs" className="kb-tag-add" onClick={() => setTagEditing(true)}>
                   <Plus size={11} strokeWidth={1.7} /> 标签
-                </button>
+                </Button>
               )}
             </div>
 

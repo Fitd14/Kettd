@@ -649,22 +649,24 @@ export function SettingsView({ boot, refresh }: Props) {
             <div className="font-list">
               {fonts.map((f) => (
                 <span key={f.name} className={`font-chip ${s.readingFont === `file:${f.name}` ? 'on' : ''}`}>
-                  <button
+                  <Button
+                    variant="bare"
                     className="font-chip-name"
                     title={f.name}
                     onClick={() => { void chooseFont(`file:${f.name}`) }}
                   >
                     {f.name}
-                  </button>
+                  </Button>
                   <span className="font-chip-size mono">{f.sizeKb} KB</span>
-                  <button
+                  <Button
+                    variant="bare"
                     className="font-chip-del"
                     aria-label={`删除 ${f.name}`}
                     disabled={fontBusy}
                     onClick={() => { void removeFont(f.name) }}
                   >
                     ×
-                  </button>
+                  </Button>
                 </span>
               ))}
             </div>

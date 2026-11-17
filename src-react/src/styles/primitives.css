@@ -67,6 +67,21 @@
 .btn[aria-pressed="true"] { background: hsl(var(--primary) / 0.1); color: hsl(var(--foreground)); border-color: transparent; }
 .btn[aria-pressed="true"]:hover { background: hsl(var(--primary) / 0.16); }
 
+/* bare：无外观的内联钮（chip 内文字 / × / 标签增删）。只清盒子，颜色与宽度仍归域内类
+   （openspec/radix-component-layer D17）。 */
+.btn[data-variant="bare"] {
+  height: auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  line-height: 1;
+  white-space: normal;
+}
+.btn[data-variant="bare"]:hover { background: transparent; }
+.btn[data-variant="bare"]:active { transform: none; }
+
 /* 便签纸表面：只换色，不改尺寸与圆角（便签窗同样加载本文件，无需在窗内重复声明） */
 [data-surface="sticky"] .btn[data-variant="ghost"] { color: var(--sticky-muted); }
 [data-surface="sticky"] .btn[data-variant="ghost"]:hover { background: hsl(0 0% 50% / 0.14); color: var(--sticky-ink); }

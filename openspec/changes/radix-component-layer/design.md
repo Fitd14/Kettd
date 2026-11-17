@@ -150,6 +150,16 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 验证：`tsc -b` exit 0；`oxlint src/rendering src/components/ui` 1 warning / 0 error（既有）；`css-parse` 13 张 0 失败；原生 `<button>` 42 → 31。
 
+### D17 chip 内嵌钮用 `variant="bare"`，不新增尺寸档
+
+字体 chip 里的文件名（`.font-chip-name`，省略号文本）、删除 ×（`.font-chip-del`）、标签 chip 的 ×（`.kb-tag-x`）都是「无边框、无底色、无内边距、字号由所在 chip 决定」的内联钮，A 型 `.btn` 的三档尺寸都不适用（chip 高度只有 18–20px），但它们确实是控件，不能继续按 D12 留在原生。
+
+决策：新增不成档的 `bare` 变体，只清盒子——`height:auto`、`min-width:0`、`padding:0`、`border:0`、`border-radius:0`、`background:transparent`、`line-height:1`、`:hover` 不回填底色、`:active` 不位移；**不设 color / font-size**，以免压过域内类（`.font-chip-name` 的 `--fs-meta`、`.kb-tag-x` 的 `--ink-3`）。宽度、省略号、hover 变色仍留在 `settings-font.css` / `kb.css`，等批次 5 收口时再判断是否并入原语。
+
+同一轮把 `.kb-tag-add`（虚线边框的「+ 标签」）按常规映射换成 `variant="ghost" size="xs"`，虚线边框由域内类保留（同特异性、`kb.css` 晚于 `primitives.css` 加载）。
+
+验证：`tsc -b` exit 0；`oxlint` 11 文件 6 warnings / 0 error（既有）；`css-parse` 13 张 0 失败；原生 `<button>` 31 → 27（`SettingsView` 与 `kb-item-detail` 的按钮缺口清零）。
+
 ## Risks / Trade-offs
 
 - [radix 弹层默认行为与现有手写弹层不一致（关闭时机、滚动锁定、层级）] → 先在 `kb-folder-dialog` 一个点上做对照验证，确认后再批量；皮肤类保持不动，只换行为层。

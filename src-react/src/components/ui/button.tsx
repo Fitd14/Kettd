@@ -3,13 +3,14 @@ import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
-/** 变体：default / primary / ghost / soft / danger，外加标题栏关闭键 window-close */
+/** 变体：default / primary / ghost / soft / danger / bare，外加标题栏关闭键 window-close */
 export type ButtonVariant =
   | "default"
   | "primary"
   | "ghost"
   | "soft"
   | "danger"
+  | "bare"
   | "window-close"
 
 /** 尺寸阶梯：xs 22 · sm 26 · md 30；图标钮同档；window / caret 是两个特例 */
