@@ -12,6 +12,7 @@ import {
 import type { StickyNoteItem } from '@/lib/api'
 import { stickyMatches } from '@/lib/sticky-filter'
 import { plainPreview } from '@/lib/sticky-text'
+import { Button } from '@/components/ui/button'
 import './sticky-wall.css'
 
 /** 可见性兼容读取：旧数据 / 旧桥接可能缺 visible 字段，缺失按「可见」（对齐 models.rs 默认值） */
@@ -126,14 +127,14 @@ export function StickyView() {
             <div className="view-title">便签</div>
             <div className="view-sub">可见 {visibleCount}/5 · 隐藏 {hiddenCount}</div>
           </div>
-          <button
-            className="btn sm"
+          <Button
+            size="sm"
             onClick={() => { void doCreate() }}
             disabled={creating}
           >
             <Plus size={14} aria-hidden="true" />
             {creating ? '新建中…' : '新建便签'}
-          </button>
+          </Button>
         </div>
         <div className="sticky-wall-toolbar">
           <label className="sticky-wall-search">
@@ -148,7 +149,7 @@ export function StickyView() {
             />
           </label>
           {query.trim().length > 0 && (
-            <button className="btn ghost xs" onClick={() => setQuery('')}>清空搜索</button>
+            <Button variant="ghost" size="xs" onClick={() => setQuery('')}>清空搜索</Button>
           )}
         </div>
         {error && <div className="inline-err" role="alert">{error}</div>}
@@ -158,15 +159,15 @@ export function StickyView() {
         <div className="empty">
           <div>还没有便签</div>
           <div className="tiny text-muted">随手记一张纸，常驻置顶；关闭只是隐藏，删除才不可恢复。</div>
-          <button className="btn sm" onClick={() => { void doCreate() }} disabled={creating}>
+          <Button size="sm" onClick={() => { void doCreate() }} disabled={creating}>
             新建第一张便签
-          </button>
+          </Button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="empty">
           <div>没有匹配的便签</div>
           <div className="tiny text-muted">换个关键词试试，或清空搜索。</div>
-          <button className="btn sm" onClick={() => setQuery('')}>清空搜索</button>
+          <Button size="sm" onClick={() => setQuery('')}>清空搜索</Button>
         </div>
       ) : (
         <ul className="sticky-wall-grid" aria-label="便签卡片">
@@ -200,22 +201,22 @@ export function StickyView() {
                 <div className="sticky-card-actions">
                   {confirmDel === st.id ? (
                     <>
-                      <button className="btn xs danger" onClick={() => { void doDelete(st) }}>
+                      <Button variant="danger" size="xs" onClick={() => { void doDelete(st) }}>
                         确认删除
-                      </button>
-                      <button className="btn ghost xs" onClick={() => setConfirmDel(null)}>取消</button>
+                      </Button>
+                      <Button variant="ghost" size="xs" onClick={() => setConfirmDel(null)}>取消</Button>
                     </>
                   ) : (
                     <>
-                      <button
-                        className="btn xs"
+                      <Button
+                        size="xs"
                         onClick={() => { void doOpen(st) }}
                         disabled={busyId === st.id}
                         aria-label={`打开便签：${preview}`}
                       >
                         {busyId === st.id ? '打开中…' : '打开'}
-                      </button>
-                      <button className="btn ghost xs" onClick={() => setConfirmDel(st.id)}>删除</button>
+                      </Button>
+                      <Button variant="ghost" size="xs" onClick={() => setConfirmDel(st.id)}>删除</Button>
                     </>
                   )}
                 </div>

@@ -39,6 +39,7 @@ import { KbItemDetail } from '@/components/kb/kb-item-detail'
 import { KbFolderDialog } from '@/components/kb/kb-folder-dialog'
 import { KbFileTree, KbFlatResults } from '@/components/kb/kb-tree'
 import { KbContextMenu } from '@/components/kb/kb-context-menu'
+import { Button } from '@/components/ui/button'
 import type { KbMenuItem } from '@/components/kb/kb-context-menu'
 import {
   applyFolderDropLocally,
@@ -1351,12 +1352,13 @@ export function KbView({ boot }: Props) {
           {selected && !selectedBodyReady && bodyLoadError && (
             <div className="kb-empty">
               正文加载失败：{bodyLoadError}
-              <button
-                className="btn xs ghost"
+              <Button
+                variant="ghost"
+                size="xs"
                 onClick={() => { setBodyLoadError(null); setBodyEpoch((n) => n + 1) }}
               >
                 重试
-              </button>
+              </Button>
             </div>
           )}
           {selected && selectedBodyReady && (

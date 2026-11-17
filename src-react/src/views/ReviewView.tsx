@@ -3,6 +3,7 @@ import type { Bootstrap, Task } from '@/lib/api'
 import { exportWeekly, trackEvent } from '@/lib/api'
 import { TaskDetail } from '@/components/task-detail'
 import { CompletionTimeline } from '@/components/completion-timeline'
+import { Button } from '@/components/ui/button'
 
 interface Props {
   boot: Bootstrap
@@ -149,7 +150,7 @@ export function ReviewView({ boot }: Props) {
         <section className="section" aria-label={`${drill} 的完成`}>
           <div className="section-head">
             <b>{drill} 完成 {byDay.get(drill)?.length ?? 0} 件</b>
-            <button className="btn ghost xs" onClick={() => setDrill(null)}>收起</button>
+            <Button variant="ghost" size="xs" onClick={() => setDrill(null)}>收起</Button>
           </div>
           {(byDay.get(drill) ?? []).map((t) => (
             <div key={t.id} className="trow">
@@ -184,8 +185,8 @@ export function ReviewView({ boot }: Props) {
         <p className="tiny text-muted">
           把本周完成/顺延整理成周报底稿（md），条目可勾选删改后交付——完成的不蒸发。
         </p>
-        <button
-          className="btn xs outline"
+        <Button
+          size="xs"
           onClick={() => {
             void (async () => {
               const r = await exportWeekly({ week: 'current', format: 'md' })
@@ -194,7 +195,7 @@ export function ReviewView({ boot }: Props) {
           }}
         >
           生成并导出本周汇总（md）
-        </button>
+        </Button>
         {weeklyMsg && <div className="tiny" style={{ marginTop: 6 }}>{weeklyMsg}</div>}
       </details>
 

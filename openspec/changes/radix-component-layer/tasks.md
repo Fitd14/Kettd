@@ -26,7 +26,8 @@
 每批以 `grep -c '<button'` 归零为完成标准；每改一个文件跑一次 `npx tsc -b`。选哪个 `variant` / `size` 一律照 D9 原型的映射表，遇到映射表没有的写法先补表再改代码，不在页面里就地发明尺寸。
 
 - [ ] 2.1 `views/` 71 处全部换成 `ui/button`，验证该目录 `<button` 计数为 0，且 `SettingsView`、`PlannedView` 两个最重的页面在真机上按钮布局无位移
-  - 进度（2026-11-17）：`PlannedView` 7 + `InboxView` 6 + `SettingsView` 31 已换；`views/` 原生 `<button` 余 20（StickyView 8 / ReviewView 4 / TodayView 3 / KbView 3 / SettingsView 2 个 chip 文字钮见 D9 映射缺口），全仓余 109
+  - 进度（2026-11-17）：`PlannedView` 7 + `InboxView` 6 + `SettingsView` 31 + `StickyView` 8 + `TodayView` 3 + `ReviewView` 2 + `KbView` 1 已换；`views/` 原生 `<button` 余 6，全仓余 95
+  - 余 6 处均卡在映射缺口，非漏改：`SettingsView` 2（font-chip 文字钮）、`KbView` 2（`kb-error-retry`、`kb-list-toggle` 单点专用钮）、`ReviewView` 2（周期 tab 归 4.3、热力图 `heat-cell` 单点专用钮）。补齐 D9 口径后 2.1 才能归零
 - [ ] 2.2 `components/kb/` 32 处，验证该目录计数为 0，知识库列表 hover 浮起与工具栏图标钮尺寸不变
 - [ ] 2.3 `rendering/` 19 处，验证该目录计数为 0；`tiptap-editor.tsx:1311` 起的工具条按钮保留 `onMouseDown` + `preventDefault`，点按钮后编辑器保持焦点、选区不丢
 - [ ] 2.4 `components/` 根 19 处，验证该目录计数为 0，任务行与快捷键提示的按钮样式不变

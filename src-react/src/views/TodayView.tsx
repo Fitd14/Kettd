@@ -6,6 +6,7 @@ import { localToday } from '../kernel/time.js'
 import { TaskRow } from '@/components/task-row'
 import { TaskDetail } from '@/components/task-detail'
 import { useRowNav } from '@/lib/list-nav'
+import { Button } from '@/components/ui/button'
 import type { useUndoToast } from '@/components/undo-toast'
 
 interface Props {
@@ -124,7 +125,7 @@ export function TodayView({ boot, refresh, undo }: Props) {
           value={capture}
           onChange={(e) => setCapture(e.target.value)}
         />
-        <button className="btn xs outline" type="submit" disabled={!capture.trim()}>记下</button>
+        <Button size="xs" type="submit" disabled={!capture.trim()}>记下</Button>
       </form>
 
       {saveErr && <div className="inline-err" role="alert">{saveErr}</div>}
@@ -185,8 +186,8 @@ export function TodayView({ boot, refresh, undo }: Props) {
                 />
                 {overdueOpen && (
                   <div style={{ margin: '0 0 4px 30px' }}>
-                    <button className="btn ghost xs" onClick={() => { void rescheduleOverdue(t.id) }}>改到今天 18:00 前</button>
-                    <button className="btn ghost xs" onClick={() => { void planToday(t.id) }}>移今天</button>
+                    <Button variant="ghost" size="xs" onClick={() => { void rescheduleOverdue(t.id) }}>改到今天 18:00 前</Button>
+                    <Button variant="ghost" size="xs" onClick={() => { void planToday(t.id) }}>移今天</Button>
                   </div>
                 )}
               </div>
