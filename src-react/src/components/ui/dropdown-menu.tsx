@@ -7,6 +7,7 @@ const DropdownMenu = RadixDropdownMenu.Root
 const DropdownMenuTrigger = RadixDropdownMenu.Trigger
 const DropdownMenuGroup = RadixDropdownMenu.Group
 const DropdownMenuLabel = RadixDropdownMenu.Label
+const DropdownMenuSub = RadixDropdownMenu.Sub
 
 export type DropdownMenuItemProps = React.ComponentProps<typeof RadixDropdownMenu.Item> & {
   variant?: "default" | "danger"
@@ -53,6 +54,34 @@ function DropdownMenuSeparator({
   )
 }
 
+function DropdownMenuSubTrigger({
+  className,
+  ...props
+}: React.ComponentProps<typeof RadixDropdownMenu.SubTrigger>) {
+  return (
+    <RadixDropdownMenu.SubTrigger
+      data-slot="dropdown-menu-sub-trigger"
+      className={cn("dropdown-menu-item dropdown-menu-sub-trigger", className)}
+      {...props}
+    />
+  )
+}
+
+function DropdownMenuSubContent({
+  className,
+  ...props
+}: React.ComponentProps<typeof RadixDropdownMenu.SubContent>) {
+  return (
+    <RadixDropdownMenu.Portal>
+      <RadixDropdownMenu.SubContent
+        data-slot="dropdown-menu-sub-content"
+        className={cn("dropdown-menu dropdown-menu-sub", className)}
+        {...props}
+      />
+    </RadixDropdownMenu.Portal>
+  )
+}
+
 /**
  * 下拉菜单唯一出口（openspec/radix-component-layer 1.6）。
  *
@@ -67,4 +96,7 @@ export {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 }

@@ -100,6 +100,8 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 **替代方案**：本轮硬迁 `kb-context-menu`（否决 —— 一次改动同时触及右键分区、子菜单定位与删除确认，且无法在本轮做真机键盘验收）。
 
+**落地修正（2026-11-17）**：4.2 没有按原计划让四类区域各自包 `ContextMenu.Trigger`——那样每个区域都要复制一份「右键时该给哪些项」的组装逻辑，而 KbView 已在一处按 `menu.kind` 组装好了。改成保持 `KbContextMenu({ x, y, items, onClose })` 的调用契约，内部用 `DropdownMenu` + 1×1 隐形锚点（`position:fixed`，落在坐标上）定位：坐标仍由调用方的 `contextmenu` 事件给出，视口翻转、方向键、子菜单全部交给 radix。删除确认也维持「菜单保持打开 + 父级换文案重渲染」，用 `onSelect` 里 `preventDefault` 挡住 radix 的默认关闭，没有引入 dialog。代价是 `onSelect` 后焦点仍可能落回内容层，与改造前一致。
+
 ### D11 Popover 只做内容层，portal 后按同名变量重新映射纸面令牌
 
 排版弹层原来自己管两件事：面板长什么样，以及「什么时候关」（`open` 由 `kb-item-detail` 的 `typoOpen` 维护，面板内部再挂捕获阶段的 `mousedown` / `keydown`）。radix `Popover` 把这两件事绑在 `Root` + `Trigger` + `Content` 三个部件上，`Content` 不能单独拥有开关状态。
@@ -112,7 +114,7 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 ### D12 整行可点击的列表/树/菜单行不迁 `ui/button`
 
-清点 `components/kb/` 的 13 个原生按钮时发现，其中 10 个是**整行命中**的容器：`kb-tree-item`（知识树行）、`kb-folder-row`（文件夹行，4 处）、`kb-folder-caret`（折叠箭头所在的整行按钮）、`kb-item-row kb-flat-row`（扁平结果行）、`kb-context-menu-item`（右键菜单项）、`kb-tag-chip`（标签筛选 chip）、`kb-pin-row`（置顶列表行：`min-height:26px`、`padding:.2rem .35rem`、`text-align:left`，点整行跳转）。另 `views/ReviewView.tsx:136` 的 `heat-cell` 是周回顾热力格子（`lv-${level}` 决定底色、点格子下钻），同属整格命中。它们的外观、行高、hover 与缩进全部由行容器类决定，本身没有按钮轮廓。
+清点 `components/kb/` 的 13 个原生按钮时发现，其中 10 个是**整行命中**的容器：`kb-tree-item`（知识树行）、`kb-folder-row`（文件夹行，4 处）、`kb-folder-caret`（折叠箭头所在的整行按钮）、`kb-item-row kb-flat-row`（扁平结果行）、`kb-tag-chip`（标签筛选 chip）、`kb-pin-row`（置顶列表行：`min-height:26px`、`padding:.2rem .35rem`、`text-align:left`，点整行跳转）。另 `views/ReviewView.tsx:136` 的 `heat-cell` 是周回顾热力格子（`lv-${level}` 决定底色、点格子下钻），同属整格命中。它们的外观、行高、hover 与缩进全部由行容器类决定，本身没有按钮轮廓。
 
 **决策**：这类行保留原生 `<button>`，只把**控制钮**迁到 `ui/button`——即带 `.btn*` 的普通按钮，以及 D9 映射表里明确列出的图标钮（`kb-folder-add` / `kb-folder-action` / `kb-tag-x` / `kb-strip-btn` / `kb-find-btn`）。理由：`ui/button` 会带上 `.btn` 的 `border` / `padding` / `height`，塞进行布局会破坏行高与缩进；且行的可访问语义来自行本身（`aria-current`、`aria-selected`、`role="option"`），套按钮原语反而把两层语义叠在一起。判定口径：**看外观**——有按钮轮廓的迁，整行即命中区域的留。
 

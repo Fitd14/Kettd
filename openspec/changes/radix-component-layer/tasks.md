@@ -50,14 +50,16 @@
 - [ ] 4.1 剩余手写 dialog 换成原语：`components/task-detail.tsx:50`、`views/SettingsView.tsx:167` 换 `ui/dialog`；`rendering/link-inline-editor.tsx:90` 是贴链接的浮条，换 `ui/popover`（`bare`，不叠 `.popover` 皮肤）；`components/kb/kb-item-detail.tsx:505` 按 D14 暂留。验证都能 `Esc` 关闭且焦点归还，链接内联编辑的选区不被浮层打开动作清掉
   - 进度（2026-11-17）：三处已换。`task-detail` 删掉自建遮罩/监听 Esc/首帧聚焦，改 `data-align="top"` 保持顶部 48px 对齐（`app.css` 补 `.dialog-content[data-align="top"]` 与淡入）；`SettingsView` 的 `ImportPreviewDialog` 删掉 `createPortal`、捕获阶段 Esc、Tab 首尾循环，`applying` 时用 `onEscapeKeyDown` / `onPointerDownOutside` 拦关闭；`link-inline-editor` 改 `Popover` + `PopoverAnchor`（锚在链接底边 1×1），手动视口夹取改由 radix 碰撞检测负责，`onOpenAutoFocus` / `onCloseAutoFocus` 都 `preventDefault` 以保选区，3 秒宽限走 `onPointerDownOutside`
   - 未验证：三处的焦点归还与 Esc 时序未在真机上按过（沙箱限制同前）；`DialogContent` 的 `aria-describedby={undefined}` 只在 `task-detail` 用（标题走 `DialogTitle asChild`）
-- [ ] 4.2 按 D10 迁移 `components/kb/kb-context-menu.tsx`：四类右键区域（文件夹 / 条目 / 空白 / 输入框）改 `ui/context-menu` 的 `Trigger` 包裹，子菜单「移动到…」用 `Sub` / `SubTrigger` / `SubContent`，删除的「第一次确认、3 秒回退」改由 `ui/dialog` 或 `ui/popover` 承载，菜单本身回到选中即关；验证四类区域、子菜单与六条键盘路径
+- [ ] 4.2 迁移 `components/kb/kb-context-menu.tsx`（按 D10 的落地修正）：保留 `{x,y,items,onClose}` 契约，内部改 `DropdownMenu` + 1×1 隐形锚点，子菜单「移动到…」用 `Sub` / `SubTrigger` / `SubContent`，`onSelect` 里 `preventDefault` 让「第一次确认、3 秒回退」继续靠父级换文案；验证四类区域（文件夹 / 条目 / 空白 / 输入框）、子菜单与键盘路径
+  - 进度（2026-11-17）：`kb-context-menu.tsx` 429 → 152 行，删掉自建 portal、量宽高 clamp、↑↓/←→/Enter/Tab 循环与层路径 anchor 表；`ui/dropdown-menu.tsx` 补 `DropdownMenuSub` / `SubTrigger` / `SubContent`；`kb.css` 把 `.kb-context-menu-item:hover/.is-*` 改成 `[data-highlighted]` / `[data-state="open"]`，删 `.kb-context-menu-root` / `-slot` / `-arrow`
+  - 未验证：四类右键区域与子菜单悬停、点外关闭未真机按过；radix 子菜单悬停有 100ms 延迟（旧实现即时）
 - [x] 4.3 `views/ReviewView.tsx:121` 换成 `ui/tabs`，验证切换后 KPI 区与列表同步刷新
   - 已落地：`<Tabs value={range} onValueChange={(v) => setRange(v as Range)}>` + `<TabsList aria-label="统计周期">`，三个 `<TabsTrigger value>` 沿用 `.tab`，激活态由 `data-state="active"` 表达（`app.css` 的 `.tab.on` 保留到 5.6）；周期切换仍通过 `setRange` 驱动 `weeks` 与热力图重算，无面板内容，故不用 `TabsContent`。`role="tab"` 在 `views/` 归零
 - [ ] 4.4 listbox 按 D8 保持现状：`views/KbView.tsx:1308`、`components/kb/kb-tree.tsx:646` 的结构、`role` 与行按钮都不动，验证本变更的 diff 未触及这两处；零引用的 `components/kb/kb-item-row.tsx` 已按 0.2 删除
 
 ## 5. 收口
 
-- [ ] 5.1 全仓检索 `<button` / `<input` / `<select` / `<textarea` 与 `role="dialog|menu|tab"`，除 `components/ui/` 内部外计数为 0；白名单四类：① D8 的 listbox 行按钮（`components/kb/kb-tree.tsx:650` 起）② D12 的整行可点击行容器（`kb-tree-item`、`kb-folder-row`、`kb-folder-caret`、`kb-item-row`、`kb-context-menu-item`、`kb-tag-chip`、`kb-pin-row`、`heat-cell`）③ 无外观控件（隐藏的 `type="file"` 输入：`SettingsView.tsx` 的 `.font-file` / `.backup-file-input`）④ D13 的编辑器内皮肤输入（`.kb-link-inline-input`、`.kb-find-input`、`.kb-tag-input`）⑤ D12 判定前的临时单点钮。记录白名单行号与剩余数
+- [ ] 5.1 全仓检索 `<button` / `<input` / `<select` / `<textarea` 与 `role="dialog|menu|tab"`，除 `components/ui/` 内部外计数为 0；白名单四类：① D8 的 listbox 行按钮（`components/kb/kb-tree.tsx:650` 起）② D12 的整行可点击行容器（`kb-tree-item`、`kb-folder-row`、`kb-folder-caret`、`kb-item-row`、`kb-tag-chip`、`kb-pin-row`、`heat-cell`；`kb-context-menu-item` 已随 4.2 换成 radix Item）③ 无外观控件（隐藏的 `type="file"` 输入：`SettingsView.tsx` 的 `.font-file` / `.backup-file-input`）④ D13 的编辑器内皮肤输入（`.kb-link-inline-input`、`.kb-find-input`、`.kb-tag-input`）⑤ D12 判定前的临时单点钮。记录白名单行号与剩余数
 - [ ] 5.2 跑 `npx tsc -b`、`npm run lint`、`npm run build`，三项全过并记录输出
 - [ ] 5.3 按 AGENTS §4.2 做 L4 冒烟五条：快速记录、今天视图计数、提醒触发、便签三态、知识库搜索
 - [ ] 5.4 校对 `AGENTS.md` §2.2 与 `README.md` §目录结构 的文案与最终实现一致（三层描述、例外清单），过 `node test/docs.test.mjs`

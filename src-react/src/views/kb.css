@@ -1355,16 +1355,9 @@
 
 /* 鈹€鈹€鈹€ S1 鍚庡崐 tasks 2.4锛氬彸閿彍鍗曪紙portal 鍒?body锛屽彧鑳界敤鍏ㄥ眬 token锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
-.kb-context-menu-root {
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 120;
-}
-
+/* 定位交给 radix DropdownMenu（锚点是 1×1 隐形 span），这里只管皮肤。 */
 .kb-context-menu {
-  position: fixed;
-  z-index: 120;
+  z-index: 130;
   min-width: 176px;
   max-width: 300px;
   max-height: calc(100vh - 16px);
@@ -1376,10 +1369,6 @@
   box-shadow: 0 12px 32px -12px hsl(var(--foreground) / 0.35);
   color: hsl(var(--foreground));
   font-size: var(--fs-sub);
-}
-
-.kb-context-menu-slot {
-  display: block;
 }
 
 .kb-context-menu-item {
@@ -1398,26 +1387,10 @@
   cursor: pointer;
 }
 
-.kb-context-menu-item:hover,
-.kb-context-menu-item:focus-visible,
-.kb-context-menu-item.is-open {
+.kb-context-menu-item[data-highlighted],
+.kb-context-menu-item[data-state="open"] {
   background: hsl(var(--muted));
   outline: none;
-}
-
-.kb-context-menu-item.is-danger {
-  color: hsl(var(--destructive));
-}
-
-.kb-context-menu-item.is-disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.kb-context-menu-item.is-disabled:hover,
-.kb-context-menu-item.is-disabled:focus-visible,
-.kb-context-menu-item.is-disabled.is-open {
-  background: transparent;
 }
 
 .kb-context-menu-ico {
@@ -1428,22 +1401,12 @@
   color: hsl(var(--muted-foreground));
 }
 
-.kb-context-menu-item.is-danger .kb-context-menu-ico {
-  color: inherit;
-}
-
 .kb-context-menu-label {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.kb-context-menu-arrow {
-  flex: none;
-  margin-left: auto;
-  color: hsl(var(--muted-foreground));
 }
 
 /* 鈹€鈹€ S2 缃《蹇嵎鍖猴紙tasks 3.4锛宒esign D6锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
