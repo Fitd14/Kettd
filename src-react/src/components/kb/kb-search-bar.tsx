@@ -1,3 +1,5 @@
+import { Input } from '@/components/ui/input'
+
 interface Props {
   query: string
   onChange: (q: string) => void
@@ -7,7 +9,7 @@ interface Props {
 export function KbSearchBar({ query, onChange, resultCount }: Props) {
   return (
     <div className="kb-search-bar">
-      <input
+      <Input
         type="search"
         value={query}
         onChange={(e) => onChange(e.target.value)}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { getKbItems } from '@/lib/api'
 import type { KbItem } from '@/lib/api'
+import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 
@@ -46,7 +47,7 @@ export function KbAttachPicker({ currentRefs, onAttach, onClose }: Props) {
     <div className="dialog-overlay" onClick={onClose}>
       <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400 }}>
         <h3 style={{ margin: '0 0 0.5rem' }}>关联知识条目</h3>
-        <input
+        <Input
           type="search"
           placeholder="搜索知识库..."
           value={query}

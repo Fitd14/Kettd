@@ -68,7 +68,7 @@ body,
   opacity: 1;
 }
 
-.cap-row .input.invalid {
+.cap-row .input[aria-invalid="true"] {
   color: hsl(var(--destructive));
 }
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { buildCaptureArgs, localToday, parseCapture, type ParsedCapture } from '@/lib/kernel'
 import { call, onEvent } from '@/lib/bridge'
+import { Input } from '@/components/ui/input'
 import { addTask } from '@/lib/api'
 import './capture.css'
 
@@ -172,9 +173,9 @@ export default function CaptureWindow() {
       {phase === 'input' ? (
         <div className="cap-row">
           <span className="cap-hint" data-tauri-drag-region title="按住拖动">✎</span>
-          <input
+          <Input
             ref={inputRef}
-            className={`input${error ? ' invalid' : ''}`}
+            invalid={!!error}
             value={text}
             placeholder="记一条…"
             maxLength={200}

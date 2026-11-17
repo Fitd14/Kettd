@@ -39,8 +39,11 @@
 - [ ] 3.1 `views/` 换成 `ui/input`，验证该目录 `<input` 计数为 0，设置页各输入框焦点环与禁用态不变
   - 进度（2026-11-17）：`SettingsView` 4 个热键框、`PlannedView` 2（提醒日期 + 提醒内容）、`InboxView` 批量排期日期、`TodayView` 快速记录、`StickyView` 便签搜索、`components/task-row.tsx` 排期日期已换；全仓 `<input>` 22 → 12（含 `ui/input.tsx` 自身 1 处）。views 余 `SettingsView` 3 处，均按「无外观控件」白名单不迁：隐藏 `type="file"` 的 `.font-file` / `.backup-file-input`，以及 `type="range"` 的 `.fade-slider`（归 `ui/slider` 批次）
 - [ ] 3.2 `components/kb/` 6 处，验证计数为 0，附件选择器的复选框与搜索框行为不变
+  - 进度（2026-11-17）：`kb-attach-picker` / `kb-search-bar` / `kb-folder-dialog` 已换；余 `kb-item-detail` 的 `.kb-tag-input` 1 处，与 `kb-tag-x` 同属标签 chip 口径，待 D13 的皮肤类口径
 - [ ] 3.3 `components/` 根 4 处，验证计数为 0
+  - 进度（2026-11-17）：`time-text.tsx`（时长输入，`input xs mono time-text` + `bad` 态）已换成 `size="xs"` + `invalid`，`aria-invalid` 由原语输出；`task-row` 排期日期已换
 - [ ] 3.4 `rendering/` 2、`todo/` 1、`capture/` 1 处，验证计数为 0，快速捕获回车入库仍可用
+  - 进度（2026-11-17）：`capture/CaptureWindow.tsx` 快速记录框已换（`className="input invalid"` → `invalid={!!error}`，`capture.css` 的 `.cap-row .input.invalid` 同步改成 `[aria-invalid="true"]`）；`todo/` 无文本输入（只有已迁的复选框）。余 `rendering/link-inline-editor.tsx` 与 `rendering/tiptap-editor.tsx` 的查找框 2 处，皮肤在 `prosemirror.css`（先于 `app.css` 加载），按 D13 暂留
 
 ## 4. 弹层、菜单与标签页收尾
 
@@ -51,7 +54,7 @@
 
 ## 5. 收口
 
-- [ ] 5.1 全仓检索 `<button` / `<input` / `<select` / `<textarea` 与 `role="dialog|menu|tab"`，除 `components/ui/` 内部外计数为 0；白名单四类：① D8 的 listbox 行按钮（`components/kb/kb-tree.tsx:650` 起）② D12 的整行可点击行容器（`kb-tree-item`、`kb-folder-row`、`kb-folder-caret`、`kb-item-row`、`kb-context-menu-item`、`kb-tag-chip`、`kb-pin-row`、`heat-cell`）③ 无外观控件（隐藏的 `type="file"` 输入：`SettingsView.tsx` 的 `.font-file` / `.backup-file-input`）④ D12 判定前的临时单点钮。记录白名单行号与剩余数
+- [ ] 5.1 全仓检索 `<button` / `<input` / `<select` / `<textarea` 与 `role="dialog|menu|tab"`，除 `components/ui/` 内部外计数为 0；白名单四类：① D8 的 listbox 行按钮（`components/kb/kb-tree.tsx:650` 起）② D12 的整行可点击行容器（`kb-tree-item`、`kb-folder-row`、`kb-folder-caret`、`kb-item-row`、`kb-context-menu-item`、`kb-tag-chip`、`kb-pin-row`、`heat-cell`）③ 无外观控件（隐藏的 `type="file"` 输入：`SettingsView.tsx` 的 `.font-file` / `.backup-file-input`）④ D13 的编辑器内皮肤输入（`.kb-link-inline-input`、`.kb-find-input`、`.kb-tag-input`）⑤ D12 判定前的临时单点钮。记录白名单行号与剩余数
 - [ ] 5.2 跑 `npx tsc -b`、`npm run lint`、`npm run build`，三项全过并记录输出
 - [ ] 5.3 按 AGENTS §4.2 做 L4 冒烟五条：快速记录、今天视图计数、提醒触发、便签三态、知识库搜索
 - [ ] 5.4 校对 `AGENTS.md` §2.2 与 `README.md` §目录结构 的文案与最终实现一致（三层描述、例外清单），过 `node test/docs.test.mjs`

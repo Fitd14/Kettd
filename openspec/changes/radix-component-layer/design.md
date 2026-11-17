@@ -118,6 +118,10 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 **替代方案**：给 `ui/button` 加 `variant="row"` 抹掉全部按钮样式（否决 —— 变体越加越多，且行布局仍要依赖调用方的类，等于换个名字继续手写；一旦有人给 row 变体加 padding 又会悄悄改变行高）。
 
+### D13 自带皮肤的编辑器内输入框暂留原生
+
+批次 3 清到 `rendering/` 与标签 chip 时剩 3 处：`link-inline-editor.tsx` 的 `.kb-link-inline-input`、`tiptap-editor.tsx` 的 `.kb-find-input`（透明无边框的查找框）、`kb-item-detail.tsx` 的 `.kb-tag-input`。它们的皮肤都写在 `prosemirror.css` / `kb.css` 里，而 `.input` 基础皮肤在 `app.css`（import 顺序在视图之后），类选择器同特异性时后者胜出——直接换成 `ui/input` 会把查找框变成描边框、标签 chip 变成圆角描边输入框。本轮不硬迁，留到编辑器/标签批次（批次 4 完成后再处理）：届时的做法是把皮肤并进 `.input[data-skin="inline|find|tag"]`，或抽出无边框的 `bare` 变体，二者都要先补进 D9 表。
+
 ## Risks / Trade-offs
 
 - [radix 弹层默认行为与现有手写弹层不一致（关闭时机、滚动锁定、层级）] → 先在 `kb-folder-dialog` 一个点上做对照验证，确认后再批量；皮肤类保持不动，只换行为层。

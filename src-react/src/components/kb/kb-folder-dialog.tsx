@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
 export interface KbFolderDialogProps {
@@ -101,7 +102,7 @@ export function KbFolderDialog({
         <label className="kb-folder-dialog-label" htmlFor="kb-folder-name">
           文件夹名
         </label>
-        <input
+        <Input
           id="kb-folder-name"
           ref={inputRef}
           className="kb-folder-dialog-input"

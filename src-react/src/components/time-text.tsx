@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Input } from '@/components/ui/input'
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 
@@ -33,8 +34,10 @@ export function TimeText({ value, onCommit, allowMulti, ariaLabel, placeholder }
 
   return (
     <span className="row-flex items-center gap-1">
-      <input
-        className={`input xs mono time-text${bad ? ' bad' : ''}`}
+      <Input
+        size="xs"
+        invalid={bad}
+        className={`mono time-text${bad ? ' bad' : ''}`}
         value={text}
         placeholder={placeholder ?? (allowMulti ? '09:30 或 09:30/18:00' : '09:30')}
         aria-label={ariaLabel}
