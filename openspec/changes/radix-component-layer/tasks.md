@@ -81,6 +81,9 @@
   - 回归修复：`test/main-window-close.test.mjs` 的 ✕ 选择器由 `</button>` 放宽为 `</Button>`——标题栏关闭键已换成 `ui/button`（`size="window" variant="window-close"`），「只隐藏不销毁」的契约断言保持不变；改后 5/5 通过
   - 门禁替代跑法：`npm run check` 仍因 `node --test` 需管道 spawn（EPERM）中断，改为 8 个 test 文件逐个 `node test/x.test.mjs`，合计 44 tests / 0 fail（command-parity 6、docs 4、heading-select-wiring 6、main-window-close 5、packaging 9、sticky-kbref 4、tray-entry-parity 5、tray-menu 5）
 - [ ] 5.3 按 AGENTS §4.2 做 L4 冒烟五条：快速记录、今天视图计数、提醒触发、便签三态、知识库搜索
+  - 已备好执行清单（2026-11-17）：[verification.md §4](./verification.md) 列出五条路径的观察点与五处已知视觉风险（分段钮 21→26px、便签窗首次加载 `.btn` 底座、弹层 max-height 竞争、链接条翻转与宽限、深色浮条间距）
+  - 静态部分已完成：[verification.md §1–§2](./verification.md) 记录 tsc 0 / oxlint 31 warnings 0 errors / css-parse 13 张 0 失败 / 8 个测试文件 44 tests 0 fail / 全仓 `<button>` 22、`<input>` 4、radix 分包 0
+  - 未做原因：沙箱起不了 dev server、headless Edge 截图被命名管道限制拦死，必须真机执行
 - [ ] 5.4 校对 `AGENTS.md` §2.2 与 `README.md` §目录结构 的文案与最终实现一致（三层描述、例外清单），过 `node test/docs.test.mjs`
 - [x] 5.5 更新 ledger 任务 `20261116-1316-313c-原生控件迁移到-components-ui-封装` 的 worklog 结论，与本变更的五批一一对应
   - 已落地（2026-11-17）：worklog 的 Process / Conclusion / Next 三节重写——五批逐条对应「完成 / 结果 / 遗留」，`To Do` 标注为立项时的历史计划；结论表写清 `<button>` 161→22、`<input>` 28→4、弹层菜单标签页全换 radix，以及 5.3 冒烟与 5.4 文档待批
