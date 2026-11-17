@@ -14,6 +14,7 @@ import {
 import { todayList } from '../kernel/selectors.js'
 import { localToday } from '../kernel/time.js'
 import { PaperPattern } from '@/sticky/paper-patterns'
+import { Checkbox } from '@/components/ui/checkbox'
 
 /**
  * 待办悬浮窗（todo-float · 拍板「纯轻量镜像」档）：
@@ -152,13 +153,11 @@ export default function TodoFloatWindow() {
         ) : (
           list.map((t) => (
             <div key={t.id} className="sticky-row" role="listitem">
-              <input
-                type="checkbox"
-                className="tcheck"
+              <Checkbox
                 aria-label={`完成 ${t.title}`}
                 checked={!!t.done}
                 onMouseDown={(e) => e.preventDefault()}
-                onChange={() => { void toggleDone(t.id, !t.done) }}
+                onCheckedChange={() => { void toggleDone(t.id, !t.done) }}
               />
               <button className={`sticky-title${t.done ? ' is-done' : ''}`} onClick={openMain}>
                 {t.title}

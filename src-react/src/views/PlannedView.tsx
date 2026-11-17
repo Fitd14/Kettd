@@ -12,6 +12,7 @@ import {
 import { localToday } from '../kernel/time.js'
 import { nextReminderTime } from '../kernel/selectors.js'
 import { TimeText } from '@/components/time-text'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface Props {
   boot: Bootstrap
@@ -140,12 +141,10 @@ export function PlannedView({ boot, refresh }: Props) {
           <div className="section-head"><b>提醒</b><span>到点弹系统通知</span></div>
           {activeReminders.map((r) => (
             <div key={r.id} className="trow" data-id={r.id}>
-              <input
-                type="checkbox"
-                className="tcheck"
+              <Checkbox
                 aria-label={`启用 ${r.title}`}
                 checked={!!r.enabled}
-                onChange={async () => {
+                onCheckedChange={async () => {
                   const res = await toggleReminder(r.id)
                   if (res.err) setErr(res.err)
                   await refresh()

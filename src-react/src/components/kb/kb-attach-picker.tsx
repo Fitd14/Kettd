@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { getKbItems } from '@/lib/api'
 import type { KbItem } from '@/lib/api'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface Props {
   currentRefs: string[]
@@ -59,9 +60,10 @@ export function KbAttachPicker({ currentRefs, onAttach, onClose }: Props) {
             </p>
           )}
           {filtered.map((item) => (
-            <label
+            <div
               key={item.id}
               className="kb-attach-item"
+              onClick={() => toggle(item.id)}
               style={{
                 display: 'flex',
                 gap: '0.5em',
@@ -70,16 +72,16 @@ export function KbAttachPicker({ currentRefs, onAttach, onClose }: Props) {
                 borderRadius: 4,
               }}
             >
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={selected.has(item.id)}
-                onChange={() => toggle(item.id)}
+                onClick={(e) => e.stopPropagation()}
+                onCheckedChange={() => toggle(item.id)}
               />
               <span style={{ flex: 1 }}>{item.title}</span>
               {item.tags?.slice(0, 2).map((t) => (
                 <span key={t} className="kb-tag-chip">{t}</span>
               ))}
-            </label>
+            </div>
           ))}
         </div>
         <div className="dialog-actions" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.75rem' }}>

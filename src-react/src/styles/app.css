@@ -40,6 +40,10 @@
 .trow-done .tcheck {
   accent-color: hsl(var(--muted-foreground));
 }
+.trow-done .checkbox[data-state="checked"] {
+  background: hsl(var(--muted-foreground));
+  border-color: hsl(var(--muted-foreground));
+}
 
 /* 妞ゅ搫娆?濠婄偟鏆€閿涙氨鎯€閻濃偓缁旀牗娼?+ badge閿涘矂娼痪?*/
 .trow-aged::before {
@@ -202,6 +206,29 @@ kbd {
   accent-color: hsl(var(--primary));
   cursor: pointer;
 }
+
+/* 复选框原语：与 .tcheck 同尺寸；radix 输出 data-state，勾选态用 primary 实心 + 反白勾 */
+.checkbox {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 1px solid hsl(var(--input));
+  border-radius: 4px;
+  background: hsl(var(--background));
+  color: hsl(var(--primary-foreground));
+  cursor: pointer;
+  transition: background 120ms ease-out, border-color 120ms ease-out;
+}
+.checkbox:hover { border-color: hsl(var(--muted-foreground)); }
+.checkbox[data-state="checked"],
+.checkbox[data-state="indeterminate"] { background: hsl(var(--primary)); border-color: hsl(var(--primary)); }
+.checkbox:disabled { opacity: 0.5; cursor: not-allowed; }
+.checkbox-indicator { display: inline-flex; }
+.checkbox-indicator svg { width: 11px; height: 11px; stroke-width: 3; }
 
 .cat-chip {
   flex: none;

@@ -1,4 +1,4 @@
-﻿/* 渚跨瑙嗚锛堜究绛捐鏍?搂5 + 搂12.1锛夛細鐜颁唬渚跨鈥斺€旀殩绾搞€佸渾瑙掋€佹煍鍜岄槾褰便€佸皬鍥鹃拤銆佸彸涓嬫姌瑙掋€?
+/* 渚跨瑙嗚锛堜究绛捐鏍?搂5 + 搂12.1锛夛細鐜颁唬渚跨鈥斺€旀殩绾搞€佸渾瑙掋€佹煍鍜岄槾褰便€佸皬鍥鹃拤銆佸彸涓嬫姌瑙掋€?
    绾歌壊鍙敼 --sticky-paper / --sticky-strip / --sticky-ink 涓変釜鍙橀噺锛?
    鍒嗙被鑹?--cat-* 涓庡己璋?--sticky-accent 涓嶉殢绾歌壊鍙橈紙淇℃伅涓€鑷达級銆?
    鏆楄壊淇濇寔鏆栫焊璋冧笉杞喎鐏帮紱paper=ink 涓烘殫鑹查粯璁わ紝浜壊涓嬩篃鍙墜閫夈€?*/
@@ -72,6 +72,7 @@
 .sticky-unpin,
 .sticky-free,
 .tcheck,
+.checkbox,
 .sticky-row {
   pointer-events: auto;
 }
@@ -194,7 +195,9 @@
 }
 /* 瀹屾垚鎬佽鐨勫垎鍓茬嚎娣¤嚦 6%锛氬凡瀹屾垚琛屾暣浣撴洿銆岄€€鍚庛€嶏紙涓や晶浠讳竴涓哄畬鎴愭€佸嵆鐢熸晥锛?*/
 .sticky-row:has(.tcheck:checked) + .sticky-row,
-.sticky-row + .sticky-row:has(.tcheck:checked) {
+.sticky-row + .sticky-row:has(.tcheck:checked),
+.sticky-row:has(.checkbox[data-state="checked"]) + .sticky-row,
+.sticky-row + .sticky-row:has(.checkbox[data-state="checked"]) {
   border-top-color: color-mix(in srgb, var(--sticky-ink) 6%, transparent);
 }
 .sticky-row .tcheck {
@@ -203,6 +206,17 @@
   height: 15px;
   flex: none;
   cursor: pointer;
+}
+.sticky-row .checkbox {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  cursor: pointer;
+}
+.sticky-row .checkbox[data-state="checked"] {
+  background: var(--sticky-accent);
+  border-color: var(--sticky-accent);
+  color: var(--sticky-ink);
 }
 
 .sticky-title {
@@ -279,7 +293,8 @@
 }
 
 /* 瀹屾垚 = 缃伆鍒犻櫎绾匡紙瑙勬牸 搂4锛?*/
-.sticky-row:has(.tcheck:checked) .sticky-title {
+.sticky-row:has(.tcheck:checked) .sticky-title,
+.sticky-row:has(.checkbox[data-state="checked"]) .sticky-title {
   color: var(--sticky-muted);
   text-decoration: line-through;
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Task } from '@/lib/api'
 import { formatDue, getCategoryColor } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { Checkbox } from '@/components/ui/checkbox'
 
 export type RowActions = 'today' | 'inbox' | 'none'
 
@@ -95,22 +96,18 @@ export function TaskRow({
       }}
     >
       {onSelect ? (
-        <input
-          type="checkbox"
-          className="tcheck"
+        <Checkbox
           aria-label={`选择 ${task.title}`}
           checked={!!selected}
           onClick={(e) => e.stopPropagation()}
-          onChange={(e) => onSelect(task.id, e.target.checked)}
+          onCheckedChange={(v) => onSelect(task.id, v === true)}
         />
       ) : (
-        <input
-          type="checkbox"
-          className="tcheck"
+        <Checkbox
           aria-label={`完成 ${task.title}`}
           checked={done}
           onClick={(e) => e.stopPropagation()}
-          onChange={() => onToggle?.(task.id)}
+          onCheckedChange={() => onToggle?.(task.id)}
         />
       )}
 
