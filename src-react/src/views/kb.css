@@ -610,7 +610,9 @@
   padding-left: 14px;
   border-left: 1px solid var(--line-warm);
   font-size: var(--fs-sub);
-  overflow: hidden;
+  /* 只裁切、不建滚动容器：若写 overflow:hidden，本层会成为内层 sticky 的滚动祖先，
+     而它自己并不滚动——大纲便随正文一起滚走。clip 不参与滚动容器判定（m03451）。 */
+  overflow: clip;
 }
 .kb-outline-inner {
   position: sticky;
@@ -619,6 +621,7 @@
   max-height: calc(100vh - 160px);
   overflow-y: auto;
   overscroll-behavior: contain;
+  padding-right: 2px;
   padding-bottom: 8px;
 }
 .kb-outline-head {
