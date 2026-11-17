@@ -129,7 +129,7 @@ radix 能力 SHALL 只从统一包 `radix-ui` 引入；MUST NOT 引入 `@radix-u
 #### Scenario: 收口时清掉被取代的专用类
 
 - **WHEN** 五批迁移完成
-- **THEN** `.sticky-btn` / `.kb-strip-btn` / `.kb-folder-add` / `.kb-folder-action` / `.kb-tag-x` / `.todo-mini-btn` / `.sticky-md-btn` 等仅剩为旧写法服务的尺寸与 hover 声明已删除，`grep` 无引用
+- **THEN** 只服务旧写法的声明（`width` / `height` / `hover` / 选中色）已删除，且 `grep` 无引用的整段规则一并删除；仍被 JSX 引用的专用类只保留盒子、配色与定位职责，清单与理由记在 `tasks.md` 5.6，不得再用来重复表达按钮尺寸或变体
 
 ### Requirement: 迁移不得让既有交互倒退
 
@@ -157,4 +157,4 @@ radix 能力 SHALL 只从统一包 `radix-ui` 引入；MUST NOT 引入 `@radix-u
 #### Scenario: 收口验收
 
 - **WHEN** 五批全部完成
-- **THEN** 页面侧 `<button>` / `<input>` / `<select>` / `<textarea>` 只余例外清单里的行容器与隐藏输入，手写 `role="dialog|menu|tab|popover"` 计数为零，`components/ui/` 之外没有第二份控件行为
+- **THEN** 页面侧 `<button>` / `<input>` / `<select>` / `<textarea>` 只余例外清单里的行容器与隐藏输入，手写 `role="menu|tab|popover"` 计数为零，`components/ui/` 之外没有第二份控件行为；`role="dialog"` 只余 D14 记录的窄窗大纲抽屉一处（依赖祖先定位与 `--ink-*` 作用域，portal 会铺满视口），在支持 `container` 前保持原生
