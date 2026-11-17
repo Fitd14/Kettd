@@ -18,8 +18,10 @@ import Suggestion from '@tiptap/suggestion'
 import { common, createLowlight } from 'lowlight'
 import {
   Bold, Italic, Strikethrough, Heading1, Heading2, Heading3, List, ListOrdered,
-  ListTodo, TextQuote, Code, Table as TableIcon, Link2, Minus, Pilcrow,
+  ListTodo, TextQuote, Code, Table as TableIcon, Link2, Minus, Plus, Pilcrow,
   Search, ChevronUp, ChevronDown, X, MoreHorizontal,
+  Trash2, Rows3, Columns3, BetweenHorizontalEnd, BetweenVerticalEnd,
+  TableRowsSplit, TableColumnsSplit,
 } from 'lucide-react'
 import { LinkInlineEditor } from './link-inline-editor'
 import { LinkSyntax, insertLinkTemplate, normalizeLinkSyntax } from './link-syntax'
@@ -326,8 +328,8 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
           className={'kb-tbl-tools kb-tbl-tools-table' + (open === 'table' ? ' is-open' : '')}
           style={{ left: table.left, top: table.top }}
         >
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             className="kb-tbl-handle"
             title="表格操作"
             aria-label="表格操作"
@@ -335,60 +337,71 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setOpen(open === 'table' ? null : 'table')}
           >
-            <TableIcon size={11} strokeWidth={1.8} />
-          </button>
+            <TableIcon size={11} strokeWidth={1.8} aria-hidden />
+          </Button>
           <div className="kb-bubble kb-tbl-panel" data-surface="bubble" role="group" aria-label="表格">
             <Button
               data-surface="bubble"
-              size="xs"
+              size="icon-xs"
               variant="danger"
               title="删除整张表格"
+              aria-label="删除整张表格"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 editor.chain().focus().deleteTable().run()
                 setOpen(null)
               }}
-            >删表</Button>
+            >
+              <Trash2 size={13} strokeWidth={1.7} aria-hidden />
+            </Button>
             <span className="kb-bubble-sep" />
-            <span className="kb-tbl-label">行</span>
+            <Rows3 className="kb-tbl-axis" size={13} strokeWidth={1.7} aria-hidden />
             <Button
               data-surface="bubble"
-              size="xs"
+              size="icon-xs"
               title="表尾减少一行"
               aria-label="表尾减少一行"
               disabled={rows <= 1}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => atTableEnd((c) => c.deleteRow())}
-            >−</Button>
+            >
+              <Minus size={13} strokeWidth={2} aria-hidden />
+            </Button>
             <span className="kb-tbl-num">{rows}</span>
             <Button
               data-surface="bubble"
-              size="xs"
+              size="icon-xs"
               title="表尾增加一行"
               aria-label="表尾增加一行"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => atTableEnd((c) => c.addRowAfter())}
-            >+</Button>
+            >
+              <Plus size={13} strokeWidth={2} aria-hidden />
+            </Button>
             <span className="kb-bubble-sep" />
-            <span className="kb-tbl-label">列</span>
+            <Columns3 className="kb-tbl-axis" size={13} strokeWidth={1.7} aria-hidden />
             <Button
               data-surface="bubble"
-              size="xs"
+              size="icon-xs"
               title="表尾减少一列"
               aria-label="表尾减少一列"
               disabled={cols <= 1}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => atTableEnd((c) => c.deleteColumn())}
-            >−</Button>
+            >
+              <Minus size={13} strokeWidth={2} aria-hidden />
+            </Button>
             <span className="kb-tbl-num">{cols}</span>
             <Button
               data-surface="bubble"
-              size="xs"
+              size="icon-xs"
               title="表尾增加一列"
               aria-label="表尾增加一列"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => atTableEnd((c) => c.addColumnAfter())}
-            >+</Button>
+            >
+              <Plus size={13} strokeWidth={2} aria-hidden />
+            </Button>
           </div>
         </div>
       )}
@@ -398,8 +411,8 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
           className={'kb-tbl-tools kb-tbl-tools-cell' + (open === 'cell' ? ' is-open' : '')}
           style={{ left: cell.left, top: cell.top }}
         >
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             className="kb-tbl-handle"
             title="当前行 / 列操作"
             aria-label="当前行或列操作"
@@ -407,41 +420,53 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setOpen(open === 'cell' ? null : 'cell')}
           >
-            <MoreHorizontal size={12} strokeWidth={2} />
-          </button>
+            <MoreHorizontal size={12} strokeWidth={2} aria-hidden />
+          </Button>
           <div className="kb-bubble kb-tbl-panel" data-surface="bubble" role="group" aria-label="当前行或列">
             <Button
               data-surface="bubble"
-              size="xs"
+              size="icon-xs"
               title="在下方插入行"
+              aria-label="在下方插入行"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => editor.chain().focus().addRowAfter().run()}
-            >+行</Button>
+            >
+              <BetweenHorizontalEnd size={13} strokeWidth={1.7} aria-hidden />
+            </Button>
             <Button
               data-surface="bubble"
-              size="xs"
+              size="icon-xs"
               title={onHeader ? '表头行不可删除（删除会破坏 Markdown 表格结构）' : '删除当前行'}
+              aria-label={onHeader ? '表头行不可删除' : '删除当前行'}
               disabled={onHeader}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 if (!onHeader) editor.chain().focus().deleteRow().run()
               }}
-            >−行</Button>
+            >
+              <TableRowsSplit size={13} strokeWidth={1.7} aria-hidden />
+            </Button>
             <span className="kb-bubble-sep" />
             <Button
               data-surface="bubble"
-              size="xs"
+              size="icon-xs"
               title="在右侧插入列"
+              aria-label="在右侧插入列"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => editor.chain().focus().addColumnAfter().run()}
-            >+列</Button>
+            >
+              <BetweenVerticalEnd size={13} strokeWidth={1.7} aria-hidden />
+            </Button>
             <Button
               data-surface="bubble"
-              size="xs"
+              size="icon-xs"
               title="删除当前列"
+              aria-label="删除当前列"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => editor.chain().focus().deleteColumn().run()}
-            >−列</Button>
+            >
+              <TableColumnsSplit size={13} strokeWidth={1.7} aria-hidden />
+            </Button>
           </div>
         </div>
       )}

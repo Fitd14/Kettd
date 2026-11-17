@@ -259,8 +259,10 @@
   height: 6px;
 }
 
-.kb-tbl-handle {
+/* 盒子由 ui/button 的 ghost 变体打底，这里用三层选择器把 18×18 的把手盒子抢回来 */
+.kb-editor .kb-tbl-tools .kb-tbl-handle {
   width: 18px;
+  min-width: 18px;
   height: 18px;
   padding: 0;
   display: flex;
@@ -274,6 +276,12 @@
   cursor: pointer;
   opacity: 0.5;
   transition: opacity 120ms ease;
+}
+
+/* ghost 的 hover 底色要压掉，把手只变不透明度 */
+.kb-editor .kb-tbl-tools .kb-tbl-handle:hover {
+  background: hsl(var(--secondary));
+  color: hsl(var(--muted-foreground));
 }
 
 .kb-tbl-tools:hover .kb-tbl-handle,
@@ -295,21 +303,22 @@
   display: flex;
 }
 
-.kb-tbl-label,
-.kb-tbl-num {
-  font-size: var(--fs-meta);
-  color: hsl(var(--bubble-ink) / 0.72);
-  white-space: nowrap;
-}
-
-.kb-tbl-label {
-  padding: 0 2px;
+.kb-tbl-axis {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  color: hsl(var(--bubble-ink) / 0.66);
+  flex: none;
 }
 
 .kb-tbl-num {
-  min-width: 14px;
+  min-width: 12px;
   text-align: center;
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
   color: hsl(var(--bubble-ink));
+  white-space: nowrap;
 }
 /* 鈹€鈹€鈹€ 鍐欎綔鍖哄垪鍐呮孩鍑猴紙tasks 4.1锛夛細瀹借〃鏍?/ 闀夸覆鍦ㄦ鏂囧垪鍐呰嚜琛屾粴鍔ㄦ垨鎶樿锛?   涓嶆拺鐮磋鎯呴潰鏉匡紙鍒楀涓婇檺鐢?.kb-detail-inner 鐨?--kb-measure 鎺у埗锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€ */
 
