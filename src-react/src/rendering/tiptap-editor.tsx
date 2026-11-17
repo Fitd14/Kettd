@@ -29,6 +29,7 @@ import { collectOutline, type OutlineItem } from '@/lib/doc-outline'
 import { ImageExtension } from './image-extension'
 import { handleImagePaste } from './paste-image'
 import { HeadingSelect } from '@/components/editor/heading-select'
+import { Button } from '@/components/ui/button'
 import {
   applyHeadingCommand,
   headingValueForLevel,
@@ -1027,18 +1028,20 @@ export function TipTapEditor({
   const renderTool = (t: ToolItem) => {
     const Icon = t.icon
     return (
-      <button
+      <Button
         key={t.title}
         type="button"
-        className={'kb-editor-tool' + (t.active ? ' on' : '')}
+        size="icon-sm"
+        variant="ghost"
         title={t.title}
         aria-label={t.title}
         aria-pressed={t.active}
+        // 保住编辑器选区与焦点：工具条按下不能把光标拽走
         onMouseDown={(e) => e.preventDefault()}
         onClick={t.run}
       >
         <Icon size={15} strokeWidth={1.7} />
-      </button>
+      </Button>
     )
   }
 
@@ -1204,18 +1207,20 @@ export function TipTapEditor({
       {/* 表格：网格选择器（allowTables=false 时整块不渲染，便签窗没有任何表格入口） */}
       {allowTables && (
         <div className="kb-editor-gridwrap" ref={gridWrapRef}>
-          <button
+          <Button
             type="button"
-            className={'kb-editor-tool' + (flags.table ? ' on' : '')}
+            size="icon-sm"
+            variant="ghost"
             title="表格 Ctrl+T"
             aria-label="插入表格"
             aria-haspopup="dialog"
             aria-expanded={gridOpen}
+            aria-pressed={flags.table}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setGridOpen((v) => !v)}
           >
             <TableIcon size={15} strokeWidth={1.7} />
-          </button>
+          </Button>
           {gridOpen && (
             <div className="kb-grid-picker" onMouseLeave={() => setGridSize({ rows: 0, cols: 0 })}>
               <div className="grid-cells">{gridCells()}</div>
@@ -1225,27 +1230,30 @@ export function TipTapEditor({
         </div>
       )}
 
-      <button
+      <Button
         type="button"
-        className={'kb-editor-tool' + (flags.link ? ' on' : '')}
+        size="icon-sm"
+        variant="ghost"
         title="链接 Ctrl+K"
         aria-label="链接"
+        aria-pressed={flags.link}
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => insertLinkTemplate(editor)}
       >
         <Link2 size={15} strokeWidth={1.7} />
-      </button>
+      </Button>
 
-      <button
+      <Button
         type="button"
-        className="kb-editor-tool"
+        size="icon-sm"
+        variant="ghost"
         title="分割线"
         aria-label="分割线"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => chain().setHorizontalRule().run()}
       >
         <Minus size={15} strokeWidth={1.7} />
-      </button>
+      </Button>
     </div>
   )
 
@@ -1271,8 +1279,10 @@ export function TipTapEditor({
           <span className="kb-find-count" aria-live="polite">
             {findTerm ? (findCount > 0 ? `${findIndex + 1}/${findCount}` : '无结果') : '0/0'}
           </span>
-          <button
+          <Button
             type="button"
+            size="icon-xs"
+            variant="ghost"
             className="kb-find-btn"
             title="上一个（Shift+Enter）"
             aria-label="上一个匹配"
@@ -1281,9 +1291,11 @@ export function TipTapEditor({
             onClick={() => stepFind(-1)}
           >
             <ChevronUp size={14} strokeWidth={1.8} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            size="icon-xs"
+            variant="ghost"
             className="kb-find-btn"
             title="下一个（Enter）"
             aria-label="下一个匹配"
@@ -1292,9 +1304,11 @@ export function TipTapEditor({
             onClick={() => stepFind(1)}
           >
             <ChevronDown size={14} strokeWidth={1.8} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            size="icon-xs"
+            variant="ghost"
             className="kb-find-btn"
             title="关闭（Esc）"
             aria-label="关闭查找"
@@ -1302,7 +1316,7 @@ export function TipTapEditor({
             onClick={() => closeFind(true)}
           >
             <X size={14} strokeWidth={1.8} />
-          </button>
+          </Button>
         </div>
       )}
 

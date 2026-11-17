@@ -128,6 +128,16 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 批次 3 清到 `rendering/` 与标签 chip 时剩 3 处：`link-inline-editor.tsx` 的 `.kb-link-inline-input`、`tiptap-editor.tsx` 的 `.kb-find-input`（透明无边框的查找框）、`kb-item-detail.tsx` 的 `.kb-tag-input`。它们的皮肤都写在 `prosemirror.css` / `kb.css` 里，而 `.input` 基础皮肤在 `app.css`（import 顺序在视图之后），类选择器同特异性时后者胜出——直接换成 `ui/input` 会把查找框变成描边框、标签 chip 变成圆角描边输入框。本轮不硬迁，留到编辑器/标签批次（批次 4 完成后再处理）：届时的做法是把皮肤并进 `.input[data-skin="inline|find|tag"]`，或抽出无边框的 `bare` 变体，二者都要先补进 D9 表。
 
+### D15 原语皮肤独立成 `styles/primitives.css`，随 `index.css` 到达四个入口
+
+四个 HTML 入口里，`index.html` 由 `App.tsx` 引入 `styles/app.css`，另外三个窗口入口（`float.html` / `todo.html` / `capture.html`）只引 `src/index.css`。原语皮肤此前全写在 `app.css`，于是：`todo/TodoFloatWindow.tsx:155` 的 `<Checkbox>`（`c66fabf` 引入）在悬浮窗里只有 `sticky.css` 的 `.sticky-row .checkbox` 尺寸，没有 `.checkbox` 的基础描边/底色/勾选态；`sticky/StickyWindow.tsx` 若迁 `sticky-btn`，`.btn` 同样不生效。
+
+决策：把 `.btn`（含 `data-size` / `data-variant` / `aria-pressed` / `data-surface="sticky"`）、`focus-visible` 环、`.input`、`.dialog-*`（含 `data-align="top"`）、`.checkbox`、`.tabs` / `.tab` / `.tabs-root`、`.dropdown-menu*`、`.popover` 从 `app.css` 整体移到新文件 `src-react/src/styles/primitives.css`，由 `index.css` 统一 `@import`（四入口都已有）。`app.css` 只留主壳与页面级样式，页面覆盖（如任务排期的 `.input.xs`、风险面板的 `.btn.danger`）仍在 `app.css`，因为 `App.tsx` 的引入更晚，覆盖顺序不变。
+
+影响面：`index.css` 的 import 顺序为 `prosemirror.css` → `primitives.css`，主窗里原语仍在视图 CSS 之前生效，与拆分前相对次序一致；D13 的三处自带皮肤输入框结论不变（`.input` 仍先于那些视图样式之后加载——实际上 `primitives` 在 `prosemirror` 之后，`.input` 依然会压过 `.kb-find-input`，故仍需 `data-skin` 或 `bare`）。
+
+验证：`node scripts/css-parse.mjs` → 13 张样式表 0 失败（`app.css 23805→13643` 字符、`primitives.css in=10895 out=7169`）；`node node_modules/typescript/bin/tsc -b` exit 0。视觉未真机核对（沙箱不能起 dev server），风险点是便签/悬浮/捕获三窗首次拿到 `.btn` 底座后与各自局部皮肤（`capture.css` 的 `.cap-frame .btn`、`sticky.css` 的 `.sticky-md-btn`）的叠放结果。
+
 ## Risks / Trade-offs
 
 - [radix 弹层默认行为与现有手写弹层不一致（关闭时机、滚动锁定、层级）] → 先在 `kb-folder-dialog` 一个点上做对照验证，确认后再批量；皮肤类保持不动，只换行为层。

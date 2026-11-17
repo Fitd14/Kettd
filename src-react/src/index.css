@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "./styles/fonts.css";
 @import "./rendering/styles/prosemirror.css";
+@import "./styles/primitives.css";
 
 @custom-variant dark (&:is(.dark *));
 

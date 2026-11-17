@@ -4,7 +4,8 @@
 
 - [x] 0.1 评审按钮体系原型 `design-review/button-system.html`（D9）：3 档尺寸 22/26/30、6 变体、12 组专用类归并口径、`size="window"` 与 `size="caret"` 两个特例。2026-11-17 用户确认四项全过（尺寸上移 / primary 实心 / 便签换色 / 窗口保持 44×32），结论已回填 D9
 - [x] 0.2 删除零引用死代码 `src-react/src/components/kb/kb-item-row.tsx`（`grep -r KbItemRow` 无 import；D8 原本留到后续，用户 2026-11-17 改为本轮删除），验证 `npx tsc -b` 通过
-- [ ] 0.3 把原型纳入版本库：只 `git add design-review/button-system.html`（同目录的 `capture.ps1` 等用户件不入库），提交信息随第一批原语提交
+- [x] 0.3 把原型纳入版本库：只 `git add design-review/button-system.html`（同目录的 `capture.ps1` 等用户件不入库），已随 `4942230` 入库
+- [x] 0.4 原语皮肤独立成 `src-react/src/styles/primitives.css`（D15）：`app.css` 迁出 `.btn` / `:focus-visible` / `.input` / `.dialog-*` / `.checkbox` / `.tabs` / `.dropdown-menu*` / `.popover`，由 `index.css` 引入，保证便签/悬浮/捕获三窗拿到原语底座；验证 `node scripts/css-parse.mjs` 13 张 0 失败、`tsc -b` exit 0
 
 ## 1. 原语与首个落点
 
@@ -31,6 +32,8 @@
 - [ ] 2.2 `components/kb/` 32 处：按 D12 只迁控制钮，整行可点击的行容器保留原生 `<button>`；验证文件内控制钮计数为 0，知识库列表 hover 浮起与工具栏图标钮尺寸不变
   - 进度（2026-11-17）：`kb-attach-picker` 2 + `kb-empty-state` 1 + `kb-folder-dialog` 2 + `kb-item-detail` 7（4 个 `.btn*` + 3 个 `kb-strip-btn`）已换；`kb-tree` 5 处控制钮已换（`kb-folder-add` 2 → `icon-xs`，文件夹重命名/删除 2 → `icon-xs`，确认删除 1 → `danger xs`）；`doc-outline` 关闭钮 → `icon-xs`；`kb-pin-row` 归入 D12 行容器（整行点击，非图标钮）。目录原生 `<button` 33 → 15，余下为 D12 行容器 9（`kb-tree` 6 + caret 2 + `kb-outline-link` 1）、`kb-context-menu` 3、`kb-item-detail` 2（`kb-tag-x` / `kb-tag-add`，见 design 映射缺口）、`typo-popover` 1（`kb-typo-seg-btn`，见 design 映射缺口）
 - [ ] 2.3 `rendering/` 19 处，验证该目录计数为 0；`tiptap-editor.tsx:1311` 起的工具条按钮保留 `onMouseDown` + `preventDefault`，点按钮后编辑器保持焦点、选区不丢
+  - 进度（2026-11-17）：编辑工具条 4 枚（加粗/表格/链接/分割线走 `renderTool` 与单点钮）+ 查找栏 3 枚换成 `size="icon-sm"` / `icon-xs` + `variant="ghost"`，`aria-pressed` 承接原 `.on`；`.kb-editor-tool` 皮肤整段删除（改由 `.btn` 统一）。`rendering/` 余 12：`tiptap-editor` 10（`grid-cell` 网格选择器 1 + 选区浮动条 B/I/行内码/删除线 4 + 表格浮动条 +行/−行/+列/−列/删表 5）、`link-inline-editor` 2（深色浮条 `.kb-link-inline-btn`）
+  - 未验证：工具条高度 24 → 26px 后工具栏行高与 `HeadingSelect` 基线是否齐；`onMouseDown preventDefault` 保焦点行为未真机点过
 - [ ] 2.4 `components/` 根 19 处，验证该目录计数为 0，任务行与快捷键提示的按钮样式不变
 - [ ] 2.5 `sticky/` 8、`todo/` 6、`capture/` 4、`src` 根 2 处，验证这四个位置计数为 0，便签三态切换与快速捕获条仍可用
 

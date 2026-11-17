@@ -65,151 +65,8 @@
   font-size: var(--fs-meta);
 }
 
-/* ---------------- 閸╄櫣顢呴幒褌娆㈤弮蹇ョ礄vanilla styles.css 缁夌粯顦茬悰銉╃秷閳ユ柡鈧摤3 React 缁夌粯顦查弮鍫曚粣濠曞骏绱?026-09-08 閻喐婧€閺嗘挳婀堕敍?---------------- */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-radius: var(--r-sm);
-  border: 1px solid hsl(var(--input));
-  background: transparent;
-  color: hsl(var(--foreground));
-  font: inherit;
-  font-size: var(--fs-sub);
-  padding: 3px 9px;
-  cursor: pointer;
-  transition: background 150ms ease-out, box-shadow 150ms ease-out;
-  white-space: nowrap;
-}
-.btn:hover { background: hsl(var(--muted)); }
-.btn:active { transform: translateY(1px) scale(0.985); }
-.btn.ghost { background: transparent; color: hsl(var(--muted-foreground)); border-color: transparent; }
-.btn.ghost:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
-.btn.danger { color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.4); }
-.btn.danger:hover { background: hsl(var(--destructive) / 0.08); }
-.btn.sm { font-size: var(--fs-meta); padding: 3px 9px; }
-.btn.xs { font-size: var(--fs-meta); padding: 2px 7px; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ---------------- 按钮原语：尺寸 × 变体（openspec/radix-component-layer D9；视觉基线 design-review/button-system.html） ---------------- */
-/* 尺寸只由 data-size 决定：xs 22 / sm 26 / md 30，图标钮同档，window 与 caret 是两个特例 */
-.btn[data-size="xs"] { height: 22px; padding: 0 8px; font-size: var(--fs-sub); }
-.btn[data-size="sm"] { height: 26px; padding: 0 10px; font-size: var(--fs-sub); }
-.btn[data-size="md"] { height: 30px; padding: 0 12px; font-size: var(--fs-body); }
-.btn[data-size^="icon-"] { padding: 0; }
-.btn[data-size="icon-xs"] { width: 22px; height: 22px; }
-.btn[data-size="icon-sm"] { width: 26px; height: 26px; }
-.btn[data-size="icon-md"] { width: 30px; height: 30px; }
-.btn[data-size="caret"] { width: 18px; height: 20px; padding: 0; }
-.btn[data-size="window"] {
-  width: 44px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  font-size: var(--fs-body);
-  line-height: 1;
-  cursor: default;
-}
-/* 窗口键不跟着普通按钮按压位移，保持系统标题栏手感 */
-.btn[data-size="window"]:active { transform: none; }
 
-/* 变体只改颜色与边框，尺寸/圆角/焦点环共用 */
-.btn[data-variant="primary"] {
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-  border-color: transparent;
-}
-.btn[data-variant="primary"]:hover { background: hsl(var(--primary) / 0.88); }
-.btn[data-variant="ghost"] { background: transparent; color: hsl(var(--muted-foreground)); border-color: transparent; }
-.btn[data-variant="ghost"]:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
-.btn[data-variant="soft"] { background: hsl(var(--secondary)); border-color: transparent; }
-.btn[data-variant="soft"]:hover { background: hsl(var(--muted)); }
-.btn[data-variant="danger"] { color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.4); }
-.btn[data-variant="danger"]:hover { background: hsl(var(--destructive) / 0.08); }
-.btn[data-variant="window-close"] { background: transparent; color: hsl(var(--foreground)); border: 0; border-radius: 0; }
-.btn[data-variant="window-close"]:hover { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
-.btn[aria-pressed="true"] { background: hsl(var(--primary) / 0.1); color: hsl(var(--foreground)); border-color: transparent; }
-.btn[aria-pressed="true"]:hover { background: hsl(var(--primary) / 0.16); }
-
-/* 便签纸表面：只换色，不改尺寸与圆角 */
-[data-surface="sticky"] .btn[data-variant="ghost"] { color: var(--sticky-muted); }
-[data-surface="sticky"] .btn[data-variant="ghost"]:hover { background: hsl(0 0% 50% / 0.14); color: var(--sticky-ink); }
-[data-surface="sticky"] .btn[data-variant="ghost"][aria-pressed="true"] {
-  background: color-mix(in srgb, var(--sticky-accent) 38%, transparent);
-  color: var(--sticky-ink);
-}
-
-:where(button, [tabindex]):focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 1px;
-  border-radius: var(--r-sm);
-}
-
-.input {
-  font: inherit;
-  font-size: var(--fs-body);
-  min-width: 0;
-  padding: 6px 9px;
-  border-radius: var(--r-sm);
-  border: 1px solid hsl(var(--input));
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
-}
-.input::placeholder { color: hsl(var(--muted-foreground)); }
-.input:focus {
-  border-color: hsl(var(--ring));
-  outline: none;
-  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.18);
-}
-.input.invalid { border-color: hsl(var(--destructive)); box-shadow: 0 0 0 2px hsl(var(--destructive) / 0.18); }
-.input.xs { font-size: var(--fs-sub); padding: 3px 7px; }
-.input.sm { font-size: var(--fs-body); padding: 6px 10px; }
-
-/* 输入框原语的属性选择器（与 .btn 同口径，新代码只写 data-*，旧 .xs/.sm 迁移期保留） */
-.input[data-size="xs"] { font-size: var(--fs-sub); padding: 3px 7px; }
-.input[data-size="sm"] { font-size: var(--fs-body); padding: 6px 10px; }
-.input[aria-invalid="true"] { border-color: hsl(var(--destructive)); box-shadow: 0 0 0 2px hsl(var(--destructive) / 0.18); }
-
-/* 弹窗原语：radix Dialog 输出 data-state；遮罩与面板各一层，面板固定居中 */
-.dialog-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 120;
-  background: hsl(var(--foreground) / 0.18);
-}
-.dialog-content {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  z-index: 121;
-  box-sizing: border-box;
-  width: min(92vw, 420px);
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 32px);
-  overflow: auto;
-  padding: 14px 16px 12px;
-  border: 1px solid hsl(var(--border));
-  border-radius: 6px;
-  background: hsl(var(--card));
-  color: hsl(var(--foreground));
-  box-shadow: 0 18px 48px -18px hsl(var(--foreground) / 0.45);
-  transform: translate(-50%, -50%);
-}
-.dialog-overlay[data-state="open"] { animation: dialog-fade-in 120ms ease-out; }
-.dialog-content[data-state="open"] { animation: dialog-pop-in 140ms ease-out; }
-@keyframes dialog-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes dialog-pop-in {
-  from { opacity: 0; transform: translate(-50%, -48%); }
-  to { opacity: 1; transform: translate(-50%, -50%); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .dialog-overlay[data-state="open"],
-  .dialog-content[data-state="open"] { animation: none; }
-}
 
 .inline-err { color: hsl(var(--destructive)); font-size: var(--fs-meta); margin-top: var(--sp-1); }
 .badge {
@@ -248,28 +105,6 @@ kbd {
   cursor: pointer;
 }
 
-/* 复选框原语：与 .tcheck 同尺寸；radix 输出 data-state，勾选态用 primary 实心 + 反白勾 */
-.checkbox {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 15px;
-  height: 15px;
-  padding: 0;
-  border: 1px solid hsl(var(--input));
-  border-radius: 4px;
-  background: hsl(var(--background));
-  color: hsl(var(--primary-foreground));
-  cursor: pointer;
-  transition: background 120ms ease-out, border-color 120ms ease-out;
-}
-.checkbox:hover { border-color: hsl(var(--muted-foreground)); }
-.checkbox[data-state="checked"],
-.checkbox[data-state="indeterminate"] { background: hsl(var(--primary)); border-color: hsl(var(--primary)); }
-.checkbox:disabled { opacity: 0.5; cursor: not-allowed; }
-.checkbox-indicator { display: inline-flex; }
-.checkbox-indicator svg { width: 11px; height: 11px; stroke-width: 3; }
 
 .cat-chip {
   flex: none;
@@ -720,36 +555,6 @@ details.overdue[open] summary::before {
 .heat-cell.lv-3 { background: var(--heat-3); }
 .heat-cell.lv-4 { background: var(--heat-4); }
 
-/* ---------------- 鐠佲€冲灊妞?Tabs + 閹绘劙鍟嬬紓鏍帆閿涘潷lanned-settings 鎼侫閿?---------------- */
-.tabs {
-  display: inline-flex;
-  gap: 2px;
-  border-bottom: 1px solid hsl(var(--border));
-}
-.tab {
-  border: 0;
-  background: transparent;
-  color: hsl(var(--muted-foreground));
-  font-size: var(--fs-body);
-  padding: 6px 14px;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-}
-.tab:hover {
-  color: hsl(var(--foreground));
-}
-.tab.on,
-.tab[data-state="active"] {
-  color: hsl(var(--foreground));
-  font-weight: 600;
-  border-bottom-color: hsl(var(--primary));
-}
-/* radix Tabs 的根节点：替代原来「tabs 与面板都是 .view 直接子元素」的层距 */
-.tabs-root {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-}
 .add-rem summary {
   cursor: pointer;
   font-size: var(--fs-body);
@@ -791,63 +596,7 @@ details.overdue[open] summary::before {
   justify-content: flex-start;
 }
 
-/* 菜单原语：radix DropdownMenu / ContextMenu 共用；data-highlighted 由 radix 维护键盘高亮 */
-.dropdown-menu {
-  z-index: 130;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
-  min-width: 128px;
-  padding: 4px;
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--r-md);
-  background: hsl(var(--card));
-  box-shadow: var(--shadow-md);
-}
-.dropdown-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  justify-content: flex-start;
-  min-height: 22px;
-  padding: 2px 8px;
-  border: 0;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: inherit;
-  font-size: var(--fs-sub);
-  text-align: left;
-  cursor: default;
-  user-select: none;
-  outline: none;
-}
-.dropdown-menu-item[data-highlighted] { background: hsl(var(--muted)); }
-.dropdown-menu-item[data-disabled] { opacity: 0.5; }
-.dropdown-menu-item[data-variant="danger"] { color: hsl(var(--destructive)); }
-.dropdown-menu-sub-trigger::after {
-  content: "›";
-  margin-left: auto;
-  opacity: 0.6;
-}
-.dropdown-menu-separator {
-  height: 1px;
-  margin: 4px 2px;
-  background: hsl(var(--border));
-}
 
-/* 轻量浮层（radix Popover）：定位与关闭交给原语，这里只定皮肤。
-   特殊外观（如知识库排版弹层）由调用方 className 叠加覆盖。 */
-.popover {
-  z-index: 70;
-  max-width: min(92vw, 320px);
-  padding: 10px 12px;
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--r-md, 10px);
-  background: hsl(var(--popover));
-  color: hsl(var(--popover-foreground));
-  box-shadow: 0 12px 28px hsl(var(--foreground) / 0.14);
-}
 
 /* 行尾动作列：常驻「⋯」（25px 固定列），次要动作在同一列里展开——
    展开前后行宽恒定，任一时刻可见的次要动作至多多一行、且互斥（tasks 4.2 / spec §A.2）。 */
@@ -865,13 +614,6 @@ details.overdue[open] summary::before {
   align-items: center;
 }
 
-/* 任务详情沿用顶部对齐（原先 .detail-overlay 的 48px 内边距），避免居中改版 */
-.dialog-content[data-align="top"] {
-  top: 48px;
-  transform: translateX(-50%);
-  max-height: calc(100vh - 96px);
-}
-.dialog-content[data-align="top"][data-state="open"] { animation: dialog-fade-in 120ms ease-out; }
 
 .detail-overlay {
   position: fixed;
