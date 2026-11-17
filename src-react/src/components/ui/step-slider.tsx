@@ -1,9 +1,11 @@
-import { useCallback, useRef } from 'react'
+import { Slider as RadixSlider } from 'radix-ui'
 
 /**
  * 分级滑块（分级档位，不是连续调节）：
- * - 轨道上每一档一个刻度点，指针只能落在档位上，读数因此永远可复述（「16px」「.03em」）。
- * - 指针 / 键盘共用同一套 index：← → 移一档，Home / End 到两端，焦点常驻在滑块本体。
+ * - 指针仍能落在任意一档，读数因此永远可复述（「16px」「.03em」）。
+ * - 键盘 / 指针 / 焦点圈定交给 radix `Slider`：← → / ↑ ↓ 移一档，Home / End 到两端，
+ *   `aria-valuetext` 用 `format(current)`，读屏播报的是档位文案而不是裸索引。
+ * - 刻度点仍自渲染：radix 的 Track 只有一条填充条，档位刻度是设计的一部分。
  * - 交互只回传 index，值域与文案由调用方决定（字号 8–20、字距 0–0.09em 各七档）。
  */
 interface Props {
@@ -19,29 +21,8 @@ interface Props {
 }
 
 export function StepSlider({ label, value, steps, format, onChange, ariaLabel }: Props) {
-  const trackRef = useRef<HTMLDivElement>(null)
-  const draggingRef = useRef(false)
   const max = Math.max(0, steps - 1)
   const current = Math.min(max, Math.max(0, value))
-  const ratio = max === 0 ? 0 : current / max
-
-  const pick = useCallback(
-    (clientX: number) => {
-      const el = trackRef.current
-      if (!el) return
-      const rect = el.getBoundingClientRect()
-      if (rect.width <= 0) return
-      const raw = (clientX - rect.left) / rect.width
-      const next = Math.min(max, Math.max(0, Math.round(raw * max)))
-      if (next !== current) onChange(next)
-    },
-    [current, max, onChange],
-  )
-
-  const step = (delta: number) => {
-    const next = Math.min(max, Math.max(0, current + delta))
-    if (next !== current) onChange(next)
-  }
 
   return (
     <div className="step-slider">
@@ -49,29 +30,17 @@ export function StepSlider({ label, value, steps, format, onChange, ariaLabel }:
         <span className="step-slider-label">{label}</span>
         <span className="step-slider-value" aria-hidden="true">{format(current)}</span>
       </div>
-      <div
+      <RadixSlider.Root
         className="step-slider-track"
-        ref={trackRef}
-        onPointerDown={(e) => {
-          // 拖动期间不要选中文本，也不要把指针交给上层（弹层据此判断「点在外面」）
-          e.preventDefault()
-          e.stopPropagation()
-          draggingRef.current = true
-          e.currentTarget.setPointerCapture(e.pointerId)
-          pick(e.clientX)
-        }}
-        onPointerMove={(e) => {
-          if (!draggingRef.current) return
-          pick(e.clientX)
-        }}
-        onPointerUp={(e) => {
-          draggingRef.current = false
-          if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
-        }}
-        onPointerCancel={() => { draggingRef.current = false }}
+        min={0}
+        max={max}
+        step={1}
+        value={[current]}
+        onValueChange={([next]) => onChange(next)}
       >
-        <span className="step-slider-rail" aria-hidden="true" />
-        <span className="step-slider-fill" style={{ width: `${ratio * 100}%` }} aria-hidden="true" />
+        <RadixSlider.Track className="step-slider-rail">
+          <RadixSlider.Range className="step-slider-fill" />
+        </RadixSlider.Track>
         {Array.from({ length: steps }, (_, i) => (
           <span
             key={i}
@@ -80,24 +49,12 @@ export function StepSlider({ label, value, steps, format, onChange, ariaLabel }:
             aria-hidden="true"
           />
         ))}
-        <span
+        <RadixSlider.Thumb
           className="step-slider-knob"
-          style={{ left: `${ratio * 100}%` }}
-          role="slider"
-          tabIndex={0}
           aria-label={ariaLabel}
-          aria-valuemin={0}
-          aria-valuemax={max}
-          aria-valuenow={current}
           aria-valuetext={format(current)}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); step(1) }
-            else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); step(-1) }
-            else if (e.key === 'Home') { e.preventDefault(); if (current !== 0) onChange(0) }
-            else if (e.key === 'End') { e.preventDefault(); if (current !== max) onChange(max) }
-          }}
         />
-      </div>
+      </RadixSlider.Root>
     </div>
   )
 }

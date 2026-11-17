@@ -577,22 +577,23 @@
 }
 .step-slider-value { font-size: var(--fs-meta); color: var(--ink-1); font-variant-numeric: tabular-nums; }
 .step-slider-track {
+  display: block;
   position: relative;
   height: 18px;
   cursor: pointer;
   touch-action: none;
   outline: none;
 }
+/* radix 结构：Root(.step-slider-track) > Track(.step-slider-rail) > Range(.step-slider-fill)。
+   Track 是 2px 的细条，Range 撑满它，所以这里不能再给 Range 加 top 偏移。 */
 .step-slider-rail,
 .step-slider-fill {
   position: absolute;
-  top: 8px;
-  left: 0;
   height: 2px;
   border-radius: 1px;
 }
-.step-slider-rail { right: 0; background: var(--line-warm); }
-.step-slider-fill { background: var(--seal-track); }
+.step-slider-rail { top: 8px; left: 0; right: 0; background: var(--line-warm); }
+.step-slider-fill { top: 0; left: 0; height: 100%; background: var(--seal-track); }
 .step-slider-tick {
   position: absolute;
   top: 6px;
@@ -604,11 +605,12 @@
 }
 .step-slider-tick.on { background: var(--seal-track); }
 .step-slider-knob {
+  /* left 由 radix 计算，横向居中由它自带的 --radix-slider-thumb-transform: translateX(-50%) 完成，
+     所以这里不能再用 margin-left 补偿。 */
   position: absolute;
   top: 2px;
   width: 12px;
   height: 12px;
-  margin-left: -6px;
   border: 2px solid var(--seal-track);
   border-radius: 50%;
   background: var(--paper);
