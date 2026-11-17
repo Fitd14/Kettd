@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 
 export interface KbFolderDialogProps {
   /** 弹窗标题（新建文件夹 / 重命名文件夹） */
@@ -117,22 +118,24 @@ export function KbFolderDialog({
           {error ?? ''}
         </div>
         <div className="kb-folder-dialog-actions">
-          <button
+          <Button
             type="button"
-            className="btn xs ghost"
+            variant="ghost"
+            size="xs"
             onClick={onCancel}
             disabled={submitting}
           >
             取消
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="btn xs primary"
+            variant="primary"
+            size="xs"
             onClick={() => void submit()}
             disabled={submitting}
           >
             {submitting ? '处理中…' : submitLabel}
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

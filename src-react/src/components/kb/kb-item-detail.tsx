@@ -8,6 +8,7 @@ import { applyReadingPrefs } from '@/lib/reading-prefs'
 import type { OutlineItem } from '@/lib/doc-outline'
 import { TypoPopover } from './typo-popover'
 import { Popover, PopoverTrigger } from '@/components/ui/popover'
+import { Button } from '@/components/ui/button'
 import { DocOutline } from './doc-outline'
 
 interface Props {
@@ -351,14 +352,16 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
           <div className="kb-strip-anchor">
             <Popover open={typoOpen} onOpenChange={setTypoOpen}>
               <PopoverTrigger asChild>
-                <button
+                <Button
                   type="button"
-                  className={'kb-strip-btn' + (typoOpen ? ' on' : '')}
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-pressed={typoOpen}
                   title="排版"
                   aria-label="排版"
                 >
                   <Type size={15} strokeWidth={1.7} />
-                </button>
+                </Button>
               </PopoverTrigger>
               <TypoPopover
                 value={{ size: prefs.size, tracking: prefs.tracking, measure: prefs.measure }}
@@ -367,20 +370,23 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
             </Popover>
           </div>
 
-          <button
+          <Button
             type="button"
-            className={'kb-strip-btn' + (copied ? ' on' : '')}
+            variant="ghost"
+            size="icon-sm"
+            aria-pressed={copied}
             title={copied ? '已复制' : '复制 Markdown'}
             aria-label="复制 Markdown"
             onClick={() => { void copyMarkdown() }}
           >
             {copied ? <Check size={15} strokeWidth={1.8} /> : <FileCode2 size={15} strokeWidth={1.7} />}
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             ref={outlineBtnRef}
-            className={'kb-strip-btn' + (outlineOpen ? ' on' : '')}
+            variant="ghost"
+            size="icon-sm"
             title={railFits ? '大纲（页边）' : '大纲（右侧抽屉）'}
             aria-label="大纲"
             aria-pressed={outlineOpen}
@@ -388,26 +394,26 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
             onClick={() => setOutlinePref(!outlineOpen)}
           >
             <PanelRight size={15} strokeWidth={1.7} />
-          </button>
+          </Button>
 
           <span className="kb-strip-sep" aria-hidden="true" />
 
           {onPin && (
-            <button className="btn xs ghost" onClick={() => onPin(item)} title="贴到桌面">
+            <Button variant="ghost" size="xs" onClick={() => onPin(item)} title="贴到桌面">
               <Pin size={13} strokeWidth={1.7} /> 贴到桌面
-            </button>
+            </Button>
           )}
           {!showDeleteConfirm ? (
-            <button className="btn xs ghost" onClick={() => setShowDeleteConfirm(true)} title="删除" aria-label="删除">
+            <Button variant="ghost" size="xs" onClick={() => setShowDeleteConfirm(true)} title="删除" aria-label="删除">
               <Trash2 size={13} strokeWidth={1.7} />
-            </button>
+            </Button>
           ) : (
             <>
               <span className="kb-del-confirm">
                 {refCount > 0 ? `有 ${refCount} 处引用将悬空，` : ''}确认删除？
               </span>
-              <button className="btn xs danger" onClick={handleDelete}>确认</button>
-              <button className="btn xs ghost" onClick={() => setShowDeleteConfirm(false)}>取消</button>
+              <Button variant="danger" size="xs" onClick={handleDelete}>确认</Button>
+              <Button variant="ghost" size="xs" onClick={() => setShowDeleteConfirm(false)}>取消</Button>
             </>
           )}
           <span className="sr-only" aria-live="polite">{copied ? 'Markdown 已复制' : ''}</span>

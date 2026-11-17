@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button'
+
 interface Props {
   variant: 'empty' | 'no-results' | 'limit' | 'error'
   onCreate?: () => void
@@ -19,7 +21,7 @@ export function KbEmptyState({ variant, onCreate, errorMessage }: Props) {
       <span className="empty-icon">{icon}</span>
       <span>{variant === 'error' && errorMessage ? errorMessage : text}</span>
       {action && onCreate && (
-        <button className="btn primary" onClick={onCreate}>{action}</button>
+        <Button variant="primary" onClick={onCreate}>{action}</Button>
       )}
     </div>
   )

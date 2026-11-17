@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { getKbItems } from '@/lib/api'
 import type { KbItem } from '@/lib/api'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/components/ui/button'
 
 interface Props {
   currentRefs: string[]
@@ -85,10 +86,10 @@ export function KbAttachPicker({ currentRefs, onAttach, onClose }: Props) {
           ))}
         </div>
         <div className="dialog-actions" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
-          <button className="btn ghost" onClick={onClose}>取消</button>
-          <button className="btn primary" onClick={() => { onAttach(Array.from(selected)); onClose() }}>
+          <Button variant="ghost" onClick={onClose}>取消</Button>
+          <Button variant="primary" onClick={() => { onAttach(Array.from(selected)); onClose() }}>
             关联 ({selected.size})
-          </button>
+          </Button>
         </div>
       </div>
     </div>

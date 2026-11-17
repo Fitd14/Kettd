@@ -28,7 +28,8 @@
 - [ ] 2.1 `views/` 71 处全部换成 `ui/button`，验证该目录 `<button` 计数为 0，且 `SettingsView`、`PlannedView` 两个最重的页面在真机上按钮布局无位移
   - 进度（2026-11-17）：`PlannedView` 7 + `InboxView` 6 + `SettingsView` 31 + `StickyView` 8 + `TodayView` 3 + `ReviewView` 2 + `KbView` 1 已换；`views/` 原生 `<button` 余 6，全仓余 95
   - 余 6 处均卡在映射缺口，非漏改：`SettingsView` 2（font-chip 文字钮）、`KbView` 2（`kb-error-retry`、`kb-list-toggle` 单点专用钮）、`ReviewView` 2（周期 tab 归 4.3、热力图 `heat-cell` 单点专用钮）。补齐 D9 口径后 2.1 才能归零
-- [ ] 2.2 `components/kb/` 32 处，验证该目录计数为 0，知识库列表 hover 浮起与工具栏图标钮尺寸不变
+- [ ] 2.2 `components/kb/` 32 处：按 D12 只迁控制钮，整行可点击的行容器保留原生 `<button>`；验证文件内控制钮计数为 0，知识库列表 hover 浮起与工具栏图标钮尺寸不变
+  - 进度（2026-11-17）：`kb-attach-picker` 2 + `kb-empty-state` 1 + `kb-folder-dialog` 2 + `kb-item-detail` 7（4 个 `.btn*` + 3 个 `kb-strip-btn`）已换；目录原生 `<button` 33 → 21，余下为 `kb-tree` 13（含 D12 行容器）、`kb-item-detail` 2（`kb-tag-x` / `kb-tag-add`，chip 内小钮待定）、`doc-outline` 2、`typo-popover` 1、`kb-context-menu` 1（行容器）
 - [ ] 2.3 `rendering/` 19 处，验证该目录计数为 0；`tiptap-editor.tsx:1311` 起的工具条按钮保留 `onMouseDown` + `preventDefault`，点按钮后编辑器保持焦点、选区不丢
 - [ ] 2.4 `components/` 根 19 处，验证该目录计数为 0，任务行与快捷键提示的按钮样式不变
 - [ ] 2.5 `sticky/` 8、`todo/` 6、`capture/` 4、`src` 根 2 处，验证这四个位置计数为 0，便签三态切换与快速捕获条仍可用
@@ -49,7 +50,7 @@
 
 ## 5. 收口
 
-- [ ] 5.1 全仓检索 `<button` / `<input` / `<select` / `<textarea` 与 `role="dialog|menu|tab"`，除 `components/ui/` 内部外计数为 0；唯一白名单是 D8 的 listbox 行按钮（`components/kb/kb-tree.tsx:650` 起），记录白名单行号与剩余数
+- [ ] 5.1 全仓检索 `<button` / `<input` / `<select` / `<textarea` 与 `role="dialog|menu|tab"`，除 `components/ui/` 内部外计数为 0；白名单三类：① D8 的 listbox 行按钮（`components/kb/kb-tree.tsx:650` 起）② D12 的整行可点击行容器（`kb-tree-item`、`kb-folder-row`、`kb-folder-caret`、`kb-item-row`、`kb-context-menu-item`、`kb-tag-chip`、`heat-cell`）③ D12 判定前的临时单点钮。记录白名单行号与剩余数
 - [ ] 5.2 跑 `npx tsc -b`、`npm run lint`、`npm run build`，三项全过并记录输出
 - [ ] 5.3 按 AGENTS §4.2 做 L4 冒烟五条：快速记录、今天视图计数、提醒触发、便签三态、知识库搜索
 - [ ] 5.4 校对 `AGENTS.md` §2.2 与 `README.md` §目录结构 的文案与最终实现一致（三层描述、例外清单），过 `node test/docs.test.mjs`
