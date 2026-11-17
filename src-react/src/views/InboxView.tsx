@@ -4,6 +4,7 @@ import { deleteTask, undoDelete, updateTask } from '@/lib/api'
 import { inboxGroups } from '../kernel/selectors.js'
 import { localToday } from '../kernel/time.js'
 import { TaskRow } from '@/components/task-row'
+import { Button } from '@/components/ui/button'
 import { TaskDetail } from '@/components/task-detail'
 import { useRowNav } from '@/lib/list-nav'
 import type { useUndoToast } from '@/components/undo-toast'
@@ -131,9 +132,9 @@ export function InboxView({ boot, refresh, undo }: Props) {
       {selected.size > 0 && (
         <div className="batch-bar" role="toolbar" aria-label="批量处理">
           <span>已选 {selected.size}</span>
-          <button className="btn xs outline" onClick={() => { void planToday(selectedIds) }}>加入今天</button>
+          <Button size="xs" onClick={() => { void planToday(selectedIds) }}>加入今天</Button>
           {!batchSchedule ? (
-            <button className="btn xs outline" onClick={() => { setBatchSchedule(true); setScheduleDate('') }}>排期…</button>
+            <Button size="xs" onClick={() => { setBatchSchedule(true); setScheduleDate('') }}>排期…</Button>
           ) : (
             <span className="row-flex items-center gap-1.5">
               <input
@@ -148,13 +149,13 @@ export function InboxView({ boot, refresh, undo }: Props) {
                   if (e.key === 'Escape') setBatchSchedule(false)
                 }}
               />
-              <button className="btn xs outline" onClick={commitSchedule}>定</button>
-              <button className="btn ghost xs" onClick={() => setBatchSchedule(false)}>取消</button>
+              <Button size="xs" onClick={commitSchedule}>定</Button>
+              <Button variant="ghost" size="xs" onClick={() => setBatchSchedule(false)}>取消</Button>
             </span>
           )}
-          <button className="btn xs outline" onClick={() => { void drop(selectedIds) }}>删除</button>
+          <Button size="xs" onClick={() => { void drop(selectedIds) }}>删除</Button>
           <span className="grow" />
-          <button className="btn ghost xs" onClick={() => setSelected(new Set())}>取消</button>
+          <Button variant="ghost" size="xs" onClick={() => setSelected(new Set())}>取消</Button>
         </div>
       )}
 

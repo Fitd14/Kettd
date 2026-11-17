@@ -14,6 +14,7 @@ import { nextReminderTime } from '../kernel/selectors.js'
 import { TimeText } from '@/components/time-text'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
 
 interface Props {
   boot: Bootstrap
@@ -143,10 +144,11 @@ export function PlannedView({ boot, refresh }: Props) {
                 <code className="tmeta mono">{r.time}</code>
                 <span className="badge">{r.time.includes('T') ? '单次' : '循环'}</span>
                 <span className="row-actions">
-                  <button className="btn ghost xs" onClick={() => startEdit(r)}>编辑时间</button>
+                  <Button variant="ghost" size="xs" onClick={() => startEdit(r)}>编辑时间</Button>
                   {r.enabled && (
-                    <button
-                      className="btn ghost xs"
+                    <Button
+                      variant="ghost"
+                      size="xs"
                       onClick={async () => {
                         const res = await snoozeReminder(r.id, 10)
                         if (res.err) setErr(res.err)
@@ -154,10 +156,11 @@ export function PlannedView({ boot, refresh }: Props) {
                       }}
                     >
                       稍后10分
-                    </button>
+                    </Button>
                   )}
-                  <button
-                    className="btn ghost xs"
+                  <Button
+                    variant="ghost"
+                    size="xs"
                     onClick={async () => {
                       const res = await deleteReminder(r.id)
                       if (res.err) setErr(res.err)
@@ -165,7 +168,7 @@ export function PlannedView({ boot, refresh }: Props) {
                     }}
                   >
                     删
-                  </button>
+                  </Button>
                 </span>
               </span>
               {editing === r.id && (
@@ -185,8 +188,8 @@ export function PlannedView({ boot, refresh }: Props) {
                     ariaLabel="提醒时刻"
                     onCommit={(v) => { setEditTime(v); void commitEdit(r) }}
                   />
-                  <button className="btn xs outline" onClick={() => { void commitEdit(r) }}>定</button>
-                  <button className="btn ghost xs" onClick={() => setEditing(null)}>取消</button>
+                  <Button size="xs" onClick={() => { void commitEdit(r) }}>定</Button>
+                  <Button variant="ghost" size="xs" onClick={() => setEditing(null)}>取消</Button>
                 </span>
               )}
             </div>
@@ -207,7 +210,7 @@ export function PlannedView({ boot, refresh }: Props) {
                 ariaLabel="新提醒时刻"
                 onCommit={(v) => { setNewTime(v); void add() }}
               />
-              <button className="btn xs outline" onClick={() => { void add() }}>加提醒</button>
+              <Button size="xs" onClick={() => { void add() }}>加提醒</Button>
             </div>
           </details>
         </section>
@@ -228,8 +231,9 @@ export function PlannedView({ boot, refresh }: Props) {
                   <span className="grow truncate sm">{t.title}</span>
                   <span className="row-flex items-center gap-1.5 whitespace-nowrap">
                     {t.dueAt && <code className="tmeta mono">{String(t.dueAt).slice(11, 16) || String(t.dueAt).slice(0, 10)}</code>}
-                    <button
-                      className="btn ghost xs"
+                    <Button
+                      variant="ghost"
+                      size="xs"
                       onClick={async () => {
                         const res = await updateTask(t.id, { plannedDate: today })
                         if (res.err) setErr(res.err)
@@ -237,7 +241,7 @@ export function PlannedView({ boot, refresh }: Props) {
                       }}
                     >
                       →今天
-                    </button>
+                    </Button>
                   </span>
                 </div>
               ))}
