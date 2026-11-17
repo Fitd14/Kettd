@@ -18,9 +18,9 @@ import Suggestion from '@tiptap/suggestion'
 import { common, createLowlight } from 'lowlight'
 import {
   Bold, Italic, Strikethrough, Heading1, Heading2, Heading3, List, ListOrdered,
-  ListTodo, TextQuote, Code, Table as TableIcon, Link2, Minus, Plus, Pilcrow,
+  ListTodo, TextQuote, Code, Table as TableIcon, Link2, Minus, Pilcrow,
   Search, ChevronUp, ChevronDown, X, MoreHorizontal,
-  Trash2, Rows3, Columns3, BetweenHorizontalEnd, BetweenVerticalEnd,
+  Trash2, BetweenHorizontalEnd, BetweenVerticalEnd,
   TableRowsSplit, TableColumnsSplit,
 } from 'lucide-react'
 import { LinkInlineEditor } from './link-inline-editor'
@@ -215,9 +215,7 @@ function shouldShowInlineBubble({
   return !e.isActive('codeBlock') && !e.isActive('table')
 }
 
-/* ─── 表格悬浮操作：表格右上（表级）与单元格右上（行列级）─────────── */
-
-type ToolsAnchor = { left: number; top: number; flip: boolean }
+/* ─── 表格悬浮操作：表格右上（表级）与单元格右下（行列级）─────────── */
 
 /** 当前选区所在的表格节点（不在表格里返回 null） */
 function tableNodeAt(editor: Editor) {
@@ -241,111 +239,190 @@ function lastCellTextPos(editor: Editor): number | null {
 }
 
 /**
- * 两个悬浮把手：表级（删表 / 表尾增减行列）钉在表格右上，
- * 行列级（当前行列增删）钉在光标所在单元格右上。
- * 位置从 DOM 量，自己订阅 selectionUpdate —— 主编辑器不因量位置而重渲染。
+ * 两个悬浮把手：表级（表格右上角外侧）与单元格级（当前单元格右下角内侧）。
+ * - 表级：悬停/点击弹出「表格」面板 —— 删表 + 行列尺寸网格（点击一次把表格改成该尺寸）。
+ *   面板默认贴在表格右上角右侧；右侧留白不足时 data-flip="left" 翻到左侧（不改正文宽度）。
+ * - 单元格级：悬停/点击弹出「行列」面板 —— 插入/删除当前行与当前列；
+ *   面板默认向下展开，贴近编辑区底部时 data-flip="up" 向上翻。
+ * 位置由 root 容器内的相对坐标决定（measure 在 selectionUpdate / resize / scroll / ResizeObserver 时重算）。
  */
 function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolean }) {
   const rootRef = useRef<HTMLDivElement | null>(null)
-  const [table, setTable] = useState<ToolsAnchor | null>(null)
-  const [cell, setCell] = useState<ToolsAnchor | null>(null)
+  const [table, setTable] = useState<{ left: number; top: number; flip: boolean } | null>(null)
+  const [cell, setCell] = useState<{ left: number; top: number; flipUp: boolean } | null>(null)
   const [rows, setRows] = useState(0)
   const [cols, setCols] = useState(0)
   const [onHeader, setOnHeader] = useState(false)
   const [open, setOpen] = useState<'table' | 'cell' | null>(null)
+  const [hover, setHover] = useState<{ r: number; c: number } | null>(null)
 
   useEffect(() => {
     if (!enabled) return
     const root = rootRef.current
     if (!root) return
-
     const measure = () => {
-      if (!root.isConnected) return
+      const node = rootRef.current
+      if (!node) return
+      const rootRect = node.getBoundingClientRect()
       const { from } = editor.state.selection
-      const at = editor.view.domAtPos(from)
-      const el = (at.node.nodeType === 1 ? at.node : at.node.parentElement) as HTMLElement | null
-      // 光标可能停在表格边界（落在 <table> 而非单元格）——表级把手仍要出来
-      const cellEl = el?.closest('td,th') as HTMLElement | null
-      const tableEl = (cellEl ?? el)?.closest('table') as HTMLTableElement | null
-      const rootRect = root.getBoundingClientRect()
+      let el: HTMLElement | null = null
+      try {
+        const at = editor.view.domAtPos(from)
+        el = at.node.nodeType === 1 ? (at.node as HTMLElement) : at.node.parentElement
+      } catch {
+        el = null
+      }
+      const cellEl = (el?.closest('td, th') ?? null) as HTMLElement | null
+      const tableEl = ((cellEl ?? el)?.closest('table') ?? null) as HTMLElement | null
       if (!tableEl) {
         setTable(null)
         setCell(null)
         return
       }
       const t = tableEl.getBoundingClientRect()
-      // 表格整体滚出编辑区时收起，避免把手贴着顶边悬浮
       if (t.bottom < rootRect.top || t.top > rootRect.bottom) {
         setTable(null)
         setCell(null)
         return
       }
-      const tableLeft = Math.max(0, Math.min(t.right - rootRect.left - 22, rootRect.width - 22))
-      setTable({
-        left: tableLeft,
-        top: Math.max(0, t.top - rootRect.top - 12),
-        flip: tableLeft < 240,
-      })
-      if (cellEl) {
-        const c = cellEl.getBoundingClientRect()
-        const cellLeft = Math.max(0, Math.min(c.right - rootRect.left - 20, rootRect.width - 20))
-        setCell({
-          left: cellLeft,
-          top: Math.max(0, c.top - rootRect.top + 2),
-          flip: cellLeft < 200,
-        })
-      } else {
-        setCell(null)
+      const tableNode = tableNodeAt(editor)
+      if (tableNode) {
+        setRows(tableNode.node.childCount)
+        setCols(tableNode.node.firstChild?.childCount ?? 0)
       }
-      setRows(tableEl.rows.length)
-      setCols(tableEl.rows[0]?.cells.length ?? 0)
-      setOnHeader(editor.isActive('tableHeader'))
+      const handle = 18
+      const panelW = 168
+      const clamp = (v: number, max: number) => Math.min(Math.max(v, 0), Math.max(max, 0))
+      const tableLeft = clamp(t.right - rootRect.left - 22, rootRect.width - handle)
+      const tableTop = clamp(t.top - rootRect.top - 12, rootRect.height - handle)
+      setTable({ left: tableLeft, top: tableTop, flip: tableLeft + handle + 12 + panelW > rootRect.width })
+      if (!cellEl) {
+        setCell(null)
+        return
+      }
+      setOnHeader(cellEl.tagName === 'TH')
+      const c = cellEl.getBoundingClientRect()
+      const cellTop = c.bottom - rootRect.top - handle - 2
+      if (cellTop < -handle || cellTop > rootRect.height) {
+        setCell(null)
+        return
+      }
+      setCell({
+        left: clamp(c.right - rootRect.left - handle - 2, rootRect.width - handle),
+        top: clamp(cellTop, rootRect.height - handle),
+        flipUp: cellTop + handle + 8 + 96 > rootRect.height,
+      })
     }
-
     measure()
-    // 挂载瞬间编辑区可能还没完成布局，下一帧再量一次
     const frame = requestAnimationFrame(measure)
-    editor.on('selectionUpdate', measure)
-    window.addEventListener('resize', measure)
-    window.addEventListener('scroll', measure, true)
-    const observer = new ResizeObserver(measure)
-    observer.observe(root)
+    const onSelection = () => measure()
+    const onResize = () => measure()
+    const onScroll = () => measure()
+    const resizeObserver = new ResizeObserver(measure)
+    resizeObserver.observe(root)
+    editor.on('selectionUpdate', onSelection)
+    window.addEventListener('resize', onResize)
+    window.addEventListener('scroll', onScroll, true)
     return () => {
       cancelAnimationFrame(frame)
-      editor.off('selectionUpdate', measure)
-      window.removeEventListener('resize', measure)
-      window.removeEventListener('scroll', measure, true)
-      observer.disconnect()
+      resizeObserver.disconnect()
+      editor.off('selectionUpdate', onSelection)
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('scroll', onScroll, true)
     }
   }, [editor, enabled])
 
   useEffect(() => {
     if (!open) return
-    const onDown = (e: MouseEvent) => {
-      const root = rootRef.current
-      if (root && e.target instanceof Node && root.contains(e.target)) return
-      setOpen(null)
+    const onDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(null)
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
 
-  /** 表级命令：先把光标移到表尾，再执行（reload 后光标留在表尾，便于连续加减） */
-  const atTableEnd = (run: (chain: ChainedCommands) => ChainedCommands) => {
-    const p = lastCellTextPos(editor)
-    if (p === null) return
-    run(editor.chain().focus().setTextSelection(p)).run()
+  if (!enabled) return <div className="kb-tbl-tools-root" ref={rootRef} />
+
+  const deleteTable = () => {
+    editor.chain().focus().deleteTable().run()
+    setOpen(null)
   }
 
-  // 容器必须无条件渲染：rootRef 是测量的锚点，早退会让 effect 拿不到节点，
-  // 首帧永远量不到位置，把手也就永远不出现。
+  const editAtTableEnd = (action: 'addRow' | 'delRow' | 'addCol' | 'delCol') => {
+    const pos = lastCellTextPos(editor)
+    if (pos === null) return
+    const chain = editor.chain().focus().setTextSelection(pos)
+    if (action === 'addRow') chain.addRowAfter().run()
+    if (action === 'delRow') chain.deleteRow().run()
+    if (action === 'addCol') chain.addColumnAfter().run()
+    if (action === 'delCol') chain.deleteColumn().run()
+  }
+
+  const resizeTable = (targetRows: number, targetCols: number) => {
+    const target = tableNodeAt(editor)
+    if (!target) return
+    const curRows = target.node.childCount
+    const curCols = target.node.firstChild?.childCount ?? 0
+    for (let i = curRows; i > targetRows; i -= 1) editAtTableEnd('delRow')
+    for (let i = curRows; i < targetRows; i += 1) editAtTableEnd('addRow')
+    for (let i = curCols; i > targetCols; i -= 1) editAtTableEnd('delCol')
+    for (let i = curCols; i < targetCols; i += 1) editAtTableEnd('addCol')
+    setOpen(null)
+    setHover(null)
+  }
+
+  const cellActions = (action: 'addRow' | 'delRow' | 'addCol' | 'delCol') => {
+    const { from } = editor.state.selection
+    const el = (() => {
+      try {
+        const at = editor.view.domAtPos(from)
+        return (at.node.nodeType === 1 ? at.node : at.node.parentElement) as HTMLElement | null
+      } catch {
+        return null
+      }
+    })()
+    const inCell = el?.closest('td, th')
+    if (inCell) {
+      const chain = editor.chain().focus()
+      if (action === 'addRow') chain.addRowAfter().run()
+      if (action === 'delRow') chain.deleteRow().run()
+      if (action === 'addCol') chain.addColumnAfter().run()
+      if (action === 'delCol') chain.deleteColumn().run()
+    } else {
+      editAtTableEnd(action)
+    }
+    setOpen(null)
+  }
+
+  const gridN = Math.min(8, Math.max(6, rows + 1, cols + 1))
+  const activeR = open === 'table' && hover ? hover.r : rows
+  const activeC = open === 'table' && hover ? hover.c : cols
+  const gridCells = Array.from({ length: gridN * gridN }, (_, index) => {
+    const r = Math.floor(index / gridN) + 1
+    const c = (index % gridN) + 1
+    return (
+      <Button
+        key={`${r}-${c}`}
+        variant="bare"
+        className="kb-tbl-size-cell"
+        data-on={r <= activeR && c <= activeC ? 'true' : 'false'}
+        data-current={r === rows && c === cols ? 'true' : 'false'}
+        aria-label={`${r} 行 × ${c} 列`}
+        onMouseEnter={() => setHover({ r, c })}
+        onFocus={() => setHover({ r, c })}
+        onClick={() => resizeTable(r, c)}
+      />
+    )
+  })
+
   return (
     <div className="kb-tbl-tools-root" ref={rootRef}>
-      {table && (
+      {table ? (
         <div
-          className={'kb-tbl-tools kb-tbl-tools-table' + (open === 'table' ? ' is-open' : '')}
+          className={`kb-tbl-tools kb-tbl-tools-table${open === 'table' ? ' is-open' : ''}`}
           data-flip={table.flip ? 'left' : undefined}
           style={{ left: table.left, top: table.top }}
+          onMouseLeave={() => setHover(null)}
         >
           <Button
             variant="ghost"
@@ -353,143 +430,101 @@ function EditorTableTools({ editor, enabled }: { editor: Editor; enabled: boolea
             title="表格操作"
             aria-label="表格操作"
             aria-expanded={open === 'table'}
-            onMouseDown={(e) => e.preventDefault()}
             onClick={() => setOpen(open === 'table' ? null : 'table')}
           >
             <TableIcon size={11} strokeWidth={1.8} aria-hidden />
           </Button>
-          <div className="kb-bubble kb-tbl-panel" data-surface="bubble" role="group" aria-label="表格">
-            <Button
-              data-surface="bubble"
-              size="icon-xs"
-              variant="danger"
-              title="删除整张表格"
-              aria-label="删除整张表格"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                editor.chain().focus().deleteTable().run()
-                setOpen(null)
-              }}
+          <div className="kb-tbl-panel" role="group" aria-label="表格操作">
+            <div className="kb-tbl-head">
+              <span className="kb-tbl-group">表格</span>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="kb-tbl-danger"
+                title="删除整张表格"
+                aria-label="删除整张表格"
+                onClick={deleteTable}
+              >
+                <Trash2 size={13} strokeWidth={1.8} aria-hidden />
+              </Button>
+            </div>
+            <div
+              className="kb-tbl-size"
+              style={{ gridTemplateColumns: `repeat(${gridN}, 14px)` }}
+              onMouseLeave={() => setHover(null)}
             >
-              <Trash2 size={13} strokeWidth={1.7} aria-hidden />
-            </Button>
-            <span className="kb-bubble-sep" />
-            <Rows3 className="kb-tbl-axis" size={13} strokeWidth={1.7} aria-hidden />
-            <Button
-              data-surface="bubble"
-              size="icon-xs"
-              title="表尾减少一行"
-              aria-label="表尾减少一行"
-              disabled={rows <= 1}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => atTableEnd((c) => c.deleteRow())}
-            >
-              <Minus size={13} strokeWidth={2} aria-hidden />
-            </Button>
-            <span className="kb-tbl-num">{rows}</span>
-            <Button
-              data-surface="bubble"
-              size="icon-xs"
-              title="表尾增加一行"
-              aria-label="表尾增加一行"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => atTableEnd((c) => c.addRowAfter())}
-            >
-              <Plus size={13} strokeWidth={2} aria-hidden />
-            </Button>
-            <span className="kb-bubble-sep" />
-            <Columns3 className="kb-tbl-axis" size={13} strokeWidth={1.7} aria-hidden />
-            <Button
-              data-surface="bubble"
-              size="icon-xs"
-              title="表尾减少一列"
-              aria-label="表尾减少一列"
-              disabled={cols <= 1}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => atTableEnd((c) => c.deleteColumn())}
-            >
-              <Minus size={13} strokeWidth={2} aria-hidden />
-            </Button>
-            <span className="kb-tbl-num">{cols}</span>
-            <Button
-              data-surface="bubble"
-              size="icon-xs"
-              title="表尾增加一列"
-              aria-label="表尾增加一列"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => atTableEnd((c) => c.addColumnAfter())}
-            >
-              <Plus size={13} strokeWidth={2} aria-hidden />
-            </Button>
+              {gridCells}
+            </div>
+            <div className="kb-tbl-size-hint" aria-live="polite">
+              {hover ? `${hover.r} 行 × ${hover.c} 列` : `${rows} 行 × ${cols} 列`}
+            </div>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {cell && (
+      {cell ? (
         <div
-          className={'kb-tbl-tools kb-tbl-tools-cell' + (open === 'cell' ? ' is-open' : '')}
-          data-flip={cell.flip ? 'left' : undefined}
+          className={`kb-tbl-tools kb-tbl-tools-cell${open === 'cell' ? ' is-open' : ''}`}
+          data-flip={cell.flipUp ? 'up' : undefined}
           style={{ left: cell.left, top: cell.top }}
         >
           <Button
             variant="ghost"
             className="kb-tbl-handle"
-            title="当前行 / 列操作"
-            aria-label="当前行或列操作"
+            title="行列操作"
+            aria-label="行列操作"
             aria-expanded={open === 'cell'}
-            onMouseDown={(e) => e.preventDefault()}
             onClick={() => setOpen(open === 'cell' ? null : 'cell')}
           >
             <MoreHorizontal size={12} strokeWidth={2} aria-hidden />
           </Button>
-          <div className="kb-bubble kb-tbl-panel" data-surface="bubble" role="group" aria-label="当前行或列">
-            <Button
-              data-surface="bubble"
-              size="icon-xs"
-              title="在下方插入行"
-              aria-label="在下方插入行"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => editor.chain().focus().addRowAfter().run()}
-            >
-              <BetweenHorizontalEnd size={13} strokeWidth={1.7} aria-hidden />
-            </Button>
-            <Button
-              data-surface="bubble"
-              size="icon-xs"
-              title={onHeader ? '表头行不可删除（删除会破坏 Markdown 表格结构）' : '删除当前行'}
-              aria-label={onHeader ? '表头行不可删除' : '删除当前行'}
-              disabled={onHeader}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                if (!onHeader) editor.chain().focus().deleteRow().run()
-              }}
-            >
-              <TableRowsSplit size={13} strokeWidth={1.7} aria-hidden />
-            </Button>
-            <span className="kb-bubble-sep" />
-            <Button
-              data-surface="bubble"
-              size="icon-xs"
-              title="在右侧插入列"
-              aria-label="在右侧插入列"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => editor.chain().focus().addColumnAfter().run()}
-            >
-              <BetweenVerticalEnd size={13} strokeWidth={1.7} aria-hidden />
-            </Button>
-            <Button
-              data-surface="bubble"
-              size="icon-xs"
-              title="删除当前列"
-              aria-label="删除当前列"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => editor.chain().focus().deleteColumn().run()}
-            >
-              <TableColumnsSplit size={13} strokeWidth={1.7} aria-hidden />
-            </Button>
+          <div className="kb-tbl-panel" role="group" aria-label="当前行列操作">
+            <div className="kb-tbl-head">
+              <span className="kb-tbl-group">行列</span>
+            </div>
+            <div className="kb-tbl-row">
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="在下方插入行"
+                aria-label="在下方插入行"
+                onClick={() => cellActions('addRow')}
+              >
+                <BetweenHorizontalEnd size={13} strokeWidth={1.8} aria-hidden />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="删除当前行"
+                aria-label="删除当前行"
+                disabled={onHeader}
+                onClick={() => cellActions('delRow')}
+              >
+                <TableRowsSplit size={13} strokeWidth={1.8} aria-hidden />
+              </Button>
+              <span className="kb-tbl-sep" aria-hidden />
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="在右侧插入列"
+                aria-label="在右侧插入列"
+                onClick={() => cellActions('addCol')}
+              >
+                <BetweenVerticalEnd size={13} strokeWidth={1.8} aria-hidden />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="删除当前列"
+                aria-label="删除当前列"
+                onClick={() => cellActions('delCol')}
+              >
+                <TableColumnsSplit size={13} strokeWidth={1.8} aria-hidden />
+              </Button>
+            </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

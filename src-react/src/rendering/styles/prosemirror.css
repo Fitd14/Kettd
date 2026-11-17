@@ -235,7 +235,7 @@
   pointer-events: none;
 }
 
-/* ── 表格悬浮操作：表格右上（表级）与单元格右上（行列级）────────────── */
+/* ── 表格悬浮操作：表级（表格右上角）与单元格级（当前单元格右下角）────── */
 .kb-tbl-tools-root {
   position: absolute;
   inset: 0;
@@ -249,17 +249,8 @@
   pointer-events: auto;
 }
 
-/* 手柄下方 10px 的隐形搭桥：hover 从手柄斜着移到面板时不丢 hover */
-.kb-tbl-tools::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  height: 10px;
-}
-
-/* 盒子由 ui/button 的 ghost 变体打底，这里用三层选择器把 18×18 的把手盒子抢回来 */
+/* 把手：18×18 图标钮。盒子由 ghost 变体打底，这里用三层选择器抢回尺寸；
+   hover 只改颜色与不透明度，不铺底色。 */
 .kb-editor .kb-tbl-tools .kb-tbl-handle {
   width: 18px;
   min-width: 18px;
@@ -270,61 +261,203 @@
   justify-content: center;
   border: 1px solid hsl(var(--border));
   border-radius: var(--r-sm, 6px);
-  background: hsl(var(--secondary));
+  background: hsl(var(--background));
   color: hsl(var(--muted-foreground));
   box-shadow: 0 1px 2px hsl(var(--foreground) / 0.08);
   cursor: pointer;
-  opacity: 0.5;
+  opacity: 0.42;
   transition: opacity 120ms ease;
 }
 
-/* ghost 的 hover 底色要压掉，把手只变不透明度 */
-.kb-editor .kb-tbl-tools .kb-tbl-handle:hover {
-  background: hsl(var(--secondary));
-  color: hsl(var(--muted-foreground));
+.kb-editor .kb-tbl-tools .kb-tbl-handle:hover,
+.kb-editor .kb-tbl-tools.is-open .kb-tbl-handle {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
 }
 
 .kb-tbl-tools:hover .kb-tbl-handle,
-.kb-tbl-handle:focus-visible,
+.kb-tbl-tools:focus-within .kb-tbl-handle,
 .kb-tbl-tools.is-open .kb-tbl-handle {
   opacity: 1;
 }
 
+/* 面板：浅色卡片，与把手同一套皮肤；hover / 焦点 / 点击固定三种方式都展开。 */
 .kb-tbl-panel {
-  display: none;
   position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  align-items: center;
+  z-index: 46;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--r-md, 10px);
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  box-shadow: 0 10px 26px hsl(var(--foreground) / 0.14);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-2px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  pointer-events: none;
 }
 
 .kb-tbl-tools:hover .kb-tbl-panel,
+.kb-tbl-tools:focus-within .kb-tbl-panel,
 .kb-tbl-tools.is-open .kb-tbl-panel {
-  display: flex;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  pointer-events: auto;
 }
 
-/* 表格贴着编辑区左边界时，面板向左展开会顶出去：翻到把手右侧 */
-.kb-tbl-tools[data-flip="left"] .kb-tbl-panel {
+/* 表级面板：贴在表格右上角右侧；右侧留白不够时 data-flip="left" 翻到左侧。 */
+.kb-tbl-tools-table .kb-tbl-panel {
+  left: calc(100% + 12px);
+  top: 6px;
+}
+
+.kb-tbl-tools-table[data-flip="left"] .kb-tbl-panel {
+  left: auto;
+  right: calc(100% + 12px);
+}
+
+/* 12px 隐形搭桥：从把手横移到面板时不丢 hover */
+.kb-tbl-tools-table .kb-tbl-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  left: -12px;
+}
+
+.kb-tbl-tools-table[data-flip="left"] .kb-tbl-panel::before {
+  left: auto;
+  right: -12px;
+}
+
+/* 单元格面板：从单元格右下角的把手向下展开；贴到底边时 data-flip="up" 向上翻。 */
+.kb-tbl-tools-cell .kb-tbl-panel {
+  right: 0;
+  top: calc(100% + 8px);
+}
+
+.kb-tbl-tools-cell .kb-tbl-panel::before {
+  content: "";
+  position: absolute;
   left: 0;
-  right: auto;
+  right: 0;
+  height: 8px;
+  top: -8px;
 }
 
-.kb-tbl-axis {
+.kb-tbl-tools-cell[data-flip="up"] .kb-tbl-panel {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
+.kb-tbl-tools-cell[data-flip="up"] .kb-tbl-panel::before {
+  top: auto;
+  bottom: -8px;
+}
+
+/* 把手与面板之间的隐形搭桥：指针横穿/下移的缝隙仍算在 hover 里，面板不闪退 */
+.kb-tbl-tools-table::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 100%;
+  width: 12px;
+  height: 100%;
+}
+
+.kb-tbl-tools-table[data-flip="left"]::after {
+  left: auto;
+  right: 100%;
+}
+
+.kb-tbl-tools-cell::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+
+.kb-tbl-tools-cell[data-flip="up"]::after {
+  top: auto;
+  bottom: 100%;
+}
+
+/* 面板标题行：一行组名，说明这组按钮管什么 */
+.kb-editor .kb-tbl-head {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 16px;
-  color: hsl(var(--bubble-ink) / 0.66);
-  flex: none;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 18px;
 }
 
-.kb-tbl-num {
-  min-width: 12px;
-  text-align: center;
+.kb-editor .kb-tbl-group {
+  font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground));
+}
+
+.kb-editor .kb-tbl-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kb-editor .kb-tbl-sep {
+  width: 1px;
+  height: 14px;
+  margin: 0 2px;
+  background: hsl(var(--border));
+}
+
+.kb-editor .kb-tbl-danger {
+  color: hsl(var(--destructive));
+}
+
+.kb-editor .kb-tbl-danger:hover {
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.1);
+}
+
+/* 行列尺寸网格：6×6 起、随表格扩到 8×8；hover 预览，点击一次改成该尺寸。 */
+.kb-editor .kb-tbl-size {
+  display: grid;
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.kb-editor .kb-tbl-panel .kb-tbl-size-cell {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  padding: 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: 3px;
+  background: transparent;
+}
+
+.kb-editor .kb-tbl-panel .kb-tbl-size-cell[data-on="true"] {
+  background: hsl(var(--foreground) / 0.16);
+  border-color: hsl(var(--foreground) / 0.3);
+}
+
+.kb-editor .kb-tbl-panel .kb-tbl-size-cell[data-current="true"] {
+  border-color: hsl(var(--seal));
+}
+
+.kb-editor .kb-tbl-size-hint {
   font-size: var(--fs-meta);
   font-variant-numeric: tabular-nums;
-  color: hsl(var(--bubble-ink));
-  white-space: nowrap;
+  color: hsl(var(--muted-foreground));
+  text-align: right;
 }
 /* 鈹€鈹€鈹€ 鍐欎綔鍖哄垪鍐呮孩鍑猴紙tasks 4.1锛夛細瀹借〃鏍?/ 闀夸覆鍦ㄦ鏂囧垪鍐呰嚜琛屾粴鍔ㄦ垨鎶樿锛?   涓嶆拺鐮磋鎯呴潰鏉匡紙鍒楀涓婇檺鐢?.kb-detail-inner 鐨?--kb-measure 鎺у埗锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€ */
 
