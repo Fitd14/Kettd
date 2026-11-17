@@ -14,6 +14,7 @@ import {
   type KbItem,
   type StickySelf,
 } from '@/lib/api'
+import { applyReadingTheme } from '@/lib/reading-theme-source'
 import { FADE_DEBOUNCE_MS, isPointerOutside, shouldFade } from '@/lib/sticky-fade'
 import { PaperPattern } from './paper-patterns'
 import { TipTapEditor } from '@/rendering/tiptap-editor'
@@ -253,6 +254,8 @@ export default function StickyWindow() {
     if (!b.err && b.data) {
       setBoot(b.data)
       applyTheme(b.data.settings.theme)
+      // 外观主题（全量口径）：便签是独立 WebView，必须自己写到根上（D10）
+      await applyReadingTheme(b.data.settings)
     }
     if (!s.err && s.data) {
       setSelf(s.data)
@@ -268,8 +271,13 @@ export default function StickyWindow() {
   useEffect(() => {
     void refresh()
     const off = onEvent('store-changed', () => { void refresh() })
-    const offTheme = onEvent('theme-changed', (payload: unknown) => applyTheme(payload as string))
-    return () => { off(); offTheme() }
+    // 明暗切换后要重放主题（同一套主题的亮/暗值不同），所以 theme-changed 也走 refresh
+    const offTheme = onEvent('theme-changed', (payload: unknown) => {
+      applyTheme(payload as string)
+      void refresh()
+    })
+    const offReading = onEvent('reading-theme-changed', () => { void refresh() })
+    return () => { off(); offTheme(); offReading() }
   }, [refresh])
 
   const paper = boot?.settings.stickyPaper ?? 'warm'

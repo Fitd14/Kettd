@@ -1,0 +1,161 @@
+/* kettd-theme
+   name: Paperglow
+   author: Kettd
+   description: 暖纸面与陶土强调的编辑部排版；配色与装饰几何参考 cloudy-liu/Paperglow-Theme（Apache-2.0），按 Kettd 外观主题变量改写：行高按行盒等价折算为 1.7，标题倍率按字号比换算，未嵌入字体。
+*/
+
+.kb-theme-light {
+  /* 外壳配色（全量口径：与阅读区共用一套变量） */
+  --background: 34 37% 93%;
+  --foreground: 30 13% 15%;
+  --card: 40 50% 98%;
+  --card-foreground: 30 13% 15%;
+  --popover: 40 50% 98%;
+  --popover-foreground: 30 13% 15%;
+  --primary: 22 53% 48%;
+  --primary-foreground: 40 50% 98%;
+  --secondary: 34 37% 93%;
+  --secondary-foreground: 30 13% 15%;
+  --muted: 33 30% 93%;
+  --muted-foreground: 30 11% 41%;
+  --accent: 31 47% 89%;
+  --accent-foreground: 22 60% 38%;
+  --border: 35 22% 83%;
+  --input: 30 12% 61%;
+  --ring: 22 53% 48%;
+  --link: 20 56% 36%;
+  --seal: 22 53% 48%;
+  /* 纸面墨色 */
+  --paper: #FCFAF6;
+  --ink-1: #2B2621;
+  --ink-2: #61574F;
+  --ink-3: #8A7D70;
+  --line-warm: #DDD5CA;
+  --seal-track: #BC6A3A;
+  --seal-ink: #9C5127;
+  --seal-soft: rgba(188, 106, 58, 0.12);
+
+  /* 纸面形态 */
+  --kb-paper-radius: 16px;
+  --kb-paper-shadow: 0 0 0 1px rgba(96, 78, 63, 0.08), 0 8px 20px rgba(70, 52, 38, 0.06);
+  --kb-paper-texture: 0.06;
+
+  /* 字族 */
+  --font-reading: "Montserrat", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-reading-title: "Montserrat", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+
+  /* 段落与标题 */
+  --kb-line-height: 1.7;
+  --kb-h1: 1.90;
+  --kb-h2: 1.65;
+  --kb-h3: 1.42;
+  --kb-h4: 1.24;
+  --kb-h5: 1.12;
+  --kb-h6: 1.00;
+  --kb-head-tracking: 0em;
+  --kb-h1-rule: none;
+  --kb-h2-rule: 2px solid #DDD5CA;
+
+  /* 引用 */
+  --kb-quote-bg: #F3EDE5;
+  --kb-quote-line: 3px solid #C58C64;
+  --kb-quote-ink: #4A4039;
+  --kb-quote-radius: 0 8px 8px 0;
+
+  /* 代码 */
+  --kb-code-bg: #FCFBF8;
+  --kb-code-ink: #1C1815;
+  --kb-code-radius: 16px;
+  --kb-inline-code-bg: #F2EDE7;
+  --kb-inline-code-ink: #A3493F;
+  --kb-inline-code-radius: 6px;
+
+  /* 表格 */
+  --kb-table-line: rgba(188, 106, 58, 0.30);
+  --kb-table-head-bg: rgba(188, 106, 58, 0.06);
+  --kb-table-zebra: transparent;
+  --kb-table-radius: 8px;
+
+  /* 链接与图片 */
+  --kb-link-ink: #8F4B28;
+  --kb-link-underline: 1px;
+  --kb-img-radius: 8px;
+}
+
+.kb-theme-dark {
+  /* 外壳配色（全量口径：与阅读区共用一套变量） */
+  --background: 40 5% 11%;
+  --foreground: 43 41% 97%;
+  --card: 36 6% 16%;
+  --card-foreground: 43 41% 97%;
+  --popover: 36 6% 16%;
+  --popover-foreground: 43 41% 97%;
+  --primary: 25 57% 62%;
+  --primary-foreground: 30 3% 13%;
+  --secondary: 22 9% 18%;
+  --secondary-foreground: 43 41% 97%;
+  --muted: 22 9% 18%;
+  --muted-foreground: 31 16% 69%;
+  --accent: 26 14% 20%;
+  --accent-foreground: 25 65% 68%;
+  --border: 26 6% 23%;
+  --input: 31 11% 58%;
+  --ring: 25 57% 62%;
+  --link: 25 65% 68%;
+  --seal: 25 57% 62%;
+  /* 纸面墨色 */
+  --paper: #2B2926;
+  --ink-1: #FAF8F3;
+  --ink-2: #D5CDC0;
+  --ink-3: #A99D90;
+  --line-warm: #3D3936;
+  --seal-track: #D59567;
+  --seal-ink: #E3A57A;
+  --seal-soft: rgba(213, 149, 103, 0.16);
+
+  /* 纸面形态 */
+  --kb-paper-radius: 16px;
+  --kb-paper-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.28);
+  --kb-paper-texture: 0.05;
+
+  /* 字族 */
+  --font-reading: "Montserrat", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-reading-title: "Montserrat", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+
+  /* 段落与标题 */
+  --kb-line-height: 1.7;
+  --kb-h1: 1.90;
+  --kb-h2: 1.65;
+  --kb-h3: 1.42;
+  --kb-h4: 1.24;
+  --kb-h5: 1.12;
+  --kb-h6: 1.00;
+  --kb-head-tracking: 0em;
+  --kb-h1-rule: none;
+  --kb-h2-rule: 2px solid #3D3936;
+
+  /* 引用 */
+  --kb-quote-bg: #2C2926;
+  --kb-quote-line: 3px solid #6B5D50;
+  --kb-quote-ink: #DDD2C6;
+  --kb-quote-radius: 0 8px 8px 0;
+
+  /* 代码 */
+  --kb-code-bg: #2A2725;
+  --kb-code-ink: #F5EFE6;
+  --kb-code-radius: 16px;
+  --kb-inline-code-bg: #332E2B;
+  --kb-inline-code-ink: #E1A092;
+  --kb-inline-code-radius: 6px;
+
+  /* 表格 */
+  --kb-table-line: rgba(213, 149, 103, 0.30);
+  --kb-table-head-bg: rgba(213, 149, 103, 0.08);
+  --kb-table-zebra: transparent;
+  --kb-table-radius: 8px;
+
+  /* 链接与图片 */
+  --kb-link-ink: #E3A57A;
+  --kb-link-underline: 1px;
+  --kb-img-radius: 8px;
+}

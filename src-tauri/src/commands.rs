@@ -460,6 +460,7 @@ pub fn set_settings(
   let mut store = lock(&state);
   store.ensure_writable()?;
   let old_theme = store.data.settings.theme.clone();
+  let old_reading_theme = store.data.settings.reading_theme.clone();
   // 四槽位热键事务：任一换绑失败，主题/键位整批回滚（规则在 app/settings）
   let mut hotkeys = crate::infra::tauri_hotkeys::TauriHotkeys::new(&app);
   crate::app::settings::apply_with_hotkeys(&mut store, &patch, &mut hotkeys)?;
@@ -472,6 +473,11 @@ pub fn set_settings(
   store.save()?;
   if next_theme != old_theme {
     let _ = app.emit_all("theme-changed", next_theme.clone());
+  }
+  let next_reading_theme = store.data.settings.reading_theme.clone();
+  if patch.reading_theme.is_some() && next_reading_theme != old_reading_theme {
+    // 阅读主题换装：KB 阅读区与本窗设置页各自重放（同一窗口内也可靠 store-changed 兜底）
+    let _ = app.emit_all("reading-theme-changed", next_reading_theme.clone());
   }
   if patch.todo_float_pinned.is_some() {
     // 待办悬浮窗置顶即时同步到窗口（todo-float）
@@ -529,6 +535,49 @@ pub fn delete_reading_font(name: String) -> Result<Vec<ReadingFontInfo>, String>
 #[tauri::command]
 pub fn read_reading_font(name: String) -> Result<String, String> {
   crate::infra::fonts::read_base64(&name)
+}
+
+// ---------------------------------------------------------------- 阅读主题（reading-themes）
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadingThemeInfo {
+  pub name: String,
+  pub size_kb: u32,
+}
+
+fn reading_themes() -> Vec<ReadingThemeInfo> {
+  crate::infra::themes::list()
+    .into_iter()
+    .map(|(name, size_kb)| ReadingThemeInfo { name, size_kb })
+    .collect()
+}
+
+/// 列出数据目录 `<themes>/` 下已安装的阅读主题文件。
+#[tauri::command]
+pub fn list_reading_themes() -> Vec<ReadingThemeInfo> {
+  reading_themes()
+}
+
+/// 安装用户导入的主题（前端读成 UTF-8 文本传来）。
+/// 校验文件名与外部资源，先写临时文件再 rename，半个文件不会被读到。
+#[tauri::command]
+pub fn save_reading_theme(name: String, data: String) -> Result<Vec<ReadingThemeInfo>, String> {
+  crate::infra::themes::install(&name, &data)?;
+  Ok(reading_themes())
+}
+
+/// 删除一个主题文件（前端负责先切回默认再调）。
+#[tauri::command]
+pub fn delete_reading_theme(name: String) -> Result<Vec<ReadingThemeInfo>, String> {
+  crate::infra::themes::remove(&name)?;
+  Ok(reading_themes())
+}
+
+/// 读一个主题文件的文本；前端解析后应用到阅读区。
+#[tauri::command]
+pub fn read_reading_theme(name: String) -> Result<String, String> {
+  crate::infra::themes::read(&name)
 }
 
 // ---------------------------------------------------------------- 便签（多便签 H1 · multi-sticky-spec）

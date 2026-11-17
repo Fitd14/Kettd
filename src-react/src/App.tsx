@@ -22,6 +22,7 @@ import { todaySections } from './kernel/selectors.js'
 import { localToday } from './kernel/time.js'
 import { applyReadingFont } from './lib/reading-font'
 import { applyReadingPrefs } from './lib/reading-prefs'
+import { applyReadingTheme, clearThemeCache } from './lib/reading-theme-source'
 import { configureAssetsDir } from './rendering/asset-url'
 import { useUndoToast, UndoToast } from '@/components/undo-toast'
 import { TitleBar } from '@/components/title-bar'
@@ -101,12 +102,19 @@ export default function App() {
     void applyReadingFont(r.data.settings.readingFont)
     // 阅读偏好（字号 / 字距 / 列宽）：属性驱动，幂等重放；store-changed 走同一个 refresh
     applyReadingPrefs(r.data.settings)
+    // 外观主题：写到 documentElement，外壳 + 阅读区 + 弹层一并换装（全量口径）
+    void applyReadingTheme(r.data.settings)
   }, [])
 
   useEffect(() => {
     void refresh()
     // E14：store-changed 在订阅前到达会先进补发队列，挂上监听即回放
     const off = onEvent('store-changed', () => { void refresh() })
+    // 主题导入/删除/切换：后端先发 reading-theme-changed，丢掉解析缓存再重放
+    const offReadingTheme = onEvent('reading-theme-changed', () => {
+      clearThemeCache()
+      void refresh()
+    })
     // 跨窗导航兜底：主窗 focus 时消费 localStorage 里的待跳转路由
     const pending = takePendingRoute()
     if (pending) {
@@ -118,7 +126,7 @@ export default function App() {
     }
     const onHash = () => setRoute(routeFromHash())
     window.addEventListener('hashchange', onHash)
-    return () => { off(); window.removeEventListener('hashchange', onHash) }
+    return () => { off(); offReadingTheme(); window.removeEventListener('hashchange', onHash) }
   }, [refresh])
 
   // navigate 事件（D6）：隐藏主窗按「直达知识库」热键 → 后端 show_main 广播 "/kb" → 这里切视图。

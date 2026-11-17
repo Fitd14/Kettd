@@ -404,6 +404,9 @@ export function KbView({ boot }: Props) {
     return off
   }, [refresh])
 
+  // 外观主题由 `App.tsx` 统一写到 documentElement（kb-theme-library 5.2），
+  // 知识库不再自己持有主题状态，避免两处应用互相覆盖。
+
   // 详情要等正文就绪才挂载：新建即命名 / 右键重命名的焦点请求先登记，面板挂载后再发信号；
   // 选中切走后丢弃过期请求，避免之后切回该条目时突然抢焦点。
   useEffect(() => {

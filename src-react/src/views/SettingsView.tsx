@@ -7,11 +7,13 @@ import type {
   HotkeyStatus,
   KbBackupInfo,
   ReadingFontInfo,
+  ReadingThemeInfo,
 } from '@/lib/api'
 import {
   clearEvents,
   createSticky,
   deleteReadingFont,
+  deleteReadingTheme,
   deleteSticky,
   exportBackup,
   getBackups,
@@ -20,18 +22,23 @@ import {
   importBackup,
   listKbBackups,
   listReadingFonts,
+  listReadingThemes,
   listStickies,
   openDataFolder,
   openSticky,
+  readReadingTheme,
   registerKbHotkey,
   restoreBackup,
   restoreKbBackup,
   saveReadingFont,
+  saveReadingTheme,
   setSettings,
   updateSticky,
   type StickyNoteItem,
 } from '@/lib/api'
 import { READING_FONT_SYSTEMS } from '@/lib/reading-font'
+import { parseTheme, BUILTIN_THEME_LABELS } from '@/lib/reading-theme'
+import { BUILTIN_THEME_CSS } from '@/lib/reading-theme-source'
 
 import { plainPreview } from '@/lib/sticky-text'
 import { Button } from '@/components/ui/button'
@@ -54,6 +61,8 @@ const DEFAULT_STICKY = 'Alt+Shift+S'
 const DEFAULT_TODO = 'Alt+Shift+T'
 /** kb-storage-backup D6：直达知识库（隐藏主窗时唤出并停在 #/kb） */
 const DEFAULT_KB = 'Alt+Shift+K'
+
+/** 内置主题源码表由 `lib/reading-theme-source` 统一提供（与主窗/三窗共用一份） */
 
 /**
  * 可见性兼容读取（批次 3）：旧数据 / 旧桥接可能没有 visible 字段，
@@ -218,6 +227,19 @@ export function SettingsView({ boot, refresh }: Props) {
   const [fontErr, setFontErr] = useState<string | null>(null)
   const fontFile = useRef<HTMLInputElement | null>(null)
 
+  /** 阅读主题（kb-theme-library 3.1）：已导入清单 + 当前主题体检（识别/忽略/错误） */
+  const [themes, setThemes] = useState<ReadingThemeInfo[]>([])
+  const [themeBusy, setThemeBusy] = useState(false)
+  const [themeErr, setThemeErr] = useState<string | null>(null)
+  const [themeCheck, setThemeCheck] = useState<{
+    ok: boolean
+    recognized: number
+    ignored: number
+    errors: number
+    reason?: string
+  } | null>(null)
+  const themeFile = useRef<HTMLInputElement | null>(null)
+
   /** 手动备份（kb-storage-backup 4.4）：导出结果 + 导入 dry-run 预览 / apply 状态，局部错误就近显示 */
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
@@ -244,6 +266,7 @@ export function SettingsView({ boot, refresh }: Props) {
     void loadStickies()
     void loadBackups()
     void loadFonts()
+    void loadThemes()
     void loadKbBackups()
     void getKbItems().then((r) => {
       if (!r.err && r.data) setKbTitleMap(new Map(r.data.map((i) => [i.id, i.title])))
@@ -272,6 +295,43 @@ export function SettingsView({ boot, refresh }: Props) {
   // 滑杆本地值跟随后端（他窗改动/回滚时回正）
   useEffect(() => { setFadeOpacity(s.stickyFadeOpacity) }, [s.stickyFadeOpacity])
 
+  // 当前主题体检（3.1）：内置读打包资源、`file:` 走后端；读不到或 0 条有效声明 →「主题不可用」
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      const value = s.readingTheme
+      if (!value) { setThemeCheck(null); return }
+      let css = ''
+      if (value.startsWith('builtin:')) {
+        css = BUILTIN_THEME_CSS[value.slice('builtin:'.length)] ?? ''
+      } else if (value.startsWith('file:')) {
+        const r = await readReadingTheme(value.slice('file:'.length))
+        if (cancelled) return
+        if (r.err || !r.data) {
+          setThemeCheck({ ok: false, recognized: 0, ignored: 0, errors: 1, reason: '主题文件读不到' })
+          return
+        }
+        css = r.data
+      }
+      if (cancelled) return
+      if (!css) {
+        setThemeCheck({ ok: false, recognized: 0, ignored: 0, errors: 1, reason: '主题不可用' })
+        return
+      }
+      const parsed = parseTheme(css)
+      const recognized = Object.keys(parsed.light).length + Object.keys(parsed.dark).length
+      setThemeCheck({
+        ok: parsed.ok && recognized > 0,
+        recognized,
+        ignored: parsed.ignored,
+        errors: parsed.errors.length,
+        reason: parsed.ok ? undefined : (parsed.errors[0] ?? '主题不可用'),
+      })
+    }
+    void run()
+    return () => { cancelled = true }
+  }, [s.readingTheme])
+
   useEffect(() => () => {
     if (clearTimer.current) window.clearTimeout(clearTimer.current)
     if (backupTimer.current) window.clearTimeout(backupTimer.current)
@@ -291,6 +351,14 @@ export function SettingsView({ boot, refresh }: Props) {
     if (r.err) { setFontErr(r.err); return }
     setFontErr(null)
     setFonts(r.data ?? [])
+  }
+
+  /** 已导入主题清单（<数据目录>/themes/）；失败只污染本区块 */
+  const loadThemes = async () => {
+    const r = await listReadingThemes()
+    if (r.err) { setThemeErr(r.err); return }
+    setThemeErr(null)
+    setThemes(r.data ?? [])
   }
 
   /** 选字族：'' 跟随正文 / 'system:<键>' / 'file:<名>'；落库后 refresh → App 的 applyReadingFont 生效 */
@@ -335,6 +403,44 @@ export function SettingsView({ boot, refresh }: Props) {
     if (r.err) { setFontErr(r.err); return }
     setFonts(r.data ?? [])
     if (s.readingFont === `file:${name}`) await patch({ readingFont: '' })
+  }
+
+  /** 选主题：'' 默认外观 / 'builtin:<id>' / 'file:<名>' */
+  const chooseTheme = async (value: string) => {
+    await patch({ readingTheme: value })
+  }
+
+  /** 导入主题：明文 CSS 交给后端（≤512 KB、tmp+rename）；成功即启用 */
+  const uploadTheme = async (file: File) => {
+    if (file.size > 512 * 1024) {
+      setThemeErr('主题文件超过 512 KB，请换一个更小的')
+      return
+    }
+    setThemeBusy(true)
+    setThemeErr(null)
+    try {
+      const text = await file.text()
+      const r = await saveReadingTheme(file.name, text)
+      if (r.err) { setThemeErr(r.err); return }
+      setThemes(r.data ?? [])
+      await patch({ readingTheme: `file:${file.name}` })
+      setNote(`已导入并启用主题「${file.name}」`)
+    } catch (e) {
+      setThemeErr('读取主题文件失败，请重试')
+      console.warn('[settings] 主题导入失败', e)
+    } finally {
+      setThemeBusy(false)
+    }
+  }
+
+  /** 删除导入的主题；删的若正在用，立刻退回默认外观 */
+  const removeTheme = async (name: string) => {
+    setThemeBusy(true)
+    const r = await deleteReadingTheme(name)
+    setThemeBusy(false)
+    if (r.err) { setThemeErr(r.err); return }
+    setThemes(r.data ?? [])
+    if (s.readingTheme === `file:${name}`) await patch({ readingTheme: '' })
   }
 
   const rebind = async (slot: 'capture' | 'main' | 'sticky' | 'todo' | 'kb') => {
@@ -675,6 +781,96 @@ export function SettingsView({ boot, refresh }: Props) {
         <div className="set-row"><span>预览</span>
           <p className="font-preview">纸上得来终觉浅，绝知此事要躬行 · 0123456789 · The quick brown fox</p>
         </div>
+      </section>
+
+      <section className="section" aria-label="外观主题">
+        <div className="section-head">
+          <b>外观主题</b>
+          <span>作用于整个应用 · 亮暗各一套值 · 不改变字号、字距与列宽</span>
+        </div>
+        {themeErr && <div className="inline-err" role="alert">{themeErr}</div>}
+        <div className="set-row"><span>主题
+          <div className="tiny text-muted">主窗、快速记录、便签、待办悬浮一起换装；导入的 CSS 存进数据目录 themes/，只留在这台机器</div>
+        </span>
+          <div className="seg" role="group" aria-label="外观主题">
+            <Button size="sm" aria-pressed={!s.readingTheme} onClick={() => { void chooseTheme('') }}>默认</Button>
+            {Object.entries(BUILTIN_THEME_LABELS).map(([id, label]) => (
+              <Button
+                key={id}
+                size="sm"
+                aria-pressed={s.readingTheme === `builtin:${id}`}
+                onClick={() => { void chooseTheme(`builtin:${id}`) }}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="set-row"><span>导入主题
+          <div className="tiny text-muted">单个 CSS 文件，≤ 512 KB；只认文件里的 kettd-theme 声明与 .kb-theme-light / .kb-theme-dark 两块</div>
+        </span>
+          <span className="row-flex items-center gap-2">
+            <input
+              ref={themeFile}
+              type="file"
+              accept=".css"
+              className="font-file"
+              onChange={(e) => {
+                const picked = e.target.files?.[0]
+                if (picked) void uploadTheme(picked)
+                e.target.value = ''
+              }}
+            />
+            <Button size="sm" disabled={themeBusy} onClick={() => themeFile.current?.click()}>
+              {themeBusy ? '处理中…' : '选择文件…'}
+            </Button>
+          </span>
+        </div>
+        {themes.length > 0 && (
+          <div className="set-row"><span>已导入
+            <div className="tiny text-muted">删除正在使用的主题会立刻退回默认外观</div>
+          </span>
+            <div className="font-list">
+              {themes.map((t) => (
+                <span key={t.name} className={`font-chip ${s.readingTheme === `file:${t.name}` ? 'on' : ''}`}>
+                  <Button
+                    variant="bare"
+                    className="font-chip-name"
+                    title={t.name}
+                    onClick={() => { void chooseTheme(`file:${t.name}`) }}
+                  >
+                    {t.name}
+                  </Button>
+                  <span className="font-chip-size mono">{t.sizeKb} KB</span>
+                  <Button
+                    variant="bare"
+                    className="font-chip-del"
+                    aria-label={`删除 ${t.name}`}
+                    disabled={themeBusy}
+                    onClick={() => { void removeTheme(t.name) }}
+                  >
+                    ×
+                  </Button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {s.readingTheme && (
+          <div className="set-row"><span>主题体检</span>
+            {themeCheck && !themeCheck.ok ? (
+              <span className="tiny" role="status">
+                主题不可用：{themeCheck.reason ?? '没有可用的声明'}（设置值保留，修好后自动恢复）
+              </span>
+            ) : (
+              <span className="tiny text-muted" role="status">
+                {themeCheck
+                  ? `识别 ${themeCheck.recognized} 条 / 忽略 ${themeCheck.ignored} 条 / 错误 ${themeCheck.errors} 条`
+                  : '检查中…'}
+              </span>
+            )}
+          </div>
+        )}
       </section>
 
       <section className="section" aria-label="便签">

@@ -1,0 +1,161 @@
+/* kettd-theme
+   name: Mdmdt
+   author: Kettd
+   description: 冷白纸与皇家蓝的极简文档排版；配色与装饰几何参考 cayxc/Mdmdt（Apache-2.0），按 Kettd 外观主题变量改写：行高按行盒等价折算为 1.7，标题倍率按字号比换算，暗色强调蓝提亮一档，未嵌入字体。
+*/
+
+.kb-theme-light {
+  /* 外壳配色（全量口径：与阅读区共用一套变量） */
+  --background: 240 25% 98%;
+  --foreground: 180 13% 3%;
+  --card: 0 0% 100%;
+  --card-foreground: 180 13% 3%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 180 13% 3%;
+  --primary: 223 66% 54%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 6% 93%;
+  --secondary-foreground: 180 13% 3%;
+  --muted: 240 6% 93%;
+  --muted-foreground: 0 0% 40%;
+  --accent: 217 72% 94%;
+  --accent-foreground: 227 54% 40%;
+  --border: 0 0% 82%;
+  --input: 204 7% 58%;
+  --ring: 223 66% 54%;
+  --link: 223 66% 54%;
+  --seal: 223 66% 54%;
+  /* 纸面墨色 */
+  --paper: #FAFAFC;
+  --ink-1: #070909;
+  --ink-2: #666666;
+  --ink-3: #8C959B;
+  --line-warm: #D2D2D2;
+  --seal-track: #3E69D7;
+  --seal-ink: #2F479F;
+  --seal-soft: rgba(62, 105, 215, 0.12);
+
+  /* 纸面形态 */
+  --kb-paper-radius: 2px;
+  --kb-paper-shadow: none;
+  --kb-paper-texture: 0;
+
+  /* 字族 */
+  --font-reading: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", Arial, sans-serif;
+  --font-reading-title: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", Arial, sans-serif;
+
+  /* 段落与标题 */
+  --kb-line-height: 1.7;
+  --kb-h1: 2.00;
+  --kb-h2: 1.75;
+  --kb-h3: 1.50;
+  --kb-h4: 1.25;
+  --kb-h5: 1.12;
+  --kb-h6: 1.00;
+  --kb-head-tracking: 0.06em;
+  --kb-h1-rule: 1px solid #D2D2D2;
+  --kb-h2-rule: none;
+
+  /* 引用 */
+  --kb-quote-bg: rgba(62, 105, 215, 0.06);
+  --kb-quote-line: 4px solid #3E69D7;
+  --kb-quote-ink: #3A3A3A;
+  --kb-quote-radius: 8px;
+
+  /* 代码 */
+  --kb-code-bg: #ECECEE;
+  --kb-code-ink: #1B1B1F;
+  --kb-code-radius: 8px;
+  --kb-inline-code-bg: rgba(62, 105, 215, 0.15);
+  --kb-inline-code-ink: #2F479F;
+  --kb-inline-code-radius: 4px;
+
+  /* 表格 */
+  --kb-table-line: #D2D2D2;
+  --kb-table-head-bg: #ECECEE;
+  --kb-table-zebra: #ECECEE;
+  --kb-table-radius: 8px;
+
+  /* 链接与图片 */
+  --kb-link-ink: #3E69D7;
+  --kb-link-underline: 0px;
+  --kb-img-radius: 8px;
+}
+
+.kb-theme-dark {
+  /* 外壳配色（全量口径：与阅读区共用一套变量） */
+  --background: 240 7% 11%;
+  --foreground: 0 0% 82%;
+  --card: 228 11% 18%;
+  --card-foreground: 0 0% 82%;
+  --popover: 228 11% 18%;
+  --popover-foreground: 0 0% 82%;
+  --primary: 224 69% 59%;
+  --primary-foreground: 240 25% 98%;
+  --secondary: 228 11% 18%;
+  --secondary-foreground: 0 0% 82%;
+  --muted: 228 11% 18%;
+  --muted-foreground: 0 0% 65%;
+  --accent: 222 15% 22%;
+  --accent-foreground: 229 94% 86%;
+  --border: 210 7% 29%;
+  --input: 204 8% 53%;
+  --ring: 224 69% 59%;
+  --link: 224 81% 68%;
+  --seal: 224 69% 59%;
+  /* 纸面墨色 */
+  --paper: #1B1B1F;
+  --ink-1: #D0D0D0;
+  --ink-2: #A6A6A6;
+  --ink-3: #7E8A92;
+  --line-warm: #464B50;
+  --seal-track: #4F76DF;
+  --seal-ink: #BBC7FD;
+  --seal-soft: rgba(62, 105, 215, 0.20);
+
+  /* 纸面形态 */
+  --kb-paper-radius: 2px;
+  --kb-paper-shadow: none;
+  --kb-paper-texture: 0;
+
+  /* 字族 */
+  --font-reading: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", Arial, sans-serif;
+  --font-reading-title: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", Arial, sans-serif;
+
+  /* 段落与标题 */
+  --kb-line-height: 1.7;
+  --kb-h1: 2.00;
+  --kb-h2: 1.75;
+  --kb-h3: 1.50;
+  --kb-h4: 1.25;
+  --kb-h5: 1.12;
+  --kb-h6: 1.00;
+  --kb-head-tracking: 0.06em;
+  --kb-h1-rule: 1px solid #464B50;
+  --kb-h2-rule: none;
+
+  /* 引用 */
+  --kb-quote-bg: rgba(62, 105, 215, 0.12);
+  --kb-quote-line: 4px solid #4F76DF;
+  --kb-quote-ink: #CFCFCF;
+  --kb-quote-radius: 8px;
+
+  /* 代码 */
+  --kb-code-bg: #282A32;
+  --kb-code-ink: #E8E8EA;
+  --kb-code-radius: 8px;
+  --kb-inline-code-bg: rgba(62, 105, 215, 0.30);
+  --kb-inline-code-ink: #BBC7FD;
+  --kb-inline-code-radius: 4px;
+
+  /* 表格 */
+  --kb-table-line: #464B50;
+  --kb-table-head-bg: #282A32;
+  --kb-table-zebra: #282A32;
+  --kb-table-radius: 8px;
+
+  /* 链接与图片 */
+  --kb-link-ink: #6D8FF0;
+  --kb-link-underline: 0px;
+  --kb-img-radius: 8px;
+}

@@ -4,6 +4,7 @@ import { call, onEvent } from '@/lib/bridge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { addTask } from '@/lib/api'
+import { applyReadingTheme } from '@/lib/reading-theme-source'
 import './capture.css'
 
 interface TaskRow {
@@ -132,25 +133,34 @@ export default function CaptureWindow() {
     return () => ro.disconnect()
   }, [])
 
-  // 后端事件：capture-opened 重置并聚焦；theme-changed 翻暗色
+  // 后端事件：capture-opened 重置并聚焦；theme-changed 翻暗色；reading-theme-changed 重放主题
   useEffect(() => {
     const offOpened = onEvent('capture-opened', () => {
       clearTimer()
       reset()
       setTimeout(() => inputRef.current?.focus(), 30)
     })
+    const sync = async () => {
+      const s = await call<{ theme?: string; readingTheme?: string; readingFont?: string }>('get_settings')
+      if (s.err || !s.data) return
+      document.documentElement.classList.toggle('dark', s.data.theme === 'dark')
+      await applyReadingTheme(s.data)
+    }
     const offTheme = onEvent('theme-changed', (payload) => {
       document.documentElement.classList.toggle('dark', payload === 'dark')
+      void sync()
     })
-    return () => { offOpened(); offTheme() }
+    const offReading = onEvent('reading-theme-changed', () => { void sync() })
+    return () => { offOpened(); offTheme(); offReading() }
   }, [reset])
 
   // 首挂：取当前主题 + 聚焦（窗口未显示时拒焦则忽略）
   useEffect(() => {
     void (async () => {
-      const s = await call<{ theme?: string }>('get_settings')
-      if (!s.err && s.data?.theme) {
+      const s = await call<{ theme?: string; readingTheme?: string; readingFont?: string }>('get_settings')
+      if (!s.err && s.data) {
         document.documentElement.classList.toggle('dark', s.data.theme === 'dark')
+        await applyReadingTheme(s.data)
       }
       setTimeout(() => { try { inputRef.current?.focus() } catch { /* 拒焦则忽略 */ } }, 60)
     })()

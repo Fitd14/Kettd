@@ -13,6 +13,7 @@ import {
 } from '@/lib/api'
 import { todayList } from '../kernel/selectors.js'
 import { localToday } from '../kernel/time.js'
+import { applyReadingTheme } from '@/lib/reading-theme-source'
 import { PaperPattern } from '@/sticky/paper-patterns'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
@@ -36,14 +37,19 @@ export default function TodoFloatWindow() {
     if (!r.err && r.data) {
       setBoot(r.data)
       applyTheme(r.data.settings.theme)
+      await applyReadingTheme(r.data.settings)
     }
   }, [])
 
   useEffect(() => {
     void refresh()
     const off = onEvent('store-changed', () => { void refresh() })
-    const offTheme = onEvent('theme-changed', (payload: unknown) => applyTheme(payload as string))
-    return () => { off(); offTheme() }
+    const offTheme = onEvent('theme-changed', (payload: unknown) => {
+      applyTheme(payload as string)
+      void refresh()
+    })
+    const offReading = onEvent('reading-theme-changed', () => { void refresh() })
+    return () => { off(); offTheme(); offReading() }
   }, [refresh])
 
   const today = localToday()

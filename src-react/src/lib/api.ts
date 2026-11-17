@@ -181,6 +181,8 @@ export interface Settings {
   readingTracking: number
   /** 正文列宽上限档位（comfortable 96ch | wide 112ch） */
   readingMeasure: string
+  /** 阅读主题："" = 默认外观；`builtin:<id>` = 内置；`file:<文件名>` = 用户导入 */
+  readingTheme: string
 }
 
 export interface SettingsPayload {
@@ -204,6 +206,7 @@ export interface SettingsPayload {
   readingSize?: number
   readingTracking?: number
   readingMeasure?: string
+  readingTheme?: string
 }
 
 export interface BackupInfo {
@@ -391,6 +394,25 @@ export const deleteReadingFont = (name: string) =>
   call<ReadingFontInfo[]>('delete_reading_font', { name })
 /** 读字体文件为 base64，供 FontFace 注册 */
 export const readReadingFont = (name: string) => call<string>('read_reading_font', { name })
+
+/* ---------------------------------------------------------------- 阅读主题（reading-themes） */
+
+export interface ReadingThemeInfo {
+  /** 数据目录 themes/ 下的文件名；设置里存成 `file:<name>` */
+  name: string
+  sizeKb: number
+}
+
+/** 列出已导入的主题文件（<数据目录>/themes/） */
+export const listReadingThemes = () => call<ReadingThemeInfo[]>('list_reading_themes')
+/** data 为主题文件的 UTF-8 文本，返回导入后的完整列表 */
+export const saveReadingTheme = (name: string, data: string) =>
+  call<ReadingThemeInfo[]>('save_reading_theme', { name, data })
+/** 删除已导入主题（前端负责先切回默认再调） */
+export const deleteReadingTheme = (name: string) =>
+  call<ReadingThemeInfo[]>('delete_reading_theme', { name })
+/** 读主题文件文本，供解析器消费 */
+export const readReadingTheme = (name: string) => call<string>('read_reading_theme', { name })
 
 /* ---------------------------------------------------------------- 便签（sticky-separation：纯自由便签，多开） */
 

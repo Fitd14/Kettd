@@ -314,6 +314,9 @@ pub struct Settings {
   /// 正文列宽上限档位（comfortable 96ch | wide 112ch；越界回落 comfortable）
   #[serde(default = "default_reading_measure")]
   pub reading_measure: String,
+  /// 阅读主题："" = 默认外观；`builtin:<id>` = 内置主题；`file:<文件名>` = 用户导入
+  #[serde(default)]
+  pub reading_theme: String,
 }
 
 fn telemetry_default() -> bool {
@@ -358,6 +361,7 @@ impl Default for Settings {
       reading_size: default_reading_size(),
       reading_tracking: 0,
       reading_measure: default_reading_measure(),
+      reading_theme: String::new(),
     }
   }
 }
@@ -406,6 +410,7 @@ impl Settings {
     self.reading_size = normalize_reading_size(self.reading_size);
     self.reading_tracking = normalize_reading_tracking(self.reading_tracking);
     self.reading_measure = normalize_reading_measure(&self.reading_measure);
+    self.reading_theme = normalize_reading_theme(&self.reading_theme);
   }
 }
 
@@ -563,6 +568,56 @@ pub fn normalize_reading_font(value: &str) -> Result<String, String> {
   Err("字体设置不认识，已忽略".to_string())
 }
 
+// ---------------------------------------------------------------- 阅读主题（reading-themes）
+
+/// 内置阅读主题 id：与 `src-react/src/assets/themes/<id>.css` 一一对应。
+/// 前端另有一份同样的表（`src-react/src/lib/reading-theme.js`），一致性由
+/// `test/reading-theme-builtins.test.mjs` 把关；发布后 id 不再改名。
+pub const READING_THEME_BUILTINS: [&str; 2] = ["paperglow", "mdmdt"];
+
+const THEME_EXTENSION: &str = "css";
+
+/// 导入主题的文件名白名单：不许带路径、不许控制字符、不许点开头、必须是 `.css`。
+/// 真正的落盘路径拼接在 `infra::themes`，这里只回答「这个名字能不能用」。
+pub fn is_safe_theme_file_name(name: &str) -> bool {
+  let trimmed = name.trim();
+  if trimmed.is_empty() || trimmed.chars().count() > 64 || trimmed.starts_with('.') {
+    return false;
+  }
+  if trimmed
+    .chars()
+    .any(|ch| ch.is_control() || matches!(ch, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'))
+  {
+    return false;
+  }
+  match trimmed.rsplit_once('.') {
+    Some((stem, ext)) => !stem.is_empty() && ext.eq_ignore_ascii_case(THEME_EXTENSION),
+    None => false,
+  }
+}
+
+/// 设置值归一化：空串 = 默认外观；`builtin:<白名单 id>`；`file:<安全文件名>`。
+/// 不认识的值一律回空串（不报错）：主题只影响观感，坏值退回默认比拒绝保存更稳。
+pub fn normalize_reading_theme(value: &str) -> String {
+  let trimmed = value.trim();
+  if trimmed.is_empty() {
+    return String::new();
+  }
+  if let Some(id) = trimmed.strip_prefix("builtin:") {
+    if READING_THEME_BUILTINS.contains(&id) {
+      return format!("builtin:{id}");
+    }
+    return String::new();
+  }
+  if let Some(name) = trimmed.strip_prefix("file:") {
+    if is_safe_theme_file_name(name) {
+      return format!("file:{name}");
+    }
+    return String::new();
+  }
+  String::new()
+}
+
 // ---------------------------------------------------------------- 阅读偏好档位（reading-prefs）
 
 /// 可选阅读字号（px）：12–24 步长 1，白名单而非区间，避免 0–11 这类不可读值。
@@ -687,6 +742,60 @@ mod reading_font_tests {
     assert!(!is_safe_font_file_name("dir/a.ttf"));
     assert!(!is_safe_font_file_name("a b.txt"));
     assert!(!is_safe_font_file_name(""));
+  }
+}
+
+#[cfg(test)]
+mod reading_theme_tests {
+  use super::*;
+
+  #[test]
+  fn accepts_empty_builtin_and_file_values() {
+    assert_eq!(normalize_reading_theme(""), "");
+    assert_eq!(normalize_reading_theme("  "), "");
+    assert_eq!(normalize_reading_theme("builtin:paperglow"), "builtin:paperglow");
+    assert_eq!(normalize_reading_theme("builtin:mdmdt"), "builtin:mdmdt");
+    assert_eq!(normalize_reading_theme(" file:我的主题.css "), "file:我的主题.css");
+  }
+
+  #[test]
+  fn unknown_or_unsafe_values_fall_back_to_empty() {
+    assert_eq!(normalize_reading_theme("builtin:unknown"), "");
+    assert_eq!(normalize_reading_theme("builtin:sujian"), "");
+    assert_eq!(normalize_reading_theme("file:../evil.css"), "");
+    assert_eq!(normalize_reading_theme("file:evil.txt"), "");
+    assert_eq!(normalize_reading_theme("paperglow"), "");
+    assert_eq!(normalize_reading_theme("file:"), "");
+  }
+
+  #[test]
+  fn theme_filename_whitelist_covers_edges() {
+    assert!(is_safe_theme_file_name("a.css"));
+    assert!(is_safe_theme_file_name("我的主题.CSS"));
+    assert!(!is_safe_theme_file_name("a.txt"));
+    assert!(!is_safe_theme_file_name(".hidden.css"));
+    assert!(!is_safe_theme_file_name("dir/a.css"));
+    assert!(!is_safe_theme_file_name(""));
+    assert!(!is_safe_theme_file_name(&"a".repeat(60) /* 无扩展名 */));
+    assert!(!is_safe_theme_file_name(&format!("{}.css", "a".repeat(62))));
+  }
+
+  #[test]
+  fn settings_coerce_keeps_legal_theme_and_drops_legal_looking_junk() {
+    let mut settings = Settings::default();
+    settings.reading_theme = "builtin:mdmdt".to_string();
+    settings.coerce();
+    assert_eq!(settings.reading_theme, "builtin:mdmdt");
+
+    settings.reading_theme = "file:../../evil.css".to_string();
+    settings.coerce();
+    assert_eq!(settings.reading_theme, "");
+  }
+
+  #[test]
+  fn old_data_json_without_reading_theme_deserializes_to_default() {
+    let settings: Settings = serde_json::from_str("{}").expect("空对象应能反序列化");
+    assert_eq!(settings.reading_theme, "");
   }
 }
 
@@ -902,6 +1011,7 @@ pub struct SettingsPayload {
   pub reading_size: Option<u8>,
   pub reading_tracking: Option<u8>,
   pub reading_measure: Option<String>,
+  pub reading_theme: Option<String>,
 }
 
 /// patch 字符串字段：null / 空串 → None（清空）

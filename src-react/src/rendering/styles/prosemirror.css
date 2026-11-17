@@ -116,35 +116,35 @@
   outline: none;
   min-height: 200px;
   font-family: var(--paper-font, var(--font-reading));
-  line-height: 1.85;
+  line-height: var(--kb-line-height, 1.85);
 }
 
 /* 鎺掔増闃舵 + 闃呰瀹藉害锛坋ditor-polish-spec 搂5锛泂cope 绾搁潰璇︽儏锛屼究绛剧獎绐椾笉鍙楅檺锛?   闃呰瀹藉害鏀圭敱 .kb-detail-inner 鐨?--kb-measure 缁熶竴鎺у埗锛坱asks 4.1锛夛細姝ｆ枃鑷韩涓嶅啀闄愬锛?   鍚﹀垯鏍囬/鏍囩/宸ュ叿鏍忎笌姝ｆ枃宸︾紭浼氶敊浣嶏紱姝ｆ枃瀛楀彿涓庤楂橀樁姊繚鎸佸師鏍枫€?*/
 .kb-detail .kb-editor-content { max-width: none; width: 100%; font-size: var(--fs-reading); }
-.kb-detail .kb-editor-content h1 { font-size: calc(var(--fs-reading) * 1.35); margin: 1.5em 0 .5em; letter-spacing: calc(.4px + var(--ls-reading, 0em)); }
-.kb-detail .kb-editor-content h2 { font-size: calc(var(--fs-reading) * 1.2); margin: 1.3em 0 .45em; }
-.kb-detail .kb-editor-content h3 { font-size: calc(var(--fs-reading) * 1.05); margin: 1.1em 0 .4em; }
+.kb-detail .kb-editor-content h1 { font-size: calc(var(--fs-reading) * var(--kb-h1, 1.35)); margin: 1.5em 0 .5em; letter-spacing: calc(var(--kb-head-tracking, 0em) + .4px + var(--ls-reading, 0em)); border-bottom: var(--kb-h1-rule, 0 solid transparent); }
+.kb-detail .kb-editor-content h2 { font-size: calc(var(--fs-reading) * var(--kb-h2, 1.2)); margin: 1.3em 0 .45em; border-bottom: var(--kb-h2-rule, 0 solid transparent); }
+.kb-detail .kb-editor-content h3 { font-size: calc(var(--fs-reading) * var(--kb-h3, 1.05)); margin: 1.1em 0 .4em; }
 .kb-detail .kb-editor-content p { margin: .65em 0; }
 
 /* H4鈥揌6锛堝伐鍏锋爮銆屾爣棰樸€嶄笅鎷夋柊澧烇級锛歬b-detail 涓庝究绛剧獎绐楃紪杈戞€佸叡鐢紝
    瀛楀彿/闂磋窛寤剁画涓婇潰鐨勫眰绾ч樁姊紝娴呭簳绋跨焊椋庢牸涓嶉澶栧姞绮椼€?*/
-.kb-editor-content h4 { font-size: var(--fs-reading); margin: 1em 0 .35em; letter-spacing: calc(.2px + var(--ls-reading, 0em)); }
-.kb-editor-content h5 { font-size: calc(var(--fs-reading) * .93); margin: .9em 0 .3em; }
-.kb-editor-content h6 { font-size: calc(var(--fs-reading) * .88); margin: .85em 0 .25em; letter-spacing: calc(.3px + var(--ls-reading, 0em)); color: var(--text-secondary, hsl(var(--muted-foreground))); }
+.kb-editor-content h4 { font-size: calc(var(--fs-reading) * var(--kb-h4, 1)); margin: 1em 0 .35em; letter-spacing: calc(var(--kb-head-tracking, 0em) + .2px + var(--ls-reading, 0em)); }
+.kb-editor-content h5 { font-size: calc(var(--fs-reading) * var(--kb-h5, .93)); margin: .9em 0 .3em; }
+.kb-editor-content h6 { font-size: calc(var(--fs-reading) * var(--kb-h6, .88)); margin: .85em 0 .25em; letter-spacing: calc(var(--kb-head-tracking, 0em) + .3px + var(--ls-reading, 0em)); color: var(--text-secondary, hsl(var(--muted-foreground))); }
 
 /* 链接在编辑区可辨（kb-writing-experience D-链接）：Tailwind preflight 把 `a` 重置成
    `color: inherit; text-decoration: inherit`，编辑区此前没有任何 `a` 规则 → 链接看着像正文。
    这里显式给回颜色与下划线；颜色只取 --link 令牌，不硬编码。 */
 .kb-editor-content a {
-  color: hsl(var(--link));
+  color: var(--kb-link-ink, hsl(var(--link)));
   text-decoration: underline;
-  text-decoration-thickness: 1px;
+  text-decoration-thickness: var(--kb-link-underline, 1px);
   text-underline-offset: .18em;
   cursor: pointer;
 }
 
 .kb-editor-content a:hover {
-  color: hsl(var(--link) / 0.82);
+  color: var(--kb-link-ink, hsl(var(--link) / 0.82));
 }
 
 /* 鐪熸満鍙嶉锛歝ontenteditable 榛樿 focus 榛戞鍒虹溂 鈫?鍏ㄧ姸鎬佸幓 outline */
@@ -173,9 +173,10 @@
 
 /* 浠ｇ爜鍧?*/
 .kb-editor-content pre {
-  background: var(--code-bg, rgba(0, 0, 0, 0.04));
+  background: var(--kb-code-bg, var(--code-bg, rgba(0, 0, 0, 0.04)));
+  color: var(--kb-code-ink, inherit);
   padding: 0.75em 1em;
-  border-radius: 6px;
+  border-radius: var(--kb-code-radius, 6px);
   overflow-x: auto;
   font-size: var(--fs-body);
   margin: 0.5em 0;
@@ -184,23 +185,27 @@
 .kb-editor-content code {
   font-family: var(--font-mono, var(--paper-font, var(--font-reading)));
   font-size: var(--fs-body);
-  background: var(--code-bg, rgba(0, 0, 0, 0.04));
+  background: var(--kb-inline-code-bg, var(--code-bg, rgba(0, 0, 0, 0.04)));
+  color: var(--kb-inline-code-ink, inherit);
   padding: 0.15em 0.35em;
-  border-radius: 3px;
+  border-radius: var(--kb-inline-code-radius, 3px);
 }
 
 .kb-editor-content pre code {
   background: none;
+  color: inherit;
   padding: 0;
   border-radius: 0;
 }
 
 /* 寮曠敤鍧?*/
 .kb-editor-content blockquote {
-  border-left: 3px solid var(--text-muted, #ccc);
+  border-left: var(--kb-quote-line, 3px solid var(--text-muted, #ccc));
+  border-radius: var(--kb-quote-radius, 0);
+  background: var(--kb-quote-bg, transparent);
   padding-left: 1em;
   margin-left: 0;
-  color: var(--text-secondary, #666);
+  color: var(--kb-quote-ink, var(--text-secondary, #666));
 }
 
 /* 表格：单一来源。旧的重复规则已合并；边线与表头走 token，不再用 seal 暖红铺底 */
@@ -209,21 +214,26 @@
   width: 100%;
   margin: 0.8em 0;
   font-size: var(--fs-body);
-  box-shadow: 0 0 0 1px hsl(var(--foreground) / 0.38);
+  border-radius: var(--kb-table-radius, 0);
+  box-shadow: 0 0 0 1px var(--kb-table-line, hsl(var(--foreground) / 0.38));
 }
 
 .kb-editor-content th,
 .kb-editor-content td {
-  border: 1px solid hsl(var(--foreground) / 0.2);
+  border: 1px solid var(--kb-table-line, hsl(var(--foreground) / 0.2));
   padding: 0.45em 0.8em;
   text-align: left;
   min-width: 4em;
   position: relative;
 }
 
+.kb-editor-content tbody tr:nth-child(even) {
+  background: var(--kb-table-zebra, transparent);
+}
+
 .kb-editor-content th {
   font-weight: 600;
-  background: hsl(var(--secondary));
+  background: var(--kb-table-head-bg, hsl(var(--secondary)));
   color: hsl(var(--foreground));
 }
 
@@ -554,7 +564,7 @@
 /* 鈹€鈹€鈹€ 闃呰鎬?MD 娓叉煋 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 .kb-md-render {
-  line-height: 1.65;
+  line-height: var(--kb-line-height, 1.65);
   font-size: var(--fs-reading);
 }
 
@@ -569,12 +579,12 @@
   line-height: 1.3;
 }
 
-.kb-md-render h1 { font-size: calc(var(--fs-reading) * 1.5); }
-.kb-md-render h2 { font-size: calc(var(--fs-reading) * 1.3); }
-.kb-md-render h3 { font-size: calc(var(--fs-reading) * 1.15); }
-.kb-md-render h4 { font-size: calc(var(--fs-reading) * 1.05); }
-.kb-md-render h5 { font-size: calc(var(--fs-reading) * .98); }
-.kb-md-render h6 { font-size: calc(var(--fs-reading) * .92); color: var(--text-secondary, hsl(var(--muted-foreground))); }
+.kb-md-render h1 { font-size: calc(var(--fs-reading) * var(--kb-h1, 1.5)); letter-spacing: var(--kb-head-tracking, 0em); border-bottom: var(--kb-h1-rule, 0 solid transparent); }
+.kb-md-render h2 { font-size: calc(var(--fs-reading) * var(--kb-h2, 1.3)); letter-spacing: var(--kb-head-tracking, 0em); border-bottom: var(--kb-h2-rule, 0 solid transparent); }
+.kb-md-render h3 { font-size: calc(var(--fs-reading) * var(--kb-h3, 1.15)); letter-spacing: var(--kb-head-tracking, 0em); }
+.kb-md-render h4 { font-size: calc(var(--fs-reading) * var(--kb-h4, 1.05)); letter-spacing: var(--kb-head-tracking, 0em); }
+.kb-md-render h5 { font-size: calc(var(--fs-reading) * var(--kb-h5, .98)); letter-spacing: var(--kb-head-tracking, 0em); }
+.kb-md-render h6 { font-size: calc(var(--fs-reading) * var(--kb-h6, .92)); letter-spacing: var(--kb-head-tracking, 0em); color: var(--text-secondary, hsl(var(--muted-foreground))); }
 
 .kb-md-render ul,
 .kb-md-render ol {
@@ -585,9 +595,10 @@
 .kb-md-render li { margin: 0.2em 0; }
 
 .kb-md-render pre.kb-code-block {
-  background: var(--code-bg, rgba(0, 0, 0, 0.04));
+  background: var(--kb-code-bg, var(--code-bg, rgba(0, 0, 0, 0.04)));
+  color: var(--kb-code-ink, inherit);
   padding: 0.75em 1em;
-  border-radius: 6px;
+  border-radius: var(--kb-code-radius, 6px);
   overflow-x: auto;
   margin: 0.5em 0;
 }
@@ -596,17 +607,22 @@
   border-collapse: collapse;
   width: 100%;
   margin: 0.5em 0;
+  border-radius: var(--kb-table-radius, 0);
 }
 
 .kb-md-render table.kb-table th,
 .kb-md-render table.kb-table td {
-  border: 1px solid var(--border, #e0e0e0);
+  border: 1px solid var(--kb-table-line, var(--border, #e0e0e0));
   padding: 0.4em 0.8em;
 }
 
 .kb-md-render table.kb-table th {
   font-weight: 600;
-  background: var(--hover-bg, rgba(0, 0, 0, 0.02));
+  background: var(--kb-table-head-bg, var(--hover-bg, rgba(0, 0, 0, 0.02)));
+}
+
+.kb-md-render table.kb-table tbody tr:nth-child(even) {
+  background: var(--kb-table-zebra, transparent);
 }
 
 .kb-md-render .task-list-item {
@@ -618,15 +634,18 @@
 }
 
 .kb-md-render blockquote {
-  border-left: 3px solid var(--text-muted, #ccc);
+  border-left: var(--kb-quote-line, 3px solid var(--text-muted, #ccc));
+  border-radius: var(--kb-quote-radius, 0);
+  background: var(--kb-quote-bg, transparent);
   padding-left: 1em;
   margin-left: 0;
-  color: var(--text-secondary, #666);
+  color: var(--kb-quote-ink, var(--text-secondary, #666));
 }
 
 .kb-md-render a {
-  color: hsl(var(--link));
+  color: var(--kb-link-ink, hsl(var(--link)));
   text-decoration: underline;
+  text-decoration-thickness: var(--kb-link-underline, 1px);
   text-underline-offset: .18em;
 }
 
@@ -636,7 +655,7 @@
 
 .kb-md-render img {
   max-width: 100%;
-  border-radius: 4px;
+  border-radius: var(--kb-img-radius, 4px);
 }
 
 /* 鈹€鈹€鈹€ slash 鍛戒护闈㈡澘 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
@@ -844,12 +863,12 @@
 .kb-editor-content img {
   max-width: 100%;
   height: auto;
-  border-radius: 4px;
+  border-radius: var(--kb-img-radius, 4px);
   vertical-align: middle;
 }
 
 .kb-editor-content img.ProseMirror-selectednode {
-  border-radius: 4px;
+  border-radius: var(--kb-img-radius, 4px);
   outline: 2px solid hsl(var(--primary) / 0.6);
   outline-offset: 2px;
 }

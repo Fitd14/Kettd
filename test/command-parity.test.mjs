@@ -51,13 +51,17 @@ test('V2-API 文档表 ↔ 注册表一一对应', () => {
   assert.deepEqual(diff(documented, handler), [], '文档有行但没注册');
 });
 
-test('命令总数与文档声明一致（当前 71）', () => {
-  assert.equal(handler.size, 71, '总数变更时同步更新 V2-API §10 与本断言');
+test('命令总数与文档声明一致（当前 75）', () => {
+  assert.equal(handler.size, 75, '总数变更时同步更新 V2-API §10 与本断言');
   assert.ok(handler.has('update_folder'), 'kb-file-tree 1.4：必须注册 update_folder（改名/移动/排序/置顶）');
   assert.ok(!handler.has('rename_folder'), 'kb-file-tree 1.4：rename_folder 已被 update_folder 取代，不得残留');
   assert.ok(handler.has('export_backup'), 'kb-storage-backup D3：必须注册手动导出命令');
   assert.ok(handler.has('import_backup'), 'kb-storage-backup D4：必须注册手动导入命令');
   assert.ok(handler.has('register_kb_hotkey'), 'kb-storage-backup S4：必须注册直达知识库热键命令');
+  assert.ok(handler.has('list_reading_themes'), 'kb-theme-library 1.3：必须注册阅读主题列表命令');
+  assert.ok(handler.has('save_reading_theme'), 'kb-theme-library 1.3：必须注册主题导入命令');
+  assert.ok(handler.has('delete_reading_theme'), 'kb-theme-library 1.3：必须注册主题删除命令');
+  assert.ok(handler.has('read_reading_theme'), 'kb-theme-library 1.3：必须注册主题读取命令');
 });
 
 // 阅读字体：Rust 白名单 ↔ 设置页选项，两处必须同键同序，否则用户选了后端不认的值

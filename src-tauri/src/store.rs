@@ -2103,6 +2103,9 @@ impl Store {
       if let Some(value) = &patch.reading_measure {
         settings.reading_measure = crate::models::normalize_reading_measure(value);
       }
+      if let Some(value) = &patch.reading_theme {
+        settings.reading_theme = crate::models::normalize_reading_theme(value);
+      }
       if let Some(value) = &patch.capture_hotkey {
         let trimmed = value.trim();
         if trimmed.is_empty() {

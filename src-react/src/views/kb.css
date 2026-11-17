@@ -237,18 +237,35 @@
 /* 鈹€鈹€鈹€ 鍙宠鎯呴潰鏉?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 /* 鈹€鈹€鈹€ 璇︽儏闈㈡澘锛氭湵鐮傚绾搁潰锛坆oard tokens锛氭殩瀹ｅ簳+鏆栧ⅷ瀛?鏈辩爞鐐圭紑锛宷a board 閫夊瀷 D锛夆攢鈹€鈹€ */
-.kb-detail {
-  /* 令牌映射（design.md §4.6，tasks 5.1）：原来全部写死 hex，暗色下宣纸仍是亮纸。
-     现在暖色四项在暗色主题里改由共享令牌接管，亮色值不变；纸纹 SVG 与 inset 阴影不是色值，保留。 */
+/* 阅读纸面令牌默认值（kb-theme-library D9）：从 `.kb-detail` 上移到 `:root`。
+   原因：外观主题写到 `document.documentElement` 上；默认值若仍声明在 `.kb-detail` 身上，
+   元素级声明会遮住根上的主题值 —— 主题永远看不见。上移后根上的值（默认或主题）一路继承，
+   无主题时像素与改造前一致。 */
+:root {
   --paper: #FAF6EE;
   --paper-deep: #F2EBDC;
   --ink-1: #4A3A36;
   --ink-2: #7A655F;
-  --ink-3: hsl(var(--muted-foreground) / 0.75); /* 由共享令牌弱化得到，不另立新变量 */
-  --seal-track: hsl(var(--seal)); /* 结构色：焦点下划线、印章点；选取色随主题，亮暗都保持朱砂 */
-  --seal-ink: hsl(var(--seal)); /* 文字色：与结构色同源 */
+  --ink-3: hsl(var(--muted-foreground) / 0.75);
+  --seal-track: hsl(var(--seal));
+  --seal-ink: hsl(var(--seal));
   --seal-soft: hsl(var(--seal) / 0.12);
   --line-warm: hsl(var(--border));
+  --kb-paper-texture: .06;
+}
+
+/* 暗色默认值同样上移到根：`.dark` 是 documentElement 的类，与主题写在同一层。 */
+.dark {
+  --paper: hsl(var(--background));
+  --ink-1: hsl(var(--foreground));
+  --ink-2: hsl(var(--muted-foreground));
+  --ink-3: hsl(var(--muted-foreground) / 0.75);
+  --kb-paper-texture: .04;
+}
+
+.kb-detail {
+  /* 令牌映射（design.md §4.6，tasks 5.1）：原来全部写死 hex，暗色下宣纸仍是亮纸。
+     现在暖色四项在暗色主题里改由共享令牌接管，亮色值不变；纸纹 SVG 与 inset 阴影不是色值，保留。 */
   /* 暗色主题下纸面与两级墨色由下面 .dark .kb-detail 规则接管（tasks 5.1 / design.md §4.6）。 */
   /* S3 鍐欎綔鍖哄竷灞€ token锛堟暟鍊兼帹瀵艰 docs/capability/06-鐭ヨ瘑搴?md銆屽啓浣滃尯甯冨眬銆嶏級锛?
      --kb-measure 姝ｆ枃鍒楀涓婇檺 78ch鈥斺€擟JK 绾?39 瀛?琛岋紝钀藉湪 <80 瀛楃鍙鍖洪棿锛?
@@ -256,6 +273,7 @@
      --kb-bottom 搴曢儴鍐欎綔鐣欑櫧鈥斺€旀湯琛屽彲婊氬埌瑙嗗彛涓儴浠ヤ笂锛屽厜鏍囦笉璐磋鍙ｅ簳杈广€?*/
   --kb-measure-cap: 96ch;
   --kb-gutter: clamp(20px, 4vw, 64px);
+  /* 纸纹不透明度：默认值即改造前的 SVG 值（亮 .06 / 暗 .04），主题可覆盖（kb-theme-library D7） */
   /* 底部留白：末行能滚到视口中部以上，但不再把半个屏幕空出来（m01762 第 3 条） */
   --kb-bottom: clamp(64px, 14vh, 160px);
   position: relative;
@@ -268,11 +286,23 @@
   padding: 0;
   background-color: var(--paper);
   background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/></svg>"),
     linear-gradient(180deg, rgba(255,255,255,.45), transparent 120px);
-  box-shadow: inset 0 0 90px rgba(90,80,60,.07);
+  box-shadow: var(--kb-paper-shadow, inset 0 0 90px rgba(90,80,60,.07));
   color: var(--ink-1);
-  border-radius: 2px;
+  border-radius: var(--kb-paper-radius, 2px);
+}
+
+/* 纸纹覆盖层：搬出 background-image 才能被主题的 --kb-paper-texture 调不透明度；
+   默认值与改造前同值（亮 .06），层叠上低于内容（内容层 z-index:1）。 */
+.kb-detail::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: var(--kb-paper-texture, .06);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/></svg>");
 }
 
 /* 正文滚动区：滚动条从这里开始，工具条与标题在它之外（m01554 第 8 条）。 */
@@ -287,17 +317,11 @@
   padding: 10px var(--kb-gutter) var(--kb-bottom);
 }
 
-/* 暗色主题：宣纸面随共享令牌走（tasks 5.1 / design.md §4.6）。
-   亮色下 `.kb-detail` 的暖纸值保持原样；暗色下纸面、两级墨色换成共享令牌，
-   结构线已经走 --border，朱砂结构与文字色已分档，纸纹 SVG 与 inset 阴影保留。 */
+/* 暗色主题：纸面/墨色令牌已随 `.dark` 上移到根（见文件上方）；
+   这里只剩本元素自己的两处暗色表现（纸纹层与内阴影）。 */
 .dark .kb-detail {
-  --paper: hsl(var(--background));
-  --ink-1: hsl(var(--foreground));
-  --ink-2: hsl(var(--muted-foreground));
-  --ink-3: hsl(var(--muted-foreground) / 0.75);
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/></svg>");
-  box-shadow: inset 0 0 90px rgba(0, 0, 0, .18);
+  background-image: none;
+  box-shadow: var(--kb-paper-shadow, inset 0 0 90px rgba(0, 0, 0, .18));
 }
 
 /* S3 鍐欎綔鍖哄竷灞€锛氬绾镐腑澶殑鎵嬬鏍忊€斺€斿唴瀹瑰垪姘村钩灞呬腑锛屽绐楀彧澧炵暀鐧戒笉鍔犺瀹姐€?
@@ -305,6 +329,7 @@
    涓嶅啀鐢?.kb-editor-content 鍗曠嫭闄愬锛堥偅鏍蜂細鍜屾爣棰樹笉鍦ㄥ悓涓€鏉″乏缂橈級銆?*/
 .kb-detail-inner {
   position: relative;
+  z-index: 1;
   flex: 1;
   width: 100%;
   /* 大纲轨道常驻（kb-workspace-layout D3）：右侧 176px 栏 + 12px 间距恒占位，
@@ -767,6 +792,8 @@
   justify-content: center;
   gap: 0.75rem;
   padding: 3rem;
+  position: relative;
+  z-index: 1;
   color: var(--muted-foreground, hsl(var(--muted-foreground)));
 }
 

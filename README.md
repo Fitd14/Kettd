@@ -84,15 +84,25 @@ Windows 桌面应用，基于 Tauri v1（Rust 后端）+ React 19（前端）。
 - **导入预览**：选择 `.kettdbackup` 后先出预览，展示「新增 / 更新 / 冲突 / 跳过 / 资源新增与复用 / 冲突标题」计数，**预览阶段不动任何文件**；确认后才真正应用。
 - **合并规则**：按 id 合并，`updatedAt` 较新的版本覆盖较旧的；本地较新则跳过；同刻但内容不同时保留本地并生成标题带「（导入冲突）」的副本；提醒 / 文件夹冲突降级为跳过；设置与便签不覆盖、本地独有绝不删。同一备份重复导入全部跳过，不会产生二次副作用。
 
+### 外观主题
+
+主题作用于整个应用（主窗、快速记录条、便签、待办悬浮四个窗口一起换装），内置两套并可直接导入 CSS。
+
+- **内置两套**：`Paperglow`（暖纸、陶土强调、16px 圆角纸面与轻投影，行高 1.7）与 `Mdmdt`（冷白纸、皇家蓝强调、h1 底边与 0.06em 标题字距、斑马表格、扁平纸面）。两套都自带亮 / 暗值，随应用明暗自动切换；灵感来源见各主题文件头部注释（Apache-2.0）。
+- **导入格式**：一个 UTF-8 `.css` 文件，≤ 512 KB，文件头写 `kettd-theme` 声明（name 必填，author / description 可选），正文只认 `.kb-theme-light` 与 `.kb-theme-dark` 两个块里的变量声明——其余选择器与 at-rule 一律不生效。导入时整份扫描：出现 `@import`、`url(`、`expression(`、`javascript:` 直接拒收。
+- **可改 59 个变量、十一组**：外壳配色 19（`--background`、`--foreground`、`--card`、`--popover`、`--primary`、`--secondary`、`--muted`、`--accent`、`--border`、`--input`、`--ring`、`--link`、`--seal` 及各自的 `-foreground`；值是**不带 `hsl()` 的 HSL 三元组**，与 `index.css` 同形），纸面墨色 8（`--paper`、`--ink-1~3`、`--line-warm`、`--seal-track`、`--seal-ink`、`--seal-soft`）、纸面形态 3（`--kb-paper-radius` / `-shadow` / `-texture`）、字族 2、行高 1、标题 9（`--kb-h1~h6`、`--kb-head-tracking`、`--kb-h1-rule`、`--kb-h2-rule`）、引用 4、代码 6、表格 4、链接 2、图片圆角 1。字号档位、正文字距、列宽、语义色（分类 / 优先级 / 破坏性动作）与气泡底不在白名单内。
+- **取值有区间**：行高 1.3–2.4、标题倍率 0.8–2.0、纸纹 0–0.12、标题字距 -0.02–0.2em、下划线 0–2px、纸面圆角 0–24px（其余圆角 0–16px / 行内 0–8px）。越界的单条声明会被丢弃并计数——设置页「主题体检」显示「识别 / 忽略 / 错误」。
+- **兜底**：读不到文件、没有有效声明或文件被删时回到默认外观，设置值保留并在设置页标「主题不可用」，修好后自动恢复；没选主题时不写任何内联变量，观感与升级前逐像素一致。
+
 ### 设置项
 
-主题（亮 / 暗）、五个全局热键、便签纸色 / 花纹 / 移出淡化、知识库阅读字体（跟随正文 / 宋体·楷体·仿宋·微软雅黑 / 自己上传 ttf·otf·woff·woff2）、每小时提醒上限、本地度量开关、数据与备份管理。
+主题（亮 / 暗）、五个全局热键、便签纸色 / 花纹 / 移出淡化、知识库阅读字体（跟随正文 / 宋体·楷体·仿宋·微软雅黑 / 自己上传 ttf·otf·woff·woff2）、外观主题（默认 / 内置两套 / 导入 CSS，作用于四个窗口）、每小时提醒上限、本地度量开关、数据与备份管理。
 
 ## 技术架构
 
 ### 技术栈
 
-- **前端** `src-react/`：Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · shadcn · Tiptap 3；hash 路由，无状态库；`lib/api.ts` 为 71 个 Tauri 命令的类型化桥接
+- **前端** `src-react/`：Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · shadcn · Tiptap 3；hash 路由，无状态库；`lib/api.ts` 为 75 个 Tauri 命令的类型化桥接
 - **后端** `src-tauri/`：Tauri v1 · Rust（ports / infra / app 六边形分层）；JSON 文件持久化，无数据库
 - **契约文档** `docs/`：`ARCHITECTURE.md`（架构 + 命令契约附录）、`requirements/总体需求.md`、ADR 0001–0007（历史档案）
 
@@ -104,7 +114,7 @@ UI 层（React）
   capture/ sticky/ todo/      快速记录窗 / 便签窗 / 待办悬浮窗
   rendering/                  Markdown 与 Tiptap 渲染
   kernel/                     时间、选择器、事件总线、捕获语法（唯一实现）
-  lib/api.ts                  71 命令类型化 invoke
+  lib/api.ts                  75 命令类型化 invoke
         │  invoke
         ▼
 接口层  commands.rs + main.rs  generate_handler! 注册（薄壳，只做参数校验与转调）
@@ -124,7 +134,7 @@ UI 层（React）
 
 ### 命令契约
 
-前端与后端的接口是 **71 个 Tauri 命令**，四方必须同步：
+前端与后端的接口是 **75 个 Tauri 命令**，四方必须同步：
 
 1. `src-tauri/src/main.rs` `generate_handler![]` 注册
 2. `src-tauri/src/commands.rs` `#[tauri::command]` 定义
@@ -146,7 +156,7 @@ UI 层（React）
 | 文件 | 职责 |
 | --- | --- |
 | `src-tauri/src/main.rs` | 启动、初始化、命令注册 |
-| `src-tauri/src/commands.rs` | 71 个 Tauri 命令（参数校验 + 转调 app） |
+| `src-tauri/src/commands.rs` | 75 个 Tauri 命令（参数校验 + 转调 app） |
 | `src-tauri/src/app/` | 用例编排：tasks / reminders / settings |
 | `src-tauri/src/ports/` | 端口 trait：StoreBackend / Clock / Notifier / Hotkeys |
 | `src-tauri/src/infra/fs_store.rs` | 原子写、备份轮转、数据目录解析 |
@@ -211,7 +221,7 @@ Kettd/
 │   └── test/               # 前端门禁（渲染保真 / round-trip）
 ├── src-tauri/              # Rust 后端
 │   ├── src/
-│   │   ├── commands.rs     # 71 个 Tauri 命令
+│   │   ├── commands.rs     # 75 个 Tauri 命令
 │   │   ├── store.rs        # JSON 持久化 + 备份轮转
 │   │   ├── models.rs       # 领域模型 + 校验
 │   │   ├── scheduler.rs    # 提醒调度

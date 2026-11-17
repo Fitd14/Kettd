@@ -7,3 +7,4 @@ pub mod fs_store;
 pub mod tauri_hotkeys;
 pub mod tauri_notifier;
 pub mod text_codec;
+pub mod themes;
