@@ -9,6 +9,7 @@ import type { OutlineItem } from '@/lib/doc-outline'
 import { TypoPopover } from './typo-popover'
 import { Popover, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { DocOutline } from './doc-outline'
 
 interface Props {
@@ -456,7 +457,8 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
                 </span>
               ))}
               {tagEditing ? (
-                <input
+                <Input
+                  bare
                   className="kb-tag-input"
                   value={tagInput}
                   autoFocus

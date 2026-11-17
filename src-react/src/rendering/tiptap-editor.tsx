@@ -30,6 +30,7 @@ import { ImageExtension } from './image-extension'
 import { handleImagePaste } from './paste-image'
 import { HeadingSelect } from '@/components/editor/heading-select'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   applyHeadingCommand,
   headingValueForLevel,
@@ -1266,7 +1267,8 @@ export function TipTapEditor({
       {findOpen && (
         <div className="kb-find" role="search" aria-label="条目内查找">
           <Search size={14} strokeWidth={1.7} className="kb-find-ico" aria-hidden="true" />
-          <input
+          <Input
+            bare
             ref={findInputRef}
             className="kb-find-input"
             type="text"

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Input } from '@/components/ui/input'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 
 export interface LinkInlineEditorProps {
@@ -82,7 +83,8 @@ export function LinkInlineEditor({ href, anchor, onSubmit, onRemove, onClose }: 
         // 点条内不冒泡到编辑器，避免刚打开就被 handleClick 关掉
         onMouseDown={(event) => event.stopPropagation()}
       >
-      <input
+      <Input
+        bare
         ref={inputRef}
         className="kb-link-inline-input"
         type="text"

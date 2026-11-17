@@ -124,9 +124,11 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 `kb-item-detail.tsx:505` 的 `.kb-outline-layer` 是 `position:absolute; inset:0` 的面板内抽屉，铺在 `.kb-detail` 这块相对定位容器上，靠祖先的 `--ink-*` / `--paper` 变量取色。`ui/dialog` 的 portal 落到 `body`，既丢祖先定位（抽屉会铺满视口而不是面板）也丢作用域变量。本轮不迁，留待 `DialogContent` 支持 `container` 或单独立抽屉原语时再做；4.1 的验证范围相应缩到三个视口级弹层。
 
-### D13 自带皮肤的编辑器内输入框暂留原生
+### D13 自带皮肤的编辑器内输入框用 `bare` 迁移
 
-批次 3 清到 `rendering/` 与标签 chip 时剩 3 处：`link-inline-editor.tsx` 的 `.kb-link-inline-input`、`tiptap-editor.tsx` 的 `.kb-find-input`（透明无边框的查找框）、`kb-item-detail.tsx` 的 `.kb-tag-input`。它们的皮肤都写在 `prosemirror.css` / `kb.css` 里，而 `.input` 基础皮肤在 `app.css`（import 顺序在视图之后），类选择器同特异性时后者胜出——直接换成 `ui/input` 会把查找框变成描边框、标签 chip 变成圆角描边输入框。本轮不硬迁，留到编辑器/标签批次（批次 4 完成后再处理）：届时的做法是把皮肤并进 `.input[data-skin="inline|find|tag"]`，或抽出无边框的 `bare` 变体，二者都要先补进 D9 表。
+批次 3 清到 `rendering/` 与标签 chip 时剩 3 处：`link-inline-editor.tsx` 的 `.kb-link-inline-input`、`tiptap-editor.tsx` 的 `.kb-find-input`（透明无边框的查找框）、`kb-item-detail.tsx` 的 `.kb-tag-input`。它们的皮肤都写在 `prosemirror.css` / `kb.css` 里，而 `.input` 基础皮肤在 `app.css`（import 顺序在视图之后），类选择器同特异性时后者胜出——直接换成 `ui/input` 会把查找框变成描边框、标签 chip 变成圆角描边输入框。
+
+落地（2026-11-17）：选「抽出 `bare` 变体」而不是 `data-skin` 枚举——`Input` 增加 `bare?: boolean`，为真时只输出 `data-slot="input"` 与透传属性、跳过 `.input` 类，皮肤完全交回域内类（`.kb-link-inline-input` / `.kb-find-input` / `.kb-tag-input` 一行未改）。理由：这三处皮肤各自只有一处使用点，枚举 `data-skin` 会把域内样式搬进原语、扩大原语的维护面；`bare` 与 `PopoverContent` 的 `bare` 同一口径（结构在、皮肤不在）。
 
 ### D15 原语皮肤独立成 `styles/primitives.css`，随 `index.css` 到达四个入口
 

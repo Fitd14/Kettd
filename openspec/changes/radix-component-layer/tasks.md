@@ -41,14 +41,15 @@
 
 ## 3. 输入框迁移（28 处）
 
-- [ ] 3.1 `views/` 换成 `ui/input`，验证该目录 `<input` 计数为 0，设置页各输入框焦点环与禁用态不变
+- [x] 3.1 `views/` 换成 `ui/input`，验证该目录 `<input` 计数为 0，设置页各输入框焦点环与禁用态不变
   - 进度（2026-11-17）：`SettingsView` 4 个热键框、`PlannedView` 2（提醒日期 + 提醒内容）、`InboxView` 批量排期日期、`TodayView` 快速记录、`StickyView` 便签搜索、`components/task-row.tsx` 排期日期已换；全仓 `<input>` 22 → 12（含 `ui/input.tsx` 自身 1 处）。views 余 `SettingsView` 3 处，均按「无外观控件」白名单不迁：隐藏 `type="file"` 的 `.font-file` / `.backup-file-input`，以及 `type="range"` 的 `.fade-slider`（归 `ui/slider` 批次）
-- [ ] 3.2 `components/kb/` 6 处，验证计数为 0，附件选择器的复选框与搜索框行为不变
-  - 进度（2026-11-17）：`kb-attach-picker` / `kb-search-bar` / `kb-folder-dialog` 已换；余 `kb-item-detail` 的 `.kb-tag-input` 1 处，与 `kb-tag-x` 同属标签 chip 口径，待 D13 的皮肤类口径
-- [ ] 3.3 `components/` 根 4 处，验证计数为 0
+- [x] 3.2 `components/kb/` 6 处，验证计数为 0，附件选择器的复选框与搜索框行为不变
+  - 进度（2026-11-17）：`kb-attach-picker` / `kb-search-bar` / `kb-folder-dialog` / `kb-item-detail` 的 `.kb-tag-input` 已全部换；标签输入走 `bare`（跳过 `.input` 底座，皮肤仍由 `kb.css` 的 `.kb-tag-input` 决定）
+- [x] 3.3 `components/` 根 4 处，验证计数为 0
   - 进度（2026-11-17）：`time-text.tsx`（时长输入，`input xs mono time-text` + `bad` 态）已换成 `size="xs"` + `invalid`，`aria-invalid` 由原语输出；`task-row` 排期日期已换
-- [ ] 3.4 `rendering/` 2、`todo/` 1、`capture/` 1 处，验证计数为 0，快速捕获回车入库仍可用
-  - 进度（2026-11-17）：`capture/CaptureWindow.tsx` 快速记录框已换（`className="input invalid"` → `invalid={!!error}`，`capture.css` 的 `.cap-row .input.invalid` 同步改成 `[aria-invalid="true"]`）；`todo/` 无文本输入（只有已迁的复选框）。余 `rendering/link-inline-editor.tsx` 与 `rendering/tiptap-editor.tsx` 的查找框 2 处，皮肤在 `prosemirror.css`（先于 `app.css` 加载），按 D13 暂留
+- [x] 3.4 `rendering/` 2、`todo/` 1、`capture/` 1 处，验证计数为 0，快速捕获回车入库仍可用
+  - 进度（2026-11-17）：`capture/CaptureWindow.tsx` 快速记录框已换（`className="input invalid"` → `invalid={!!error}`，`capture.css` 的 `.cap-row .input.invalid` 同步改成 `[aria-invalid="true"]`）；`todo/` 无文本输入（只有已迁的复选框）。`rendering/link-inline-editor.tsx` 与 `rendering/tiptap-editor.tsx` 查找框 2 处按 D13 用 `<Input bare>` 迁移：`.kb-link-inline-input` / `.kb-find-input` 保留在 `prosemirror.css`，不再与 `app.css` 的 `.input` 竞争特异性
+  - 终态：全仓 `<input` 7 → 4，剩 `ui/input.tsx` 自身 1 + `SettingsView` 白名单 3（两个隐藏 file、一个 range）
 
 ## 4. 弹层、菜单与标签页收尾
 

@@ -8,6 +8,8 @@ export type InputSize = "default" | "sm" | "xs"
 export type InputProps = Omit<React.ComponentProps<"input">, "size"> & {
   size?: InputSize
   invalid?: boolean
+  /** 域内自带完整皮肤时跳过 `.input` 底座，只保留 `data-slot` 与透传属性（D13） */
+  bare?: boolean
 }
 
 /**
@@ -16,13 +18,13 @@ export type InputProps = Omit<React.ComponentProps<"input">, "size"> & {
  * 与 `Button` 同一套思路：只给语义（尺寸、是否无效），皮肤全部来自
  * `app.css` 的 `.input[data-size]` / `.input[aria-invalid]`，页面不再拼 `input xs` 这类字符串。
  */
-function Input({ className, size = "default", invalid = false, ...props }: InputProps) {
+function Input({ className, size = "default", invalid = false, bare = false, ...props }: InputProps) {
   return (
     <input
       data-slot="input"
       data-size={size}
       aria-invalid={invalid || props["aria-invalid"] || undefined}
-      className={cn("input", className)}
+      className={cn(!bare && "input", className)}
       {...props}
     />
   )
