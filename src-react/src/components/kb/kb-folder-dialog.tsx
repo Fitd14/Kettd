@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { createPortal } from 'react-dom'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 export interface KbFolderDialogProps {
   /** 弹窗标题（新建文件夹 / 重命名文件夹） */
@@ -18,8 +18,8 @@ export interface KbFolderDialogProps {
 
 /**
  * 文件夹新建 / 重命名弹窗（任务 #4）。
- * 交互沿用旧居中弹窗的焦点纪律：createPortal 到 body、打开即聚焦全选、Enter 提交、Esc 取消、
- * Tab 焦点循环、点击遮罩取消；错误内联显示，成功后由父级卸载（本组件不自行关闭）。
+ * 结构交给 `components/ui/dialog`（radix）：portal、遮罩、Esc、焦点圈定与归还都由原语承担；
+ * 本组件只保留业务：打开即聚焦全选、Enter 提交、错误内联、提交中禁用按钮。
  */
 export function KbFolderDialog({
   title,
@@ -32,27 +32,13 @@ export function KbFolderDialog({
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const dialogRef = useRef<HTMLDivElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
 
+  // 打开前记住触发元素，关闭时 radix 的 onCloseAutoFocus 把焦点还回去
   useEffect(() => {
-    const input = inputRef.current
-    if (input) {
-      input.focus()
-      input.select()
-    }
+    returnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
   }, [])
-
-  // Esc 取消：捕获阶段监听，先于编辑器 / 全局快捷键处理
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.isComposing) return
-      event.preventDefault()
-      event.stopPropagation()
-      onCancel()
-    }
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [onCancel])
 
   const submit = useCallback(async () => {
     if (submitting) return
@@ -82,42 +68,35 @@ export function KbFolderDialog({
     void submit()
   }
 
-  // Tab 焦点循环（首尾回环，跳过 disabled）
-  const handleDialogKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Tab') return
-    const dialog = dialogRef.current
-    if (!dialog) return
-    const focusables = Array.from(
-      dialog.querySelectorAll<HTMLElement>('input, button'),
-    ).filter((el) => !el.hasAttribute('disabled'))
-    if (focusables.length === 0) return
-    const first = focusables[0]
-    const last = focusables[focusables.length - 1]
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault()
-      last.focus()
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault()
-      first.focus()
-    }
-  }
-
-  return createPortal(
-    <div
-      className="kb-folder-dialog-overlay"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !submitting) onCancel()
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        // 提交中不允许因 Esc / 点遮罩关闭；成功关闭由父级卸载
+        if (!open && !submitting) onCancel()
       }}
     >
-      <div
+      <DialogContent
         className="kb-folder-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        ref={dialogRef}
-        onKeyDown={handleDialogKeyDown}
+        overlayClassName="kb-folder-dialog-overlay"
+        aria-describedby={undefined}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          const input = inputRef.current
+          if (input) {
+            input.focus()
+            input.select()
+          }
+        }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          returnFocusRef.current?.focus()
+        }}
+        onPointerDownOutside={(event) => {
+          if (submitting) event.preventDefault()
+        }}
       >
-        <div className="kb-folder-dialog-title">{title}</div>
+        <DialogTitle className="kb-folder-dialog-title">{title}</DialogTitle>
         <label className="kb-folder-dialog-label" htmlFor="kb-folder-name">
           文件夹名
         </label>
@@ -155,8 +134,7 @@ export function KbFolderDialog({
             {submitting ? '处理中…' : submitLabel}
           </button>
         </div>
-      </div>
-    </div>,
-    document.body,
+      </DialogContent>
+    </Dialog>
   )
 }
