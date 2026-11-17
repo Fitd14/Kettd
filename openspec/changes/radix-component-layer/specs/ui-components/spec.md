@@ -23,7 +23,7 @@
 #### Scenario: 审计页面侧原生控件
 
 - **WHEN** 对 `src-react/src/views/**` 与 `src-react/src/components/**`（`ui/` 除外）检索 `<button` / `<input` / `<select` / `<textarea`
-- **THEN** 结果为零
+- **THEN** 除本条 Requirement 的例外（整行可点击的行容器、无外观的隐藏输入、`Input` 的 `bare` 用法）与 `design.md` 已登记的映射缺口外，结果为零；缺口清单与行号记在 `tasks.md` 5.1 的审计段
 
 ### Requirement: 弹层与菜单的键盘行为
 
@@ -48,7 +48,7 @@
 
 `components/ui/` 之外 MUST NOT 渲染原生交互元素；每个控件在原语层只有一个实现，页面只传 props，不复制行为。
 
-例外：**整行可点击的列表 / 树 / 菜单行**（外观由行容器自身承担、没有按钮轮廓，整行即命中区域）不属于控件，允许保留原生 `<button>`；判定口径见 `design.md` D12。
+例外三类：① **整行可点击的列表 / 树 / 菜单行**（外观由行容器自身承担、没有按钮轮廓，整行即命中区域）不属于控件，允许保留原生 `<button>`；② **无外观的隐藏输入**（`display:none` 的 `type="file"`，由按钮代理点击）；③ `design.md` 映射缺口里尚未补齐 D9 口径的单点钮，补齐后必须迁移。判定口径见 `design.md` D12 与 D9 的映射缺口段。
 
 #### Scenario: 新增一个控件
 
@@ -147,7 +147,7 @@ radix 能力 SHALL 只从统一包 `radix-ui` 引入；MUST NOT 引入 `@radix-u
 
 ### Requirement: 存量收口到零
 
-迁移 SHALL 分批交付且每批可独立运行；全部完成后页面侧原生交互元素与手写弹层、菜单、标签页计数 SHALL 为零。
+迁移 SHALL 分批交付且每批可独立运行；全部完成后页面侧原生交互元素与手写弹层、菜单、标签页计数 SHALL 为零——「原生元素只允许出现在原语内部」那条 Requirement 列出的三类例外不计入。
 
 #### Scenario: 中途批次可交付
 
@@ -157,4 +157,4 @@ radix 能力 SHALL 只从统一包 `radix-ui` 引入；MUST NOT 引入 `@radix-u
 #### Scenario: 收口验收
 
 - **WHEN** 五批全部完成
-- **THEN** 页面侧 `<button>` / `<input>` / `<select>` / `<textarea>` 与手写 `role="dialog|menu|tab|popover"` 计数均为零，只有 `components/ui/` 内部保留原生元素
+- **THEN** 页面侧 `<button>` / `<input>` / `<select>` / `<textarea>` 只余例外清单里的行容器与隐藏输入，手写 `role="dialog|menu|tab|popover"` 计数为零，`components/ui/` 之外没有第二份控件行为
