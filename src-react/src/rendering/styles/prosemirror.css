@@ -456,8 +456,9 @@
    取代原 .kb-link-dialog-* 居中模态：非模态、不锁编辑区、portal 到 body，
    所以知识库详情面板与便签窄窗都不会因祖先 overflow 被裁切。 */
 .kb-link-inline {
-  position: fixed;
+  position: relative;
   z-index: 90;
+  max-width: calc(100vw - 16px);
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;

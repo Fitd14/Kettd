@@ -8,13 +8,19 @@ const PopoverTrigger = RadixPopover.Trigger
 const PopoverAnchor = RadixPopover.Anchor
 const PopoverClose = RadixPopover.Close
 
+export type PopoverContentProps = React.ComponentProps<typeof RadixPopover.Content> & {
+  /** 不叠加 `.popover` 基础皮肤；自带皮肤的浮层（如链接编辑条）用 */
+  bare?: boolean
+}
+
 function PopoverContent({
   className,
+  bare = false,
   align = "end",
   side = "bottom",
   sideOffset = 6,
   ...props
-}: React.ComponentProps<typeof RadixPopover.Content>) {
+}: PopoverContentProps) {
   return (
     <RadixPopover.Portal>
       <RadixPopover.Content
@@ -22,7 +28,7 @@ function PopoverContent({
         align={align}
         side={side}
         sideOffset={sideOffset}
-        className={cn("popover", className)}
+        className={cn(!bare && "popover", className)}
         {...props}
       />
     </RadixPopover.Portal>

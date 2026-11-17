@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import type { Task } from '@/lib/api'
 import { formatDue, getCategoryColor, PRIORITY_LABEL, getKbItems, updateTask, trackEvent } from '@/lib/api'
 import type { KbItem } from '@/lib/api'
 import { KbAttachPicker } from '@/components/kb/kb-attach-picker'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 interface Props {
   task: Task | null
@@ -17,7 +19,6 @@ interface Props {
  * 只读概览 + 删除动作；编辑仍在行内/hover 动作（保持「默认只读」行语言）。
  */
 export function TaskDetail({ task, today, onClose, onDelete }: Props) {
-  const closeRef = useRef<HTMLButtonElement>(null)
   const [kbItems, setKbItems] = useState<Map<string, KbItem>>(new Map())
   const [showAttachPicker, setShowAttachPicker] = useState(false)
 
@@ -32,31 +33,19 @@ export function TaskDetail({ task, today, onClose, onDelete }: Props) {
     })
   }, [kbRefs.join(',')])
 
-  useEffect(() => {
-    if (!task) return
-    closeRef.current?.focus()
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [task, onClose])
-
   if (!task) return null
   return (
-    <div className="detail-overlay" onClick={onClose}>
-      <div
-        className="detail-card"
-        role="dialog"
-        aria-modal="true"
-        aria-label={`任务详情：${task.title}`}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="detail-card" overlayClassName="detail-overlay" data-align="top" aria-describedby={undefined}>
         <div className="detail-head">
-          <b className="grow truncate">{task.title}</b>
-          <button ref={closeRef} className="btn ghost xs" onClick={onClose} aria-label="关闭详情">
-            <X size={13} aria-hidden />
-          </button>
+          <DialogTitle asChild>
+            <b className="grow truncate">{task.title}</b>
+          </DialogTitle>
+          <DialogClose asChild>
+            <Button variant="ghost" size="xs" aria-label="关闭详情">
+              <X size={13} aria-hidden />
+            </Button>
+          </DialogClose>
         </div>
 
         <div className="detail-grid">
@@ -113,33 +102,36 @@ export function TaskDetail({ task, today, onClose, onDelete }: Props) {
                 <span key={ref} className={`kb-ref-chip ${item ? '' : 'invalid'}`}>
                   📎 {item?.title ?? '已失效'}
                   {item && (
-                    <button
-                      className="btn xs ghost"
+                    <Button
+                      variant="ghost"
+                      size="xs"
                       onClick={() => {
                         void trackEvent('kb_open_from_task', { itemId: ref })
                         window.location.hash = `#/kb?id=${ref}`
                       }}
                       title="跳转到知识库"
-                    >↗</button>
+                    >↗</Button>
                   )}
-                  <button
-                    className="btn xs ghost"
+                  <Button
+                    variant="ghost"
+                    size="xs"
                     onClick={async () => {
                       const next = kbRefs.filter((r) => r !== ref)
                       await updateTask(task.id, { kbRefs: next })
                       void trackEvent('task_kb_detach', { taskId: task.id })
                     }}
                     title="卸载"
-                  >×</button>
+                  >×</Button>
                 </span>
               )
             })}
-            <button
-              className="btn xs ghost"
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={() => setShowAttachPicker(true)}
             >
               + 关联条目
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -156,15 +148,15 @@ export function TaskDetail({ task, today, onClose, onDelete }: Props) {
 
         {onDelete && !task.deletedAt && (
           <div className="detail-actions">
-            <button
-              className="btn xs outline"
+            <Button
+              size="xs"
               onClick={() => { onDelete(task.id); onClose() }}
             >
               删除
-            </button>
+            </Button>
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

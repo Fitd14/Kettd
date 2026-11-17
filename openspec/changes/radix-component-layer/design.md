@@ -118,6 +118,10 @@ Tiptap 工具条（`rendering/tiptap-editor.tsx:1311` 起）保留 `onMouseDown`
 
 **替代方案**：给 `ui/button` 加 `variant="row"` 抹掉全部按钮样式（否决 —— 变体越加越多，且行布局仍要依赖调用方的类，等于换个名字继续手写；一旦有人给 row 变体加 padding 又会悄悄改变行高）。
 
+### D14 窄窗大纲抽屉不迁 ui/dialog
+
+`kb-item-detail.tsx:505` 的 `.kb-outline-layer` 是 `position:absolute; inset:0` 的面板内抽屉，铺在 `.kb-detail` 这块相对定位容器上，靠祖先的 `--ink-*` / `--paper` 变量取色。`ui/dialog` 的 portal 落到 `body`，既丢祖先定位（抽屉会铺满视口而不是面板）也丢作用域变量。本轮不迁，留待 `DialogContent` 支持 `container` 或单独立抽屉原语时再做；4.1 的验证范围相应缩到三个视口级弹层。
+
 ### D13 自带皮肤的编辑器内输入框暂留原生
 
 批次 3 清到 `rendering/` 与标签 chip 时剩 3 处：`link-inline-editor.tsx` 的 `.kb-link-inline-input`、`tiptap-editor.tsx` 的 `.kb-find-input`（透明无边框的查找框）、`kb-item-detail.tsx` 的 `.kb-tag-input`。它们的皮肤都写在 `prosemirror.css` / `kb.css` 里，而 `.input` 基础皮肤在 `app.css`（import 顺序在视图之后），类选择器同特异性时后者胜出——直接换成 `ui/input` 会把查找框变成描边框、标签 chip 变成圆角描边输入框。本轮不硬迁，留到编辑器/标签批次（批次 4 完成后再处理）：届时的做法是把皮肤并进 `.input[data-skin="inline|find|tag"]`，或抽出无边框的 `bare` 变体，二者都要先补进 D9 表。

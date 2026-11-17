@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { createPortal } from 'react-dom'
 import type {
   BackupExportResult,
   BackupImportReport,
@@ -38,6 +36,7 @@ import { READING_FONT_SYSTEMS } from '@/lib/reading-font'
 import { plainPreview } from '@/lib/sticky-text'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { STICKY_PAPERS } from '@/views/sticky-labels'
 import './settings-sticky.css'
 import './settings-backup.css'
@@ -113,65 +112,24 @@ interface ImportPreviewDialogProps {
 
 /**
  * 导入预览对话框（D4）：dry-run 结果只读展示，取消/关闭不写盘，只有「确认导入」才 apply。
- * 交互沿用 kb-folder-dialog：portal 到 body、点遮罩或 Esc 取消、Tab 焦点首尾循环；
- * 导入进行中屏蔽关闭与重复提交，避免半途关窗。
+ * portal / 遮罩 / Esc / 焦点圈定交给 ui/dialog；导入进行中屏蔽关闭与重复提交，避免半途关窗。
  */
 function ImportPreviewDialog({ fileName, report, applying, error, onCancel, onConfirm }: ImportPreviewDialogProps) {
-  const dialogRef = useRef<HTMLDivElement>(null)
   const titles = report.conflictTitles ?? []
 
-  // 打开即聚焦对话框，键盘用户可直接 Tab 到按钮
-  useEffect(() => { dialogRef.current?.focus() }, [])
-
-  // Esc 取消：捕获阶段监听，先于页面快捷键；导入进行中忽略
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.isComposing || applying) return
-      event.preventDefault()
-      event.stopPropagation()
-      onCancel()
-    }
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [applying, onCancel])
-
-  // Tab 首尾循环（同 kb-folder-dialog），避免焦点跑出遮罩
-  const onDialogKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Tab') return
-    const dialog = dialogRef.current
-    if (!dialog) return
-    const focusables = Array.from(dialog.querySelectorAll<HTMLElement>('button'))
-      .filter((el) => !el.hasAttribute('disabled'))
-    if (focusables.length === 0) return
-    const first = focusables[0]
-    const last = focusables[focusables.length - 1]
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault()
-      last.focus()
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault()
-      first.focus()
-    }
-  }
-
-  return createPortal(
-    <div
-      className="backup-dialog-overlay"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !applying) onCancel()
-      }}
-    >
-      <div
-        ref={dialogRef}
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open && !applying) onCancel() }}>
+      <DialogContent
         className="backup-dialog"
-        role="dialog"
-        aria-modal="true"
+        overlayClassName="backup-dialog-overlay"
         aria-label="导入备份预览"
-        tabIndex={-1}
-        onKeyDown={onDialogKeyDown}
+        onEscapeKeyDown={(event) => { if (applying) event.preventDefault() }}
+        onPointerDownOutside={(event) => { if (applying) event.preventDefault() }}
       >
-        <div className="backup-dialog-title">导入备份预览</div>
-        <div className="backup-dialog-file tiny text-muted" title={fileName}>{fileName}</div>
+        <DialogTitle className="backup-dialog-title">导入备份预览</DialogTitle>
+        <DialogDescription asChild>
+          <div className="backup-dialog-file tiny text-muted" title={fileName}>{fileName}</div>
+        </DialogDescription>
 
         <div className="backup-preview-counts" role="group" aria-label="导入变更统计">
           <span className="backup-preview-stat"><b>{report.added}</b><span>新增</span></span>
@@ -214,9 +172,8 @@ function ImportPreviewDialog({ fileName, report, applying, error, onCancel, onCo
             {applying ? '导入中…' : '确认导入'}
           </Button>
         </div>
-      </div>
-    </div>,
-    document.body,
+      </DialogContent>
+    </Dialog>
   )
 }
 

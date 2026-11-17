@@ -861,6 +861,14 @@ details.overdue[open] summary::before {
   align-items: center;
 }
 
+/* 任务详情沿用顶部对齐（原先 .detail-overlay 的 48px 内边距），避免居中改版 */
+.dialog-content[data-align="top"] {
+  top: 48px;
+  transform: translateX(-50%);
+  max-height: calc(100vh - 96px);
+}
+.dialog-content[data-align="top"][data-state="open"] { animation: dialog-fade-in 120ms ease-out; }
+
 .detail-overlay {
   position: fixed;
   inset: 0;
