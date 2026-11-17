@@ -76,6 +76,7 @@
 - [ ] 5.5 更新 ledger 任务 `20261116-1316-313c-原生控件迁移到-components-ui-封装` 的 worklog 结论，与本变更的五批一一对应
 - [ ] 5.6 迁移完成后删除 `app.css` 与各域 CSS 里被 D9 取代的旧修饰：`.btn.ghost` / `.btn.danger` / `.btn.sm` / `.btn.xs`、`.sticky-btn`、`.kb-strip-btn`、`.kb-folder-add`、`.kb-folder-action`、`.kb-tag-x`、`.todo-mini-btn`、`.sticky-md-btn` 的尺寸与 hover 段（保留 `:where(button,[tabindex]):focus-visible` 兜底），`grep` 确认无引用后再删
   - 进度（第十七轮）：`.btn.ghost` / `.btn.danger` / `.btn.sm` / `.btn.xs` 与 `.input.xs` / `.input.sm` 已从 `primitives.css` 删除；`app.css` 的 `.seg .btn.on`、`.schedule-pop .input.xs`、`.btn.danger` 三处死覆盖同步删除；grep 确认 TSX 已无旧修饰写法（仅 `CaptureWindow.tsx:190` 一行注释残留）。余下 `.sticky-btn` / `.kb-strip-btn` / `.kb-folder-add` / `.kb-folder-action` / `.kb-tag-x` / `.todo-mini-btn` / `.sticky-md-btn` 仍作为布局/盒子类随 `<Button>` 保留，待这些落点收完后删
+  - 进度（第十八轮）：TSX 零引用的四组规则整段删除——`app.css` 的 `.titlebar-btn` 3 条（窗口键改 `size="window"`，宽度/无边框/透明由 `.btn[data-size="window"]` 覆盖，hover 由 `.btn:hover` 兜底）、`kb.css` 的 `.kb-strip-btn` 5 条（改 `variant="ghost" size="icon-sm"`）、`.kb-folder-add` 2 条（改 `size="icon-xs"`）、`.kb-outline-close` 3 条（改 `size="icon-xs"`）；CSS 字符数 `app.css 19231→18818`、`kb.css 39533→38622`，13 张表全部解析通过
 
 ## Workflow follow-up
 

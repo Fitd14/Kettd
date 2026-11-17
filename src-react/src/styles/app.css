@@ -322,25 +322,6 @@ details.overdue[open] summary::before {
   display: flex;
   flex: none;
 }
-.titlebar-btn {
-  width: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: hsl(var(--foreground));
-  font-size: var(--fs-body);
-  line-height: 1;
-  cursor: default;
-}
-.titlebar-btn:hover {
-  background: hsl(var(--muted));
-}
-.titlebar-btn.close:hover {
-  background: hsl(var(--destructive));
-  color: hsl(var(--destructive-foreground));
-}
 .shell {
   display: flex;
   flex: 1;

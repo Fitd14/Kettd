@@ -497,23 +497,6 @@
 .kb-strip-actions { grid-area: actions; display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
 .kb-strip-anchor { position: relative; display: flex; }
 
-.kb-strip-btn {
-  min-width: 26px;
-  height: 24px;
-  padding: 0 5px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted-foreground, hsl(var(--muted-foreground)));
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-.kb-strip-btn:hover:not(:disabled) { background: var(--muted, hsl(var(--muted))); color: hsl(var(--foreground)); }
-.kb-strip-btn.on { background: hsl(var(--primary) / 0.1); color: hsl(var(--foreground)); }
-.kb-strip-btn:focus-visible { outline: 1px solid hsl(var(--muted-foreground) / 0.4); }
-.kb-strip-btn:disabled { opacity: 0.38; cursor: default; }
 
 .kb-strip-sep { width: 1px; height: 16px; margin: 0 4px; background: hsl(var(--muted-foreground) / 0.2); }
 
@@ -669,14 +652,6 @@
 .kb-outline-link.on { color: var(--seal-ink); }
 .kb-outline-empty { margin: 0; color: var(--ink-3); line-height: 1.7; font-size: var(--fs-meta); }
 .kb-outline-head-right { display: inline-flex; align-items: center; gap: 8px; }
-.kb-outline-close {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; padding: 0;
-  border: 0; background: transparent; color: var(--ink-3);
-  font-size: 15px; line-height: 1; cursor: pointer; border-radius: 3px;
-}
-.kb-outline-close:hover { color: var(--seal-ink); background: hsl(var(--seal) / 0.08); }
-.kb-outline-close:focus-visible { outline: 2px solid hsl(var(--seal) / 0.5); outline-offset: 1px; }
 
 /* 窄窗抽屉：同一份大纲换容器——白纸从右侧滑入，遮罩压住正文但仍是暖色。
    定位用 absolute 而不是 fixed：包含块是 .kb-detail（position: relative + overflow: hidden），
@@ -852,25 +827,6 @@
 }
 
 /* 鈹€鈹€鈹€ #4 鏂囦欢澶规爲锛堝乏鏍忥級鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
-
-.kb-folder-add {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: hsl(var(--muted-foreground));
-  cursor: pointer;
-}
-
-.kb-folder-add:hover {
-  color: hsl(var(--foreground));
-  background: hsl(var(--muted));
-}
 
 .kb-folder-fixed,
 .kb-folder-rows {
