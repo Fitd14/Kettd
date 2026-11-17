@@ -49,7 +49,8 @@
 
 - [ ] 4.1 剩余 4 个手写 dialog 换成 `ui/dialog`：`components/task-detail.tsx:50`、`views/SettingsView.tsx:167`、`components/kb/kb-item-detail.tsx:505`、`rendering/link-inline-editor.tsx:90`；验证都能 `Esc` 关闭且焦点归还，链接内联编辑的选区不被弹层打开动作清掉
 - [ ] 4.2 按 D10 迁移 `components/kb/kb-context-menu.tsx`：四类右键区域（文件夹 / 条目 / 空白 / 输入框）改 `ui/context-menu` 的 `Trigger` 包裹，子菜单「移动到…」用 `Sub` / `SubTrigger` / `SubContent`，删除的「第一次确认、3 秒回退」改由 `ui/dialog` 或 `ui/popover` 承载，菜单本身回到选中即关；验证四类区域、子菜单与六条键盘路径
-- [ ] 4.3 `views/ReviewView.tsx:121` 换成 `ui/tabs`，验证切换后 KPI 区与列表同步刷新
+- [x] 4.3 `views/ReviewView.tsx:121` 换成 `ui/tabs`，验证切换后 KPI 区与列表同步刷新
+  - 已落地：`<Tabs value={range} onValueChange={(v) => setRange(v as Range)}>` + `<TabsList aria-label="统计周期">`，三个 `<TabsTrigger value>` 沿用 `.tab`，激活态由 `data-state="active"` 表达（`app.css` 的 `.tab.on` 保留到 5.6）；周期切换仍通过 `setRange` 驱动 `weeks` 与热力图重算，无面板内容，故不用 `TabsContent`。`role="tab"` 在 `views/` 归零
 - [ ] 4.4 listbox 按 D8 保持现状：`views/KbView.tsx:1308`、`components/kb/kb-tree.tsx:646` 的结构、`role` 与行按钮都不动，验证本变更的 diff 未触及这两处；零引用的 `components/kb/kb-item-row.tsx` 已按 0.2 删除
 
 ## 5. 收口

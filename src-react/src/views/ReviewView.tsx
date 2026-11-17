@@ -4,6 +4,7 @@ import { exportWeekly, trackEvent } from '@/lib/api'
 import { TaskDetail } from '@/components/task-detail'
 import { CompletionTimeline } from '@/components/completion-timeline'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface Props {
   boot: Bootstrap
@@ -114,19 +115,15 @@ export function ReviewView({ boot }: Props) {
       <section className="section" aria-label="完成热力图">
         <div className="section-head">
           <b>这一年</b>
-          <div className="tabs" role="tablist" aria-label="统计周期">
-            {RANGE_TABS.map((r) => (
-              <button
-                key={r.key}
-                className={`tab${range === r.key ? ' on' : ''}`}
-                role="tab"
-                aria-selected={range === r.key}
-                onClick={() => setRange(r.key)}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
+          <Tabs value={range} onValueChange={(v) => setRange(v as Range)}>
+            <TabsList aria-label="统计周期">
+              {RANGE_TABS.map((r) => (
+                <TabsTrigger key={r.key} value={r.key}>
+                  {r.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </div>
         <div className="tiny text-muted" style={{ marginBottom: 4 }}>浅 → 深 = 0 / 1-2 / 3-5 / 6-9 / 10+</div>
         <div className="heatmap" role="img" aria-label="按日完成密度热力图">
