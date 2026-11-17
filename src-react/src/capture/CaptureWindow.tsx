@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { buildCaptureArgs, localToday, parseCapture, type ParsedCapture } from '@/lib/kernel'
 import { call, onEvent } from '@/lib/bridge'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { addTask } from '@/lib/api'
 import './capture.css'
 
@@ -183,15 +184,15 @@ export default function CaptureWindow() {
             onChange={(e) => { setText(e.target.value); setError(null) }}
             onKeyDown={onInputKeyDown}
           />
-          <button className="btn icon" title="记下（Enter）" aria-label="记下" onClick={() => { void commit() }}>
+          <Button variant="ghost" className="icon" title="记下（Enter）" aria-label="记下" onClick={() => { void commit() }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-          </button>
+          </Button>
           {/* <button className="btn ghost xs" title="关闭（Esc）" aria-label="关闭" onClick={() => { void closeOverlay() }}>✕</button> */}
         </div>
       ) : (
         <div className="cap-receipt">
           <span className="receipt-title">已记下 ·「{saved?.title}」</span>
-          <button className="btn xs outline" onClick={() => { void planForToday() }}>加入今天?</button>
+          <Button size="xs" onClick={() => { void planForToday() }}>加入今天?</Button>
           <span className="tiny muted">{receiptNote}</span>
         </div>
       )}

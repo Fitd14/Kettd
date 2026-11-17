@@ -15,6 +15,7 @@ import { todayList } from '../kernel/selectors.js'
 import { localToday } from '../kernel/time.js'
 import { PaperPattern } from '@/sticky/paper-patterns'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/components/ui/button'
 
 /**
  * 待办悬浮窗（todo-float · 拍板「纯轻量镜像」档）：
@@ -84,7 +85,7 @@ export default function TodoFloatWindow() {
   /* ---- 迷你态：40px 悬浮条（拖动区 + 摘要 + 展开 + ✕）---- */
   if (mini) {
     return (
-      <div className={`sticky-note is-mini paper-${paper} todo-mini`}>
+      <div data-surface="sticky" className={`sticky-note is-mini paper-${paper} todo-mini`}>
         <span className="sticky-mini-grip" data-tauri-drag-region title="按住拖动">
           <GripHorizontal size={14} aria-hidden />
         </span>
@@ -95,28 +96,28 @@ export default function TodoFloatWindow() {
         >
           待办 · 今天 {list.length} 项{doneCount > 0 ? ` · 做完 ${doneCount}` : ''}
         </span>
-        <button
+        <Button variant="ghost"
           className="sticky-btn todo-mini-btn"
           title="展开为完整列表"
           aria-label="展开待办悬浮窗"
           onClick={() => { void setMini(false) }}
         >
           展开
-        </button>
-        <button
+        </Button>
+        <Button variant="ghost"
           className="sticky-btn todo-mini-btn"
           title="隐藏（托盘或热键呼回）"
           aria-label="隐藏待办悬浮窗"
           onClick={() => { void hideTodoFloat() }}
         >
           <X size={12} aria-hidden />
-        </button>
+        </Button>
       </div>
     )
   }
 
   return (
-    <div className={`sticky-note paper-${paper}`}>
+    <div data-surface="sticky" className={`sticky-note paper-${paper}`}>
       <PaperPattern pattern={pattern} />
       <div className="sticky-strip">
         <span className="sticky-head" data-tauri-drag-region title="按住拖动">
@@ -131,17 +132,17 @@ export default function TodoFloatWindow() {
         >
           {pinnedOn ? <Pin size={14} aria-hidden /> : <PinOff size={14} aria-hidden />}
         </button>
-        <button
+        <Button variant="ghost"
           className="sticky-btn"
           title="最小化为悬浮条"
           aria-label="最小化为悬浮条"
           onClick={() => { void setMini(true) }}
         >
           <Minus size={14} aria-hidden />
-        </button>
-        <button className="sticky-btn" title="隐藏（托盘或热键呼回）" aria-label="隐藏待办悬浮窗" onClick={() => { void hideTodoFloat() }}>
+        </Button>
+        <Button variant="ghost" className="sticky-btn" title="隐藏（托盘或热键呼回）" aria-label="隐藏待办悬浮窗" onClick={() => { void hideTodoFloat() }}>
           <X size={14} aria-hidden />
-        </button>
+        </Button>
       </div>
 
       <div className="sticky-body" role={list.length > 0 ? 'list' : undefined} aria-label="今天待办">

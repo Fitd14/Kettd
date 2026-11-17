@@ -17,6 +17,7 @@ import {
 import { FADE_DEBOUNCE_MS, isPointerOutside, shouldFade } from '@/lib/sticky-fade'
 import { PaperPattern } from './paper-patterns'
 import { TipTapEditor } from '@/rendering/tiptap-editor'
+import { Button } from '@/components/ui/button'
 import './sticky.css'
 
 /**
@@ -337,14 +338,14 @@ export default function StickyWindow() {
         >
           {isKnowledge && '📎 '}{displayName}
         </button>
-        <button
+        <Button variant="ghost"
           className="sticky-btn"
           title="关闭（内容保留，可在设置中重新打开）"
           aria-label="关闭便签（内容保留）"
           onClick={() => { void close() }}
         >
           <X size={12} aria-hidden />
-        </button>
+        </Button>
       </div>
     )
   }
@@ -359,14 +360,14 @@ export default function StickyWindow() {
           <span className="sticky-head" data-tauri-drag-region title="按住拖动">
             ⚠️ 已失效（原资料已删除）
           </span>
-          <button
+          <Button variant="ghost"
             className="sticky-btn"
             title="拆除便签（销毁数据）"
             aria-label="拆除便签"
             onClick={() => { void removeBroken() }}
           >
             <X size={14} aria-hidden />
-          </button>
+          </Button>
         </div>
         <div className="sticky-body">
           <div className="sticky-invalid-body">
@@ -384,7 +385,8 @@ export default function StickyWindow() {
   if (isKnowledge && kbItem) {
     return (
       <div
-        className={`sticky-note paper-${paper} knowledge-sticky${faded && fadeOn ? ' faded' : ''}`}
+        data-surface="sticky"
+      className={`sticky-note paper-${paper} knowledge-sticky${faded && fadeOn ? ' faded' : ''}`}
         style={{ '--sticky-fade-opacity': `${fadeOpacity}%` } as React.CSSProperties}
         onMouseLeave={markOutside}
         onMouseEnter={markInside}
@@ -394,10 +396,10 @@ export default function StickyWindow() {
           <span className="sticky-head" data-tauri-drag-region title="按住拖动">
             📎 {kbItem.title}
           </span>
-          <button className="sticky-btn" title="缩小为悬浮条" aria-label="缩小便签" onClick={() => { void setMini(true) }}>
+          <Button variant="ghost" className="sticky-btn" title="缩小为悬浮条" aria-label="缩小便签" onClick={() => { void setMini(true) }}>
             <Minus size={14} aria-hidden />
-          </button>
-          <button
+          </Button>
+          <Button variant="ghost"
             className="sticky-btn"
             title="关闭（内容保留，可在设置中重新打开）"
             aria-label="关闭便签（内容保留）"
@@ -407,7 +409,7 @@ export default function StickyWindow() {
             }}
           >
             <X size={14} aria-hidden />
-          </button>
+          </Button>
         </div>
 
         <div className="sticky-body" ref={knowledgeBodyRef}>
@@ -425,6 +427,7 @@ export default function StickyWindow() {
   // 自由便签展开态：TipTap 所见即所得，防抖自动保存（字数上限由编辑器 maxChars 计数把关）
   return (
     <div
+      data-surface="sticky"
       className={`sticky-note paper-${paper}${faded && fadeOn ? ' faded' : ''}`}
       style={{ '--sticky-fade-opacity': `${fadeOpacity}%` } as React.CSSProperties}
       onMouseLeave={markOutside}
@@ -435,17 +438,17 @@ export default function StickyWindow() {
         <span className="sticky-head" data-tauri-drag-region title="按住拖动">
           便签
         </span>
-        <button className="sticky-btn" title="缩小为悬浮条" aria-label="缩小便签" onClick={() => { void setMini(true) }}>
+        <Button variant="ghost" className="sticky-btn" title="缩小为悬浮条" aria-label="缩小便签" onClick={() => { void setMini(true) }}>
           <Minus size={14} aria-hidden />
-        </button>
-        <button
+        </Button>
+        <Button variant="ghost"
           className="sticky-btn"
           title="关闭（内容保留，可在设置中重新打开）"
           aria-label="关闭便签（内容保留）"
           onClick={() => { void close() }}
         >
           <X size={14} aria-hidden />
-        </button>
+        </Button>
       </div>
 
       <div className="sticky-body" ref={freeBodyRef}>

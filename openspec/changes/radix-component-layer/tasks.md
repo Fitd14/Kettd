@@ -36,6 +36,8 @@
   - 未验证：工具条高度 24 → 26px 后工具栏行高与 `HeadingSelect` 基线是否齐；`onMouseDown preventDefault` 保焦点行为未真机点过
 - [ ] 2.4 `components/` 根 19 处，验证该目录计数为 0，任务行与快捷键提示的按钮样式不变
 - [ ] 2.5 `sticky/` 8、`todo/` 6、`capture/` 4、`src` 根 2 处，验证这四个位置计数为 0，便签三态切换与快速捕获条仍可用
+  - 进度：`sticky/StickyWindow.tsx` 8 → 2（`sticky-mini-text` 行文字钮、`sticky-md-btn on` 文字动作，按 D12/状态 chip 暂留）；`todo/TodoFloatWindow.tsx` 6 → 2（`sticky-btn pin` 状态 chip、`sticky-title` 行文字钮）；`capture/CaptureWindow.tsx` 4 → 2（`.chip` 整块可点按 D12 留原生、另一处是注释掉的旧按钮）；`src` 根 2 未动。转换时保留 `className="sticky-btn"`，外观仍由 `sticky.css` 决定，等批次 5 删旧皮肤
+  - 前提修复：D15 把原语皮肤抽到 `primitives.css` 由 `index.css` 引入——这三个窗口入口此前不加载 `app.css`，`.btn` / `.checkbox` 在小窗里没有底座（`TodoFloatWindow` 的复选框曾因此裸奔）
 
 ## 3. 输入框迁移（28 处）
 
