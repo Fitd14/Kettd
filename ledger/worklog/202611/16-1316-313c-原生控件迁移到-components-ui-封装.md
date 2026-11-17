@@ -1,7 +1,7 @@
 # 20261116-1316-313c-原生控件迁移到-components-ui-封装: 原生控件迁移到 components/ui 封装
 
 - **Tags**: 前端, radix, 组件封装, 迁移
-- **Status**: doing · 2026-11-16 13:18:10 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
+- **Status**: doing · 2026-11-17 01:48:21 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 - **Created**: 2026-11-16 13:16:59 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 
 <!-- Header lines are maintained by the script, fixed order: Tags → Status → Created → Sealed.
@@ -18,6 +18,8 @@
 
 ## To Do
 
+> 以下是 2026-11-16 立项时的原始分批（历史记录，不再改）；实际执行结果与差异见 Conclusion 与 `openspec/changes/radix-component-layer/tasks.md`。
+
 按依赖排序，每批可独立交付：
 
 1. **补原语**：`ui/input.tsx`、`ui/textarea.tsx`、`ui/dialog.tsx`、`ui/menu.tsx`（DropdownMenu + ContextMenu）、`ui/popover.tsx`、`ui/tabs.tsx`、`ui/checkbox.tsx`、`ui/switch.tsx`、`ui/tooltip.tsx`；评估 `ui/step-slider.tsx` 是否改用 radix `Slider`（现手写，`SettingsView` 阅读偏好在用）。
@@ -33,7 +35,9 @@
 
 ## Next
 
-先做第 1 批的第一件：新建 `src-react/src/components/ui/input.tsx`，照 `components/ui/button.tsx` 的 cva + `cn()` 写法（token 走 `--fs-*` / `hsl(var(--xxx))`），再补 `ui/dialog.tsx`（radix Dialog + 现有 `.dialog` 皮肤）；完成后跑 `npx tsc -b` 与 `node test/docs.test.mjs`。
+- 5.4：`AGENTS.md` §2.2 三条（例外清单 / primitives.css 位置 / 存量已收口）与 `README.md` 目录树加 `styles/` 一行，**等人工批准后提交**。
+- 5.3：L4 冒烟五条（快速记录 / 今天计数 / 提醒触发 / 便签三态 / 知识库搜索），需要能起前端的真机。
+- 5.2 复跑：在有正常桌面会话的机器上跑一次官方 `npm run build`，确认不靠沙箱绕行也能过。
 
 ## Process
 
@@ -41,11 +45,24 @@
 - radix 没有 Button / Input / Textarea 原语，`ui/` 封装内部仍渲染原生元素；「不使用原生组件」只能在页面层兑现，规则据此写成「原生元素只允许出现在 `ui/` 封装内部一次」。
 - 存量计数用正则扫 `src-react/src/**/*.tsx` 的 `<button` / `<input` / `<select` / `<textarea`，共 30 个文件命中。
 - 文档门禁：`node --test test/docs.test.mjs` 在本机沙箱下 spawn EPERM（Node test runner 需要管道），改用 `node test/docs.test.mjs` 直接执行，4/4 通过。
+- 2026-11-17：改动量超出「快速迁移」，按用户要求单开分支 `feat/radix-component-layer`，并在 `openspec/changes/radix-component-layer/` 立变更（proposal / 9 条规格 / design D1–D18 / 5 组任务），`openspec validate --strict` 通过。
+- 视觉基线：先出 `design-review/button-system.html` 原型（三档尺寸 22/26/30 × 五变体 + 数据表面），用户评审四项全过后才动代码。
+- 关键结构发现：`app.css` 只有主窗加载，便签/待办/捕获三窗拿不到 `.btn` / `.checkbox` 底座 → 抽出 `styles/primitives.css` 由 `index.css` 引入（D15），三窗按钮与复选框此后才有原语皮肤。
+- 映射缺口逐条补口径而非就地发明尺寸：D12（整行可点击行容器留原生）、D13（编辑器内皮肤输入走 `Input bare`）、D14（窄窗大纲抽屉留原生）、D16（深色气泡 `data-surface="bubble"`）、D17（chip 内嵌钮 `variant="bare"`）、D18（专用盒子钮：ghost + 不传 size + 域内选择器加重一层）。
 
 ## Conclusion
 
-- 规则已入库：AGENTS.md §2.2 四条 + README §目录结构一行；文档门禁 4 项全过。
-- 迁移代码一行未动，按 To Do 五批推进；两条例外（Tiptap 工具条焦点、listbox 选型）已登记。
+截至 2026-11-17，五批中四批已交付（分支 `feat/radix-component-layer`，14 个提交），按批对应：
+
+| 批次 | 状态 | 结果 |
+| --- | --- | --- |
+| ① 补原语 | 完成 | 新建 `ui/input` `checkbox` `dialog` `dropdown-menu` `context-menu` `popover` `tabs`；重写 `ui/button`（三档 × 五变体 + bare）与 `ui/step-slider`（radix Slider）。按「零使用点不预埋」跳过 textarea / switch / tooltip |
+| ② Button 161 → 0 | 完成 | 原生 `<button>` 161 → **22**，余量全是 D8 listbox 行（1）与 D12 整行/图元容器（21），不再迁 |
+| ③ Input 28 → 0 | 完成 | 原生 `<input>` 28 → **4**：`ui/input.tsx` 自身 1 + 白名单 3（两个隐藏 file、一个 range） |
+| ④ 弹层/菜单/浮层 | 完成 | 三处 dialog 换 radix（`task-detail`、`ImportPreviewDialog`、`kb-folder-dialog`）；右键菜单 429 → 152 行；`typo-popover` 与链接编辑条换 radix Popover；三处 tabs 换 radix Tabs |
+| ⑤ 收口 | 完成 | 审计表落 `tasks.md` 5.1；零引用旧 CSS 四组删除；`tsc` 0、`oxlint` 31 warnings / 0 errors、`vite build` 通过（沙箱内需绕过 vite 的 `net use` 探测）、8 个测试文件 44 tests / 0 fail |
+
+遗留：5.3 真机冒烟五条未做（沙箱起不了前端）、5.4 的 AGENTS / README 文案待人工批准、`npm run build` 官方脚本待在有桌面会话的机器复跑。台账状态保持 doing。
 
 ## Execution Log
 
@@ -54,3 +71,4 @@
 - 2026-11-16 13:16:59 · new · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · created
 - 2026-11-16 13:17:31 · claim · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · claimed → doing
 - 2026-11-16 13:18:10 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 写入分批迁移清单（五批 + 两条例外：Tiptap 工具条焦点、listbox 选型）
+- 2026-11-17 01:48:21 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 回写五批执行结论：②按钮 161→22、③输入 28→4、④弹层菜单标签页全部换 radix；遗留真机冒烟与文档待批
