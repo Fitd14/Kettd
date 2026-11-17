@@ -373,6 +373,91 @@ export interface KbDragPayload {
 /** 落点三区：上 25% 插入前 / 中 50% 移入 / 下 25% 插入后 */
 export type KbDropZone = 'before' | 'inside' | 'after'
 
+// ─── S3 指针拖拽（design D2/D6）：阈值与自动滚动都是纯函数，便于单测 ──────
+
+/** 鼠标按住后移动多少像素才算拖拽（design D2） */
+export const DRAG_START_DISTANCE = 4
+/** 触摸 / 笔：需要同时满足位移 8px 与按住 160ms，避免与滚动、长按菜单打架 */
+export const DRAG_START_TOUCH_DISTANCE = 8
+export const DRAG_START_TOUCH_HOLD_MS = 160
+/** 指针进入滚动容器上下边缘多少像素内开始自动滚动（design D6） */
+export const AUTO_SCROLL_EDGE = 24
+/** 贴边时的最大滚动速度（px/帧） */
+export const AUTO_SCROLL_MAX_SPEED = 12
+
+/**
+ * 树内空白区投放的目标父级（tasks 2.1 / design D8）：
+ * - 选中文件夹：追加到该夹（文件夹与条目都收）；
+ * - 选中「未分类」：只收条目（文件夹返回 undefined = 拒绝）；
+ * - 选中「全部知识」：没有明确归属，一律拒绝（undefined）。
+ * 返回值 null = 根目录（文件夹）/ 未分类（条目），与 planAppendDrop 的口径一致。
+ */
+export function resolveBlankDropParent(
+  selection: FolderSelection,
+  dragged: KbDragPayload,
+): string | null | undefined {
+  if (selection.kind === 'all') return undefined
+  if (selection.kind === 'folder') return selection.id
+  return dragged.kind === 'item' ? null : undefined
+}
+
+/** 指针按下时的候选信息：active=false 表示还没越过阈值 */
+export interface KbPointerStart {
+  /** 命中的行类型；blank = 树空白区，不参与拖拽 */
+  kind: 'folder' | 'item' | 'blank'
+  /** PointerEvent.button：只接受左键（0） */
+  button: number
+  /** PointerEvent.pointerType：'mouse' | 'touch' | 'pen' */
+  pointerType: string
+  /** 从按下到当前帧的时长（ms） */
+  heldMs: number
+  from: { x: number; y: number }
+  to: { x: number; y: number }
+}
+
+/**
+ * 是否越过拖拽启动阈值（design D2）：
+ * - 空白区 / 非左键 / 位移不足一律不启动；
+ * - 鼠标 4px 即可；
+ * - 触摸与笔需要「按住 160ms 且位移 8px」，先滚动、后拖拽的意图才不会被误判。
+ */
+export function shouldStartDrag(input: KbPointerStart): boolean {
+  if (input.kind === 'blank') return false
+  if (input.button !== 0) return false
+  const distance = Math.hypot(input.to.x - input.from.x, input.to.y - input.from.y)
+  const isTouchLike = input.pointerType === 'touch' || input.pointerType === 'pen'
+  if (!isTouchLike) return distance >= DRAG_START_DISTANCE
+  return input.heldMs >= DRAG_START_TOUCH_HOLD_MS && distance >= DRAG_START_TOUCH_DISTANCE
+}
+
+/**
+ * 指针 y → 每帧滚动速度（design D6，负值向上）：
+ * - 只在滚动容器上下 24px 边缘内产生速度，越界按贴边处理；
+ * - 线性衰减：贴边 12px/帧，到 24px 归零；
+ * - 取整用 ceil，保证刚进边缘就有 1px 的响应，不会停在 0 上不动。
+ */
+export function computeAutoScrollSpeed(
+  pointerY: number,
+  rect: { top: number; height: number },
+): number {
+  if (!(rect.height > 0)) return 0
+  const topBand = pointerY - rect.top
+  const bottomBand = rect.top + rect.height - pointerY
+  let direction = 0
+  let band = Number.POSITIVE_INFINITY
+  if (topBand < AUTO_SCROLL_EDGE) {
+    direction = -1
+    band = topBand
+  } else if (bottomBand < AUTO_SCROLL_EDGE) {
+    direction = 1
+    band = bottomBand
+  }
+  if (direction === 0) return 0
+  const clamped = Math.min(Math.max(band, 0), AUTO_SCROLL_EDGE)
+  const magnitude = Math.ceil(((AUTO_SCROLL_EDGE - clamped) / AUTO_SCROLL_EDGE) * AUTO_SCROLL_MAX_SPEED)
+  return direction * magnitude
+}
+
 /**
  * 行矩形 + 指针 y → 落点三区（tasks 3.1 / design D5）。
  * - 上 25% → before，中 50% → inside，下 25% → after；

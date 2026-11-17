@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   CSSProperties,
-  DragEvent as ReactDragEvent,
   MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
   ReactNode,
 } from 'react'
 import {
@@ -25,11 +25,13 @@ import { Button } from '@/components/ui/button'
 import { KbContextMenu } from '@/components/kb/kb-context-menu'
 import type { KbMenuItem } from '@/components/kb/kb-context-menu'
 import {
+  computeAutoScrollSpeed,
   findKbFolderNode,
-  KB_DND_MIME,
   planAppendDrop,
   planKbDrop,
+  resolveBlankDropParent,
   resolveDropTarget,
+  shouldStartDrag,
   UNFILED_EXPAND_KEY,
 } from '@/components/kb/kb-tree-utils'
 import type {
@@ -50,8 +52,9 @@ import type {
  * - 展开态由父级 KbView 持有并落 localStorage，本组件只读 + 回调；
  * - 文件夹行沿用旧 hover 图标：新建（树头）、重命名、删除（两步确认）；
  * - 右键菜单只上报命中对象与视口坐标，菜单本体由 KbView 统一渲染（tasks 2.4）；
- * - S2 拖拽：HTML5 DnD + `text/kettd-kb`，落点区判定与落库计划都是纯函数（kb-tree-utils）；
- *   拖拽状态（dragPayloadRef / dropHover）只在本组件局部，避免拖拽每帧重渲染 KbView；
+ * - S3 拖拽：Pointer Events（阈值 + 自动滚动 + 悬停展开 + 幽灵标签），落点区判定与
+ *   落库计划仍是 kb-tree-utils 的纯函数；拖拽态（pointerRef / dropHover）只在本组件局部，
+ *   避免拖拽每帧重渲染 KbView；
  * - S2 置顶：树头下固定「置顶」快捷区（只读副本，独立于展开态/折叠态），点击定位；
  *   原位置行保留并带图钉角标，右键置顶/取消置顶两处共用。
  */
@@ -97,6 +100,20 @@ const HOVER_EXPAND_MS = 600
 type KbDropHover =
   | { kind: 'folder' | 'item'; id: string; zone: KbDropZone }
   | { kind: 'blank' }
+
+/** 一次指针交互：active=false 时只是按下候选，越阈值后才成为拖拽 */
+interface KbPointerDrag {
+  payload: KbDragPayload
+  /** 幽灵标签文案（按下那一行的可见文本） */
+  label: string
+  pointerId: number
+  pointerType: string
+  button: number
+  startX: number
+  startY: number
+  startedAt: number
+  active: boolean
+}
 
 /** 层级缩进走 CSS 变量：折叠态可在样式表里整体压平，无需覆盖行内 style */
 function depthStyle(depth: number): CSSProperties {
@@ -159,12 +176,20 @@ export function KbFileTree({
     [confirmingId, clearConfirmTimer, onDeleteFolder],
   )
 
-  // ── S2 树内拖拽（tasks 3.2 / design D5）────────────────────────────────
+  // ── S3 树内拖拽（tasks 1.2–1.6 / design D2/D3/D4/D6）──────────────────
+  // HTML5 DnD 在 WebView2 下被窗口级拖放接管吞掉，这里改用 Pointer Events：
+  // 阈值判定 → 置 dragging 态 → elementFromPoint 求落点 → pointerup 提交计划。
   const dndEnabled = Boolean(onDropNode)
+  const rootRef = useRef<HTMLDivElement | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  /** 正在拖的节点（dataTransfer 在 dragover 时读不到 setData 的值，只能用 ref 传递） */
-  const dragPayloadRef = useRef<KbDragPayload | null>(null)
-  /** 落点高亮：只让树自身重渲染，KbView 不参与（design D10） */
+  const ghostRef = useRef<HTMLDivElement | null>(null)
+  /** 按下候选 / 拖拽态共用一份；active=false 表示还没越过阈值（此时仍算点击） */
+  const pointerRef = useRef<KbPointerDrag | null>(null)
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null)
+  const rafRef = useRef<number | null>(null)
+  /** 越阈值后吞掉这次 click，避免「拖完顺手选中/展开」 */
+  const suppressClickRef = useRef(false)
+  const [dragging, setDragging] = useState<{ payload: KbDragPayload; label: string } | null>(null)
   const [dropHover, setDropHover] = useState<KbDropHover | null>(null)
   const hoverTimerRef = useRef<number | null>(null)
   const hoverFolderRef = useRef<string | null>(null)
@@ -193,152 +218,236 @@ export function KbFileTree({
     [clearHoverTimer, dndEnabled, onToggleExpand],
   )
 
-  const resetDragState = useCallback(() => {
-    dragPayloadRef.current = null
-    clearHoverTimer()
-    setDropHover(null)
-  }, [clearHoverTimer])
-
-  // 卸载清计时器（与删除确认计时器同理，避免 setState on unmounted）
-  useEffect(() => resetDragState, [resetDragState])
-
-  // 拖拽可能在树外结束（Esc / 丢到窗口外 / 拖到置顶区）：窗口级兜底清理高亮
-  useEffect(() => {
-    window.addEventListener('dragend', resetDragState)
-    window.addEventListener('drop', resetDragState)
-    return () => {
-      window.removeEventListener('dragend', resetDragState)
-      window.removeEventListener('drop', resetDragState)
+  /** 自动滚动：拖拽期间常驻 rAF，只有指针停在边缘带里才真的动（design D6） */
+  const stopAutoScroll = useCallback(() => {
+    if (rafRef.current !== null) {
+      window.cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
     }
-  }, [resetDragState])
+  }, [])
 
-  const beginDrag = useCallback(
-    (event: ReactDragEvent<HTMLElement>, kind: 'folder' | 'item', id: string) => {
-      if (!dndEnabled) {
-        event.preventDefault()
-        return
-      }
-      dragPayloadRef.current = { kind, id }
-      clearHoverTimer()
-      event.dataTransfer.effectAllowed = 'move'
-      try {
-        event.dataTransfer.setData(KB_DND_MIME, JSON.stringify({ kind, id }))
-      } catch {
-        // WebView2 对自定义 MIME 的 setData 偶发抛错：内部 ref 仍可用，拖拽照常进行
-      }
-    },
-    [clearHoverTimer, dndEnabled],
-  )
-
-  /** 从事件目标向上找「带 data-kb-row-* 的树行」；拖拽高亮只认树滚动区内的行 */
-  const findTreeRow = (
-    eventTarget: EventTarget | null,
-  ): { kind: 'folder' | 'item'; id: string; element: HTMLElement } | null => {
-    if (!(eventTarget instanceof Element)) return null
-    const row = eventTarget.closest<HTMLElement>('[data-kb-row-id]')
-    if (!row || !scrollRef.current || !scrollRef.current.contains(row)) return null
-    const kind = row.dataset.kbRowKind
-    const id = row.dataset.kbRowId
-    if ((kind !== 'folder' && kind !== 'item') || !id) return null
-    return { kind, id, element: row }
-  }
+  // 卸载清计时器与 rAF（避免 setState on unmounted）
+  useEffect(() => () => {
+    clearHoverTimer()
+    stopAutoScroll()
+  }, [clearHoverTimer, stopAutoScroll])
 
   /**
-   * 行矩形 + 指针 y → 高亮落点。
-   * 条目行没有「移入」语义：中区按上/下半区折成 before/after（design D5 只给文件夹移入）。
-   * 返回 null = 前端预判拒绝（自身/后代/无法放置），不显示高亮、drop 不生效。
+   * 指针位置 → 落点高亮 + 落库计划（design D3/D4/D8）：
+   * - 命中树行：按行矩形切成 before/inside/after，条目行的 inside 折成上/下半；
+   * - 命中「未分类」：条目 → 追加到未分类，文件夹 → 拒绝；
+   * - 命中「全部知识」：一律拒绝（design D8）；
+   * - 命中树内空白：追加到当前选中文件夹；选中「全部知识」时无明确归属，拒绝。
    */
-  const resolveRowHover = (
-    row: { kind: 'folder' | 'item'; id: string; element: HTMLElement },
-    clientY: number,
-    dragged: KbDragPayload,
-  ): KbDropHover | null => {
-    const rect = row.element.getBoundingClientRect()
-    let zone = resolveDropTarget({ top: rect.top, height: rect.height }, clientY)
-    if (row.kind === 'item' && zone === 'inside') {
-      zone = clientY < rect.top + rect.height / 2 ? 'before' : 'after'
-    }
-    const plan = planKbDrop(tree, dragged, { kind: row.kind, id: row.id }, zone)
-    if (!plan) return null
-    return { kind: row.kind, id: row.id, zone }
-  }
+  const resolveHoverAt = useCallback(
+    (x: number, y: number, dragged: KbDragPayload): { hover: KbDropHover; plan: KbDropPlan } | null => {
+      const scroll = scrollRef.current
+      const element = document.elementFromPoint(x, y)
+      if (!element || !scroll || !scroll.contains(element)) return null
 
-  const handleTreeDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
-    const dragged = dragPayloadRef.current
-    if (!dragged || !dndEnabled) return
-    const types = event.dataTransfer?.types
-    if (!types || !Array.from(types).includes(KB_DND_MIME)) return
-    // 只有内部拖拽才 preventDefault：外部文件拖入由 KbView 的窗口级 Files 拦截处理
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-
-    const row = findTreeRow(event.target)
-    if (!row) {
-      clearHoverTimer()
-      // 空区 = 追加到当前选中文件夹（无选中 = 根/未分类）；计划不成立（如拖进自身子树）不亮落点
-      const appendParentId = folderSelection.kind === 'folder' ? folderSelection.id : null
-      const appendPlan = planAppendDrop(tree, dragged, appendParentId)
-      setDropHover((prev) => {
-        if (!appendPlan) return prev === null ? prev : null
-        return prev?.kind === 'blank' ? prev : { kind: 'blank' }
-      })
-      return
-    }
-    const hover = resolveRowHover(row, event.clientY, dragged)
-    if (!hover || hover.kind === 'blank') {
-      clearHoverTimer()
-      setDropHover((prev) => (prev === null ? prev : null))
-      return
-    }
-    setDropHover((prev) => (
-      prev && prev.kind === hover.kind && prev.id === hover.id && prev.zone === hover.zone
-        ? prev
-        : hover
-    ))
-    if (hover.kind === 'folder' && hover.zone === 'inside') {
-      const node = findKbFolderNode(tree, hover.id)
-      const hasChildren = Boolean(node && (node.folders.length > 0 || node.items.length > 0))
-      if (hasChildren && !expanded.has(hover.id)) scheduleHoverExpand(hover.id)
-      else clearHoverTimer()
-    } else {
-      clearHoverTimer()
-    }
-  }
-
-  const handleTreeDragLeave = (event: ReactDragEvent<HTMLDivElement>) => {
-    if (!dragPayloadRef.current) return
-    // 在行与子元素之间移动也会触发 dragleave：relatedTarget 仍在滚动区就忽略
-    const related = event.relatedTarget
-    if (related instanceof Node && scrollRef.current?.contains(related)) return
-    clearHoverTimer()
-    setDropHover(null)
-  }
-
-  const handleTreeDrop = (event: ReactDragEvent<HTMLDivElement>) => {
-    const dragged = dragPayloadRef.current
-    if (!dragged || !dndEnabled) return
-    const types = event.dataTransfer?.types
-    if (!types || !Array.from(types).includes(KB_DND_MIME)) return
-    event.preventDefault()
-    event.stopPropagation()
-
-    let plan: KbDropPlan | null
-    const row = findTreeRow(event.target)
-    if (row) {
-      const rect = row.element.getBoundingClientRect()
-      let zone = resolveDropTarget({ top: rect.top, height: rect.height }, event.clientY)
-      if (row.kind === 'item' && zone === 'inside') {
-        zone = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+      if (element.closest('[data-kb-fixed="all"]')) return null
+      if (element.closest('[data-kb-fixed="unfiled"]')) {
+        if (dragged.kind === 'folder') return null
+        const plan = planAppendDrop(tree, dragged, null)
+        return plan ? { hover: { kind: 'blank' }, plan } : null
       }
-      plan = planKbDrop(tree, dragged, { kind: row.kind, id: row.id }, zone)
-    } else {
-      // 空区追加：条目追加到当前选中文件夹（无选中 = 未分类），文件夹追加到该夹（无选中 = 根）
-      const appendParentId = folderSelection.kind === 'folder' ? folderSelection.id : null
-      plan = planAppendDrop(tree, dragged, appendParentId)
+
+      const row = element.closest<HTMLElement>('[data-kb-row-id]')
+      const kind = row?.dataset.kbRowKind
+      const id = row?.dataset.kbRowId
+      if (row && (kind === 'folder' || kind === 'item') && id) {
+        const rect = row.getBoundingClientRect()
+        let zone = resolveDropTarget({ top: rect.top, height: rect.height }, y)
+        if (kind === 'item' && zone === 'inside') {
+          zone = y < rect.top + rect.height / 2 ? 'before' : 'after'
+        }
+        const plan = planKbDrop(tree, dragged, { kind, id }, zone)
+        return plan ? { hover: { kind, id, zone }, plan } : null
+      }
+
+      if (folderSelection.kind === 'all') return null
+      const appendParentId = resolveBlankDropParent(folderSelection, dragged)
+      if (appendParentId === undefined) return null
+      const plan = planAppendDrop(tree, dragged, appendParentId)
+      return plan ? { hover: { kind: 'blank' }, plan } : null
+    },
+    [folderSelection, tree],
+  )
+
+  /** 落点高亮只在真正变化时 setState；悬停展开与高亮同一处推进（design D7） */
+  const applyHover = useCallback(
+    (resolved: { hover: KbDropHover; plan: KbDropPlan } | null) => {
+      setDropHover((prev) => {
+        const next = resolved ? resolved.hover : null
+        if (prev === null || next === null) return prev === next ? prev : next
+        if (prev.kind === 'blank' || next.kind === 'blank') {
+          return prev.kind === next.kind ? prev : next
+        }
+        return prev.kind === next.kind && prev.id === next.id && prev.zone === next.zone ? prev : next
+      })
+      if (resolved && resolved.hover.kind === 'folder' && resolved.hover.zone === 'inside') {
+        const node = findKbFolderNode(tree, resolved.hover.id)
+        const hasChildren = Boolean(node && (node.folders.length > 0 || node.items.length > 0))
+        if (hasChildren && !expanded.has(resolved.hover.id)) scheduleHoverExpand(resolved.hover.id)
+        else clearHoverTimer()
+      } else {
+        clearHoverTimer()
+      }
+    },
+    [clearHoverTimer, expanded, scheduleHoverExpand, tree],
+  )
+
+  const startAutoScroll = useCallback(() => {
+    if (rafRef.current !== null) return
+    const tick = () => {
+      rafRef.current = null
+      const pending = pointerRef.current
+      const scroll = scrollRef.current
+      const point = lastPointRef.current
+      if (!pending?.active || !scroll || !point) return
+      const rect = scroll.getBoundingClientRect()
+      const speed = computeAutoScrollSpeed(point.y, { top: rect.top, height: rect.height })
+      if (speed !== 0) {
+        const before = scroll.scrollTop
+        scroll.scrollTop = before + speed
+        // 滚动后指针下方的行变了，落点要立刻重算
+        if (scroll.scrollTop !== before) {
+          applyHover(resolveHoverAt(point.x, point.y, pending.payload))
+        }
+      }
+      rafRef.current = window.requestAnimationFrame(tick)
     }
-    resetDragState()
-    if (plan) onDropNode?.(dragged, plan)
-  }
+    rafRef.current = window.requestAnimationFrame(tick)
+  }, [applyHover, resolveHoverAt])
+
+  /** 结束一次指针交互：commit=true 时按最终指针位置提交计划（design D9） */
+  const finishPointerDrag = useCallback(
+    (commit: boolean) => {
+      const pending = pointerRef.current
+      if (!pending) return
+      pointerRef.current = null
+      stopAutoScroll()
+      clearHoverTimer()
+      if (!pending.active) {
+        setDropHover(null)
+        return
+      }
+      // 拖过一次之后的 click 不是选择意图
+      suppressClickRef.current = true
+      const scroll = scrollRef.current
+      try {
+        if (scroll?.hasPointerCapture(pending.pointerId)) {
+          scroll.releasePointerCapture(pending.pointerId)
+        }
+      } catch {
+        // 指针已被系统回收：忽略
+      }
+      const point = lastPointRef.current
+      setDragging(null)
+      setDropHover(null)
+      if (!commit || !point) return
+      const resolved = resolveHoverAt(point.x, point.y, pending.payload)
+      if (resolved) onDropNode?.(pending.payload, resolved.plan)
+    },
+    [clearHoverTimer, onDropNode, resolveHoverAt, stopAutoScroll],
+  )
+
+  /** 行上 pointerdown：只登记候选，不阻止默认行为（否则丢 click、丢右键） */
+  const handleRowPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLElement>, kind: 'folder' | 'item', id: string) => {
+      if (!dndEnabled || event.button !== 0) return
+      suppressClickRef.current = false
+      pointerRef.current = {
+        payload: { kind, id },
+        label: (event.currentTarget.textContent ?? '').trim(),
+        pointerId: event.pointerId,
+        pointerType: event.pointerType,
+        button: event.button,
+        startX: event.clientX,
+        startY: event.clientY,
+        startedAt: performance.now(),
+        active: false,
+      }
+      lastPointRef.current = { x: event.clientX, y: event.clientY }
+    },
+    [dndEnabled],
+  )
+
+  /** 越阈值后才吞 click；没拖过就照常选择 */
+  const consumeDragClick = useCallback(() => {
+    if (!suppressClickRef.current) return false
+    suppressClickRef.current = false
+    return true
+  }, [])
+
+  // 指针移动 / 抬起 / 取消 / Esc / 失焦：全部挂在 window 捕获阶段，
+  // 拖到行外、树外、甚至窗口边缘时状态也能收口（design D2/D10）。
+  useEffect(() => {
+    if (!dndEnabled) return
+    const onPointerMove = (event: PointerEvent) => {
+      const pending = pointerRef.current
+      if (!pending || event.pointerId !== pending.pointerId) return
+      lastPointRef.current = { x: event.clientX, y: event.clientY }
+
+      if (!pending.active) {
+        const start = shouldStartDrag({
+          kind: pending.payload.kind,
+          button: pending.button,
+          pointerType: pending.pointerType,
+          heldMs: performance.now() - pending.startedAt,
+          from: { x: pending.startX, y: pending.startY },
+          to: { x: event.clientX, y: event.clientY },
+        })
+        if (!start) return
+        pending.active = true
+        setDragging({ payload: pending.payload, label: pending.label })
+        try {
+          scrollRef.current?.setPointerCapture(pending.pointerId)
+        } catch {
+          // 捕获失败不影响 window 上的监听
+        }
+        document.getSelection()?.removeAllRanges()
+        startAutoScroll()
+      }
+
+      event.preventDefault()
+      const ghost = ghostRef.current
+      if (ghost) {
+        ghost.style.transform = `translate3d(${event.clientX + 14}px, ${event.clientY + 12}px, 0)`
+      }
+      applyHover(resolveHoverAt(event.clientX, event.clientY, pending.payload))
+    }
+    const onPointerUp = (event: PointerEvent) => {
+      if (pointerRef.current?.pointerId !== event.pointerId) return
+      finishPointerDrag(true)
+    }
+    const onPointerCancel = (event: PointerEvent) => {
+      if (pointerRef.current?.pointerId !== event.pointerId) return
+      finishPointerDrag(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (!pointerRef.current?.active) return
+      event.preventDefault()
+      event.stopPropagation()
+      finishPointerDrag(false)
+    }
+    const onBlur = () => finishPointerDrag(false)
+
+    window.addEventListener('pointermove', onPointerMove, true)
+    window.addEventListener('pointerup', onPointerUp, true)
+    window.addEventListener('pointercancel', onPointerCancel, true)
+    window.addEventListener('keydown', onKeyDown, true)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove, true)
+      window.removeEventListener('pointerup', onPointerUp, true)
+      window.removeEventListener('pointercancel', onPointerCancel, true)
+      window.removeEventListener('keydown', onKeyDown, true)
+      window.removeEventListener('blur', onBlur)
+      stopAutoScroll()
+    }
+  }, [applyHover, dndEnabled, finishPointerDrag, resolveHoverAt, startAutoScroll, stopAutoScroll])
 
   /** 落点高亮 class：inside 整行高亮 / before-after 2px 插入线 */
   const dropClassOf = (kind: 'folder' | 'item', id: string): string => {
@@ -356,16 +465,17 @@ export function KbFileTree({
         type="button"
         role="treeitem"
         aria-selected={active}
-        className={`kb-tree-item${active ? ' is-active' : ''}${dropClassOf('item', item.id)}`}
+        className={`kb-tree-item${active ? ' is-active' : ''}${dragging?.payload.kind === 'item' && dragging.payload.id === item.id ? ' is-dragging' : ''}${dropClassOf('item', item.id)}`}
         style={depthStyle(depth)}
         data-kind="item"
         data-kb-key={`item:${item.id}`}
         data-kb-row-kind="item"
         data-kb-row-id={item.id}
-        draggable={dndEnabled}
-        onDragStart={(event) => beginDrag(event, 'item', item.id)}
-        onDragEnd={resetDragState}
-        onClick={() => onSelectItem(item.id)}
+        onPointerDown={(event) => handleRowPointerDown(event, 'item', item.id)}
+        onClick={() => {
+          if (consumeDragClick()) return
+          onSelectItem(item.id)
+        }}
         onContextMenu={(event) => {
           // 右键不触发 onClick；没有上报回调时保留浏览器原生菜单
           if (!onContextItem) return
@@ -424,11 +534,10 @@ export function KbFileTree({
             role="treeitem"
             aria-expanded={hasChildren ? isExpanded : undefined}
             aria-selected={active}
-            className={`kb-folder-row${active ? ' is-active' : ''}`}
-            draggable={dndEnabled}
-            onDragStart={(event) => beginDrag(event, 'folder', node.id)}
-            onDragEnd={resetDragState}
+            className={`kb-folder-row${active ? ' is-active' : ''}${dragging?.payload.kind === 'folder' && dragging.payload.id === node.id ? ' is-dragging' : ''}`}
+            onPointerDown={(event) => handleRowPointerDown(event, 'folder', node.id)}
             onClick={() => {
+              if (consumeDragClick()) return
               onSelectFolder({ kind: 'folder', id: node.id })
               if (hasChildren) onToggleExpand(node.id)
             }}
@@ -521,7 +630,27 @@ export function KbFileTree({
   ]
 
   return (
-    <div className="kb-tree">
+    <div ref={rootRef} className={`kb-tree${dragging ? ' is-drag-active' : ''}`}>
+      {dragging && (
+        <div
+          ref={(el) => {
+            ghostRef.current = el
+            const point = lastPointRef.current
+            if (el && point) {
+              el.style.transform = `translate3d(${point.x + 14}px, ${point.y + 12}px, 0)`
+            }
+          }}
+          className="kb-drag-ghost"
+          aria-hidden="true"
+        >
+          {dragging.payload.kind === 'folder' ? (
+            <Folder size={12} className="kb-folder-ico" />
+          ) : (
+            <FileText size={12} className="kb-folder-ico" />
+          )}
+          <span className="kb-drag-ghost-name">{dragging.label}</span>
+        </div>
+      )}
       <div className="kb-tree-head">
         <span className="kb-tree-title">目录</span>
         <div className="kb-tree-head-actions">
@@ -618,10 +747,6 @@ export function KbFileTree({
         aria-label="知识库文件树"
         data-kind="blank"
         onContextMenu={handleBlankContextMenu}
-        onDragOver={handleTreeDragOver}
-        onDragLeave={handleTreeDragLeave}
-        onDrop={handleTreeDrop}
-        onDragEnd={resetDragState}
       >
         <div className="kb-folder-fixed">
           <button
@@ -629,6 +754,7 @@ export function KbFileTree({
             className={`kb-folder-row${folderSelection.kind === 'all' ? ' is-active' : ''}`}
             onClick={() => onSelectFolder({ kind: 'all' })}
             aria-pressed={folderSelection.kind === 'all'}
+            data-kb-fixed="all"
           >
             <Layers size={12} className="kb-folder-ico" aria-hidden="true" />
             <span className="kb-folder-name">全部知识</span>
@@ -661,6 +787,7 @@ export function KbFileTree({
                 if (hasUnfiled) onToggleExpand(UNFILED_EXPAND_KEY)
               }}
               title="未分类"
+              data-kb-fixed="unfiled"
             >
               <Inbox size={12} className="kb-folder-ico" aria-hidden="true" />
               <span className="kb-folder-name">未分类</span>

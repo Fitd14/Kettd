@@ -10,6 +10,7 @@ import {
   collectPinnedNodes,
   compareKbNodes,
   compareKbSiblingOrder,
+  computeAutoScrollSpeed,
   computeSiblingIndex,
   findKbFolderNode,
   flattenFolderOptions,
@@ -20,8 +21,10 @@ import {
   localKbMatch,
   planAppendDrop,
   planKbDrop,
+  resolveBlankDropParent,
   resolveDropTarget,
   resolveFolderPath,
+  shouldStartDrag,
   sortKbSiblings,
   UNFILED_EXPAND_KEY,
   UNFILED_LABEL,
@@ -750,6 +753,48 @@ test('collectPinnedNodes：只收置顶项，排序同 compareKbNodes，带路�
 test('collectPinnedNodes：空数据/全未置顶时为空数组（快捷区不渲染）', () => {
   assert.deepEqual(collectPinnedNodes([], []), [])
   assert.deepEqual(collectPinnedNodes([folder('f', '甲')], [item('i', '乙', 'f')]), [])
+})
+
+// ─── S3 指针拖拽阈值与自动滚动（tasks 1.1 / design D2/D6）──────────────
+
+test('shouldStartDrag：鼠标 4px 起步，触摸/笔需 8px 且按住 160ms', () => {
+  const base = {
+    kind: 'item',
+    button: 0,
+    pointerType: 'mouse',
+    heldMs: 0,
+    from: { x: 0, y: 0 },
+  }
+  assert.equal(shouldStartDrag({ ...base, to: { x: 3, y: 0 } }), false, '3px 不够')
+  assert.equal(shouldStartDrag({ ...base, to: { x: 4, y: 0 } }), true, '4px 恰好起步')
+  assert.equal(shouldStartDrag({ ...base, to: { x: 3, y: 3 } }), true, '斜向按欧氏距离')
+  assert.equal(shouldStartDrag({ ...base, button: 2, to: { x: 20, y: 0 } }), false, '只认左键')
+  assert.equal(shouldStartDrag({ ...base, kind: 'blank', to: { x: 20, y: 0 } }), false, '空白区不拖')
+
+  const touch = { ...base, pointerType: 'touch', to: { x: 0, y: 10 } }
+  assert.equal(shouldStartDrag({ ...touch, heldMs: 120 }), false, '未按住 160ms')
+  assert.equal(shouldStartDrag({ ...touch, heldMs: 160 }), true, '时长与位移同时满足')
+  assert.equal(shouldStartDrag({ ...touch, heldMs: 400, to: { x: 0, y: 7 } }), false, '按住够久但位移不足')
+})
+
+test('computeAutoScrollSpeed：上下 24px 边缘内线性加速到 12px/帧', () => {
+  const rect = { top: 100, height: 200 }
+  assert.equal(computeAutoScrollSpeed(200, rect), 0, '中部不滚')
+  assert.equal(computeAutoScrollSpeed(124, rect), 0, '上边缘边界值归零')
+  assert.equal(computeAutoScrollSpeed(112, rect), -6, '上边缘一半行程，向上滚')
+  assert.equal(computeAutoScrollSpeed(90, rect), -12, '超出上边界按贴边处理')
+  assert.equal(computeAutoScrollSpeed(300, rect), 12, '贴下边缘满速')
+  assert.equal(computeAutoScrollSpeed(123.9, rect), -1, '刚进边缘就有 1px 响应')
+  assert.equal(computeAutoScrollSpeed(200, { top: 0, height: 0 }), 0, '未布局容器不滚')
+})
+
+test('resolveBlankDropParent：选中夹全收、未分类只收条目、全部知识拒绝', () => {
+  assert.equal(resolveBlankDropParent({ kind: 'folder', id: 'f1' }, { kind: 'item', id: 'i1' }), 'f1')
+  assert.equal(resolveBlankDropParent({ kind: 'folder', id: 'f1' }, { kind: 'folder', id: 'f2' }), 'f1')
+  assert.equal(resolveBlankDropParent({ kind: 'unfiled' }, { kind: 'item', id: 'i1' }), null)
+  assert.equal(resolveBlankDropParent({ kind: 'unfiled' }, { kind: 'folder', id: 'f2' }), undefined)
+  assert.equal(resolveBlankDropParent({ kind: 'all' }, { kind: 'item', id: 'i1' }), undefined)
+  assert.equal(resolveBlankDropParent({ kind: 'all' }, { kind: 'folder', id: 'f2' }), undefined)
 })
 
 // ─── 汇总 ────────────────────────────────────────────────────────────────
