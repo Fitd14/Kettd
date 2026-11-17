@@ -1,5 +1,6 @@
 {
   "tasks": {
+    "20261117-0835-00a8-待办任务与知识库接入-mcp": {"category": "功能新增", "created": "2026-11-17 08:35:45", "creator": "afcfcca0-be4c-4afd-931b-16fdade9d4fd", "creator_name": "simy", "finished": null, "owner": null, "owner_name": null, "started": null, "status": "open", "tags": ["待办", "知识库", "MCP", "AI对接"], "title": "待办任务与知识库接入 MCP", "updated": "2026-11-17 08:35:45", "worklog": "worklog/202611/17-0835-00a8-待办任务与知识库接入-mcp.md"}
   },
   "version": "20261022000000"
 }
