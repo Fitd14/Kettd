@@ -8,63 +8,6 @@
   min-width: 0;
 }
 
-.backup-rows {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-  min-width: 0;
-}
-
-.backup-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-/* 宸︿晶 slot + 鍏冧俊鎭彲鏀剁缉锛涘彸渚у窘鏍?閿欒/鎸夐挳涓嶈鎸ゆ帀 */
-.backup-row-main {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.backup-slot {
-  flex: none;
-  font-size: var(--fs-meta);
-  font-weight: 600;
-  color: hsl(var(--foreground));
-}
-
-.backup-meta,
-.backup-err {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.backup-meta {
-  font-size: var(--fs-meta);
-  color: hsl(var(--muted-foreground));
-}
-
-/* 涓嶅彲璇诲浠界殑閿欒鏂囨锛氬嵄闄╄壊灏忓瓧锛屾埅鏂睍绀猴紝鍏ㄦ枃璧?title */
-.backup-err {
-  flex: 0 1 auto;
-  max-width: 180px;
-  font-size: var(--fs-meta);
-  color: hsl(var(--destructive));
-}
-
-/* 涓嶅彲璇诲窘鏍囷細鍗遍櫓鑹诧紙token 闅忎富棰樿蛋锛?*/
-.backup-row .badge.backup-badge-bad {
-  color: hsl(var(--destructive));
-  border-color: hsl(var(--destructive) / 0.45);
-}
-
 /* 鍒楄〃瀹瑰櫒鏄?span锛堟部鐢ㄨ缃〉 set-row 鐨勬棦鏈夌粨鏋勶級锛屾妸灞€閮ㄦ彁绀虹被鏀逛负鍧楃骇锛?   閬垮厤琛屽唴鎺掔増鎸ゅ湪涓€琛岋紱浣滅敤鍩熼檺瀹氬湪 .backup-list 鍐咃紝涓嶅奖鍝嶅叾浠栬鍥俱€?*/
 .backup-list > .inline-err,
 .backup-list > .inline-note,

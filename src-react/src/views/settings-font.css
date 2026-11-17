@@ -93,3 +93,5 @@
     justify-content: flex-start;
   }
 }
+/* 阅读字体下拉（kb-setting-simplify 4）：与输入框同宽，不撑破 set-row */
+.font-select { min-width: 190px; max-width: 100%; }

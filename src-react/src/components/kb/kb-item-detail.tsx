@@ -2,14 +2,13 @@ import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react
 import type { KeyboardEvent as ReactKeyboardEvent, ClipboardEvent as ReactClipboardEvent } from 'react'
 import type { KbItem } from '@/lib/api'
 import { updateKbItem, trackEvent, getSettings, setSettings } from '@/lib/api'
-import { Pin, Trash2, X, Plus, Type, FileCode2, Check, PanelRight } from 'lucide-react'
+import { Pin, Trash2, Type, FileCode2, Check, PanelRight } from 'lucide-react'
 import { TipTapEditor, type EditorApi } from '@/rendering/tiptap-editor'
 import { applyReadingPrefs } from '@/lib/reading-prefs'
 import type { OutlineItem } from '@/lib/doc-outline'
 import { TypoPopover } from './typo-popover'
 import { Popover, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { DocOutline } from './doc-outline'
 
 interface Props {
@@ -144,24 +143,6 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
     const text = e.clipboardData.getData('text/plain').replace(/\s+/g, ' ').trim()
     if (text) document.execCommand('insertText', false, text)
   }, [])
-
-  // 标签增删
-  const [tagInput, setTagInput] = useState('')
-  const [tagEditing, setTagEditing] = useState(false)
-  const saveTags = useCallback(async (tags: string[]) => {
-    const result = await updateKbItem(item.id, { tags })
-    onSaved?.(result.data ?? withLocalPatch(item, { tags }))
-  }, [item, onSaved])
-
-  const addTag = useCallback(() => {
-    const t = tagInput.trim().replace(/^#/, '')
-    if (!t) { setTagEditing(false); return }
-    if (!item.tags.includes(t)) {
-      void saveTags([...item.tags, t])
-    }
-    setTagInput('')
-    setTagEditing(false)
-  }, [tagInput, item.tags, saveTags])
 
   const handleSave = useCallback(
     async (bodyMd: string) => {
@@ -441,43 +422,6 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
               onKeyDown={onDocTitleKeyDown}
               onPaste={onDocTitlePaste}
             />
-            {/* 标签（就地增删） */}
-            <div className="kb-tag-row">
-              {item.tags?.map((t) => (
-                <span key={t} className="kb-tag-chip">
-                  {t}
-                  <Button
-                    variant="bare"
-                    className="kb-tag-x"
-                    title="删除标签"
-                    aria-label={`删除标签 ${t}`}
-                    onClick={() => { void saveTags(item.tags.filter((x) => x !== t)) }}
-                  >
-                    <X size={10} strokeWidth={2} />
-                  </Button>
-                </span>
-              ))}
-              {tagEditing ? (
-                <Input
-                  bare
-                  className="kb-tag-input"
-                  value={tagInput}
-                  autoFocus
-                  placeholder="标签名，回车确认"
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onBlur={addTag}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') addTag()
-                    if (e.key === 'Escape') { setTagInput(''); setTagEditing(false) }
-                  }}
-                />
-              ) : (
-                <Button variant="ghost" size="xs" className="kb-tag-add" onClick={() => setTagEditing(true)}>
-                  <Plus size={11} strokeWidth={1.7} /> 标签
-                </Button>
-              )}
-            </div>
-
             {/* 常驻即时渲染画布（无模式） */}
             <div className="kb-detail-body">
               <TipTapEditor

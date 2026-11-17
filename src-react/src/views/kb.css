@@ -194,45 +194,6 @@
   flex-wrap: wrap;
 }
 
-/* 鈹€鈹€鈹€ 鏍囩绛涢€?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
-
-.kb-tag-filter {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-}
-
-/* 左列里只占一行：标签多了横向滚，不把树挤下去 */
-.kb-list > .kb-tag-filter {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  padding: 0 6px 2px;
-  scrollbar-width: none;
-}
-
-.kb-list > .kb-tag-filter::-webkit-scrollbar { display: none; }
-
-.kb-list > .kb-tag-filter .kb-tag-chip { flex: 0 0 auto; }
-
-.kb-tag-chip {
-  font-size: var(--fs-sub);
-  padding: 0.15em 0.6em;
-  border-radius: 99px;
-  background: var(--secondary, hsl(var(--secondary)));
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: border-color 0.12s, background 0.12s;
-}
-
-.kb-tag-chip:hover {
-  background: var(--muted, hsl(var(--muted)));
-}
-
-.kb-tag-chip.active {
-  border-color: hsl(var(--primary) / 0.6);
-  background: hsl(var(--secondary));
-}
 
 /* 鈹€鈹€鈹€ 鍙宠鎯呴潰鏉?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
@@ -765,21 +726,6 @@
 .kb-doc-title:empty::before { content: attr(data-placeholder); color: var(--ink-3); }
 .kb-doc-title::selection { background: hsl(var(--seal) / 0.2); }
 
-.kb-tag-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-.kb-tag-row .kb-tag-chip { display: inline-flex; align-items: center; gap: 4px; }
-.kb-tag-x { display: inline-flex; border: none; background: transparent; color: var(--ink-3); cursor: pointer; padding: 0; }
-.kb-tag-x:hover { color: var(--seal-ink); }
-.kb-tag-add {
-  display: inline-flex; align-items: center; gap: 3px;
-  font-size: var(--fs-sub); padding: 2px 9px; border-radius: 3px;
-  color: var(--ink-2); border: 1px dashed var(--line-warm); background: transparent; cursor: pointer;
-}
-.kb-tag-add:hover { color: var(--seal-ink); border-color: var(--seal-track); }
-.kb-tag-input {
-  font-size: var(--fs-sub); padding: 2px 8px; border-radius: 3px;
-  border: 1px solid var(--seal-track); background: transparent; color: var(--ink-1);
-  outline: none; width: 110px;
-}
 .kb-meta-sep { height: 1px; background: var(--line-warm); margin: 14px 0 4px; }
 .kb-del-confirm { font-size: var(--fs-sub); color: var(--ink-2); }
 

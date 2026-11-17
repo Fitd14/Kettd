@@ -33,7 +33,6 @@ import {
 } from '@/lib/api'
 import type { Bootstrap, KbItem, KbFolder, KbPayload } from '@/lib/api'
 import { KbSearchBar } from '@/components/kb/kb-search-bar'
-import { KbTagFilter } from '@/components/kb/kb-tag-filter'
 import { KbEmptyState } from '@/components/kb/kb-empty-state'
 import { KbItemDetail } from '@/components/kb/kb-item-detail'
 import { KbFolderDialog } from '@/components/kb/kb-folder-dialog'
@@ -164,7 +163,6 @@ export function KbView({ boot }: Props) {
   const [items, setItems] = useState<KbItem[]>([])
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [activeTag, setActiveTag] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   /** 条目加载错误（含知识库损坏）：保留旧列表，只出错误横幅（#4 受损文件错误态） */
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -593,7 +591,7 @@ export function KbView({ boot }: Props) {
   }, [openMenu])
 
   // 过滤态下树被扁平结果替代：文件夹/空白菜单不可用（结构操作隐藏），开着也顺手关掉
-  const isFiltering = trimmedQuery !== '' || activeTag !== null
+  const isFiltering = trimmedQuery !== ''
   useEffect(() => {
     if (!isFiltering || !menu) return
     if (menu.kind === 'folder' || menu.kind === 'blank') closeMenu()
@@ -630,11 +628,9 @@ export function KbView({ boot }: Props) {
     } else {
       base.push(...items)
     }
-    const tagFiltered = activeTag
-      ? base.filter((item) => item.tags.includes(activeTag))
-      : base
-    return flattenResults(tagFiltered, folders, () => true)
-  }, [isFiltering, trimmedQuery, searchRank, items, folders, activeTag])
+    const flat = base
+    return flattenResults(flat, folders, () => true)
+  }, [isFiltering, trimmedQuery, searchRank, items, folders])
 
   /** 当前可见条目（过滤态 = 扁平结果；树态 = 全部条目，树自身承载层级导航） */
   const visibleItems = useMemo(
@@ -670,18 +666,9 @@ export function KbView({ boot }: Props) {
     // 3) 当前选中仍在可见列表 → 保持不变（不要每次刷新都重置用户的选择）
     if (selectedId !== null && visibleItems.some((item) => item.id === selectedId)) return
 
-    // 4) 无选中 / 选中项被搜索或标签筛掉 → 选中可见第一项
+    // 4) 无选中 / 选中项被搜索筛掉 → 选中可见第一项
     setSelectedId(visibleItems[0].id)
   }, [loading, items, visibleItems, selectedId])
-
-  // 全局唯一标签列表
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>()
-    for (const item of items) {
-      for (const t of item.tags) tagSet.add(t)
-    }
-    return [...tagSet].sort()
-  }, [items])
 
   const selected = useMemo(
     () => items.find((i) => i.id === selectedId) ?? null,
@@ -708,7 +695,7 @@ export function KbView({ boot }: Props) {
    */
   const createItem = useCallback(async (folderIdOverride?: string) => {
     const title = `新建知识 ${new Date().toLocaleDateString('zh-CN')}`
-    const payload: KbPayload = { title, bodyMd: '', tags: [] }
+    const payload: KbPayload = { title, bodyMd: '' }
     if (folderIdOverride !== undefined) payload.folderId = folderIdOverride
     else if (folderSelection.kind === 'unfiled') payload.folderId = ''
     else if (folderSelection.kind === 'folder') payload.folderId = folderSelection.id
@@ -1259,14 +1246,6 @@ export function KbView({ boot }: Props) {
             onChange={setQuery}
             resultCount={isFiltering ? flatResults.length : items.length}
           />
-          {/* 标签筛选也留在左列：详情纸面才能从窗口顶端起算（kb-workspace-layout D1） */}
-          {!listCollapsed && (
-            <KbTagFilter
-              tags={allTags}
-              activeTag={activeTag}
-              onSelect={setActiveTag}
-            />
-          )}
           {/* 加载失败 / 知识库损坏：错误横幅 + 重试；绝不渲染「空空如也」假空态。折叠态也始终可见。 */}
           {loadError && (
             <div className="kb-error-banner" role="alert">

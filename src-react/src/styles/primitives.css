@@ -300,3 +300,40 @@
   color: hsl(var(--popover-foreground));
   box-shadow: 0 12px 28px hsl(var(--foreground) / 0.14);
 }
+
+/* ---------------- 下拉选择原语 ---------------- */
+/* radix Select：触发器复用 .input 皮肤，只补 flex 排布；弹层与选项单独定皮。 */
+.select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.select-caret { display: inline-flex; color: hsl(var(--muted-foreground)); }
+.select-content {
+  z-index: 130;
+  min-width: var(--radix-select-trigger-width);
+  max-height: 260px;
+  padding: 4px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--r-sm);
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  box-shadow: 0 12px 28px hsl(var(--foreground) / 0.14);
+}
+.select-viewport { overflow-y: auto; }
+.select-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: var(--fs-sub);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+.select-item[data-highlighted] { background: hsl(var(--muted)); }
+.select-item[data-state="checked"]::after { content: "✓"; margin-left: auto; color: hsl(var(--primary)); }

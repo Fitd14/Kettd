@@ -27,11 +27,7 @@ export function KbAttachPicker({ currentRefs, onAttach, onClose }: Props) {
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
     if (!q) return all
-    return all.filter(
-      (i) =>
-        i.title.toLowerCase().includes(q) ||
-        i.tags.some((t) => t.toLowerCase().includes(q)),
-    )
+    return all.filter((i) => i.title.toLowerCase().includes(q))
   }, [all, query])
 
   const toggle = (id: string) => {
@@ -80,9 +76,6 @@ export function KbAttachPicker({ currentRefs, onAttach, onClose }: Props) {
                 onCheckedChange={() => toggle(item.id)}
               />
               <span style={{ flex: 1 }}>{item.title}</span>
-              {item.tags?.slice(0, 2).map((t) => (
-                <span key={t} className="kb-tag-chip">{t}</span>
-              ))}
             </div>
           ))}
         </div>
