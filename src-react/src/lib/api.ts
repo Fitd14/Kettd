@@ -547,6 +547,13 @@ export const searchKb = (query?: string) => call<string[]>('search_kb', { query:
 export const exportKbItemDocx = (itemId: string, targetPath: string, blocks: ExportBlock[]) =>
   call<string>('export_kb_docx', { itemId, targetPath, blocks })
 
+/**
+ * 导出为 PDF（kb-export-pdf）：`html` 是前端拼好的自包含文档，图片仍写 `assets/...`，
+ * 由 Rust 侧读字节换成 data URI 后再交给离屏 WebView2 打印。
+ */
+export const exportKbPdf = (itemId: string, targetPath: string, html: string) =>
+  call<string>('export_kb_pdf', { itemId, targetPath, html })
+
 export interface ExportPathChoice {
   /** 用户选定的绝对路径；取消时为 null */
   path: string | null
@@ -564,7 +571,10 @@ function joinExportPath(dir: string, name: string): string {
  * 默认位置取系统下载目录，失败退回文档目录；都没有就只给文件名、让用户在对话框里自己挑。
  * 取消返回 path=null / err=null（调用方直接静默返回，不提示错误）。
  */
-export async function pickExportPath(defaultName: string): Promise<ExportPathChoice> {
+export async function pickExportPath(
+  defaultName: string,
+  format: 'docx' | 'pdf' = 'docx',
+): Promise<ExportPathChoice> {
   const T = tauriBridge()
   const save = T.dialog?.save
   if (typeof save !== 'function') return { path: null, err: '未连接桌面运行时，命令未执行' }
@@ -578,11 +588,12 @@ export async function pickExportPath(defaultName: string): Promise<ExportPathCho
     } catch { dir = undefined }
   }
   const defaultPath = dir ? joinExportPath(dir, defaultName) : defaultName
+  const filters =
+    format === 'pdf'
+      ? [{ name: 'PDF 文档', extensions: ['pdf'] }]
+      : [{ name: 'Word 文档', extensions: ['docx'] }]
   try {
-    const picked = await save({
-      defaultPath,
-      filters: [{ name: 'Word 文档', extensions: ['docx'] }],
-    })
+    const picked = await save({ defaultPath, filters })
     return { path: picked || null, err: null }
   } catch {
     return { path: null, err: '无法打开保存对话框' }

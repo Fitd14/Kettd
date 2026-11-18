@@ -23,6 +23,16 @@ chrono = { version = "0.4", features = [ "clock", "std" ] }
 [target.'cfg(target_os = "windows")'.dependencies]
 # 锁 0.4.x：0.5 起 apply_blur 入参改为 Color 结构体（破坏性），升级需同步改 runtime.rs，暂不追
 window-vibrancy = "0.4"
+# PDF 导出用离屏 WebView2 打印（ICoreWebView2_7::PrintToPdf）。
+# 不升 Tauri：tauri 1.8 自带的 webview2-com 0.19 没有打印绑定，这里单独引 0.39 与 windows 0.62（与 lock 中既有版本一致）。
+webview2-com = "0.39"
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_System_Com",
+  "Win32_System_LibraryLoader",
+  "Win32_UI_WindowsAndMessaging",
+] }
 
 [features]
 default = [ "custom-protocol" ]

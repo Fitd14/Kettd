@@ -103,7 +103,12 @@ pub fn export_document(
 /// 校验并补全目标路径（任务 4.1 的前半段，单独放这里以便单测）。
 ///
 /// 规则：绝对路径、父目录存在、扩展名不是 `.docx` 就补上（大小写不敏感）。
-pub fn resolve_target_path(raw: &str) -> Result<PathBuf, String> {
+pub(crate) fn resolve_target_path(raw: &str) -> Result<PathBuf, String> {
+  resolve_target_path_with(raw, "docx")
+}
+
+/// 同上，但扩展名由调用方给出：PDF 导出复用同一套路径校验，只换扩展名。
+pub(crate) fn resolve_target_path_with(raw: &str, extension: &str) -> Result<PathBuf, String> {
   let trimmed = raw.trim();
   if trimmed.is_empty() {
     return Err("没有选择导出位置".to_string());
@@ -118,21 +123,22 @@ pub fn resolve_target_path(raw: &str) -> Result<PathBuf, String> {
   if !parent.is_dir() {
     return Err("目标文件夹不存在".to_string());
   }
-  let is_docx = candidate
+  let has_expected_ext = candidate
     .extension()
-    .map(|ext| ext.to_string_lossy().eq_ignore_ascii_case("docx"))
+    .map(|ext| ext.to_string_lossy().eq_ignore_ascii_case(extension))
     .unwrap_or(false);
-  if is_docx {
+  if has_expected_ext {
     Ok(candidate)
   } else {
     let mut with_ext = candidate.into_os_string();
-    with_ext.push(".docx");
+    with_ext.push(".");
+    with_ext.push(extension);
     Ok(PathBuf::from(with_ext))
   }
 }
 
 /// 同目录临时文件 + rename，失败时删临时文件（不留下半截 `.docx`）。
-pub fn write_bytes(target: &Path, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn write_bytes(target: &Path, bytes: &[u8]) -> Result<(), String> {
   let parent = target
     .parent()
     .ok_or_else(|| "导出位置不合法".to_string())?;

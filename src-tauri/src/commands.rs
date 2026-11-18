@@ -605,6 +605,37 @@ pub fn export_kb_docx(
   crate::docx::export_document(true, &blocks, &assets_dir, &target_path)
 }
 
+/// 把当前知识条目导出成 `.pdf`。
+///
+/// 分工：前端把正文渲染成自包含 HTML（样式内联、图片仍写 `assets/...`），Rust 侧
+/// 把图片读成 data URI、起离屏 WebView2 打印成 PDF，再原子写到用户选的位置。
+/// 锁内仍只做三件事（校验可写、确认条目存在、取 assets 目录）。
+#[tauri::command]
+pub fn export_kb_pdf(
+  state: State<'_, Shared>,
+  item_id: String,
+  target_path: String,
+  html: String,
+) -> Result<String, String> {
+  let assets_dir = {
+    let store = lock(&state);
+    store.ensure_writable()?;
+    let exists = store.kb.iter().any(|item| item.id == item_id);
+    if !exists {
+      return Err("这篇文档已经不存在了".to_string());
+    }
+    store.assets_dir()
+  };
+  // WebView2 的 user data 目录必须可写；放数据目录下，不污染 `%TEMP%`（那里的 ACL 不一定放行）。
+  let user_data_dir = crate::store::data_dir().join("pdf-webview");
+  crate::pdf::export_document(
+    &html,
+    std::path::Path::new(&assets_dir),
+    &user_data_dir,
+    &target_path,
+  )
+}
+
 // ---------------------------------------------------------------- 便签（多便签 H1 · multi-sticky-spec）
 
 #[derive(serde::Serialize)]

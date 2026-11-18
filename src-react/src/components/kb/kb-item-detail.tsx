@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, ClipboardEvent as ReactClipboardEvent } from 'react'
 import type { KbItem } from '@/lib/api'
-import { updateKbItem, trackEvent, getSettings, setSettings, exportKbItemDocx, pickExportPath } from '@/lib/api'
-import { Pin, Trash2, Type, FileCode2, Check, PanelRight, Download, Loader2 } from 'lucide-react'
+import { updateKbItem, trackEvent, getSettings, setSettings, exportKbItemDocx, exportKbPdf, pickExportPath } from '@/lib/api'
+import { Pin, Trash2, Type, FileCode2, Check, PanelRight, Download, Loader2, Printer } from 'lucide-react'
 import { toDocxBlocks, sanitizeDocxName } from '@/lib/docx-blocks'
+import { md as sharedMarkdown } from '@/rendering/markdown'
+import { buildPdfHtml } from '@/lib/pdf-html'
 import { TipTapEditor, type EditorApi } from '@/rendering/tiptap-editor'
 import { applyReadingPrefs } from '@/lib/reading-prefs'
 import type { OutlineItem } from '@/lib/doc-outline'
@@ -179,6 +181,8 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
   const [typoOpen, setTypoOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState(false)
+  /** PDF 与 Word 各自独立进行中（互不阻塞），提示共用一行 */
+  const [pdfExporting, setPdfExporting] = useState(false)
   /** 导出结果一行提示（成功给绝对路径，失败给后端中文短句） */
   const [exportNote, setExportNote] = useState('')
   /** null = 还没手动开关过：默认按「有没有页边留白给大纲」自动决定（首进窄窗不会弹抽屉） */
@@ -335,6 +339,47 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
 
   /** 正文为空时禁用导出：以最近一次保存回包的 bodyMd 为准（不读编辑器 ref） */
   const exportDisabled = exporting || item.bodyMd.trim() === ''
+  const pdfDisabled = pdfExporting || item.bodyMd.trim() === ''
+
+  /**
+   * 导出为 PDF（kb-export-pdf）：标题补成 H1 → 渲染成自包含 HTML（读当前主题令牌）→
+   * 选落点（默认下载目录）→ 后端离屏 WebView2 打印。
+   */
+  const exportPdf = useCallback(async () => {
+    if (pdfExporting) return
+    const body = currentMarkdown()
+    if (!body.trim()) {
+      setExportNote('正文为空，没有可导出的内容')
+      return
+    }
+    setPdfExporting(true)
+    setExportNote('')
+    try {
+      const heading = title.trim()
+      const markdown = heading ? `# ${heading}\n\n${body}` : body
+      const html = buildPdfHtml({
+        title: heading || item.title,
+        bodyHtml: sharedMarkdown.render(markdown),
+      })
+      const picked = await pickExportPath(`${sanitizeDocxName(heading || item.title)}.pdf`, 'pdf')
+      if (picked.err) {
+        setExportNote(picked.err)
+        return
+      }
+      if (!picked.path) return
+      const result = await exportKbPdf(item.id, picked.path, html)
+      if (result.err) {
+        setExportNote(result.err)
+        return
+      }
+      setExportNote(`已导出到 ${result.data ?? picked.path}`)
+      void trackEvent('kb_export_pdf', { itemId: item.id })
+    } catch (error) {
+      setExportNote(error instanceof Error && error.message ? error.message : '导出失败，请重试')
+    } finally {
+      setPdfExporting(false)
+    }
+  }, [pdfExporting, currentMarkdown, title, item.id, item.title])
 
   /** 用户没手动开合过时：只有页边留白够宽才默认打开（避免首进窄窗弹出抽屉） */
   const outlineOpen = outlinePref ?? railFits
@@ -423,6 +468,18 @@ export function KbItemDetail({ item, refCount = 0, onDeleted, onPin, onSaved, fo
             onClick={() => { void exportDocx() }}
           >
             {exporting ? <Loader2 size={15} strokeWidth={1.7} className="spin" /> : <Download size={15} strokeWidth={1.7} />}
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title={pdfExporting ? '正在导出…' : '导出为 PDF'}
+            aria-label="导出为 PDF"
+            disabled={pdfDisabled}
+            onClick={() => { void exportPdf() }}
+          >
+            {pdfExporting ? <Loader2 size={15} strokeWidth={1.7} className="spin" /> : <Printer size={15} strokeWidth={1.7} />}
           </Button>
 
           <Button

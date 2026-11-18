@@ -1,8 +1,9 @@
 # 20261117-1500-be76-知识库文档导出-word-与-pdf: 知识库文档导出 Word 与 PDF
 
 - **Tags**: Word, PDF, 导出, 下载目录
-- **Status**: doing · 2026-11-17 16:32:32 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
+- **Status**: done · 2026-11-18 01:34:55 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 - **Created**: 2026-11-17 15:00:34 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
+- **Sealed**: 2026-11-18 01:34:55 · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd
 
 <!-- Header lines are maintained by the script, fixed order: Tags → Status → Created → Sealed.
      The `- **Tags**: …` line is inserted at the top by new --tags; omitted when there are no tags
@@ -55,3 +56,5 @@
 - 2026-11-17 15:40:28 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · 实现完成：共享 MarkdownIt、块模型 18 项单测、详情页导出入口、Rust OOXML+store-only ZIP 34 项单测、export_kb_docx 契约四方同步 76、门禁 21 项全绿（logs/check-20261117-233944.log）；真机 5.2/5.3 待验
 - 2026-11-17 16:26:46 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · PDF 技术验证 spike 通过（分支 tauri-2-upgrade，提交 117a3ee）：不升 Tauri，仅用 webview2-com 0.39 + Windows 0.62，在独立窗口里 CreateCoreWebView2EnvironmentWithOptions → CreateCoreWebView2Controller → NavigateToString → ICoreWebView2_7::PrintToPdf(path, null, handler)，实际产出 %PDF-1.4、1 页、47191 字节、Skia/PDF m157。坑：user data 目录必须可写，放 %TEMP% 时 controller 创建报 0x8000FFFF 灾难性故障。
 - 2026-11-17 16:32:32 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · Word 导出已提交 e6d9b42（export_kb_docx，命令 76，门禁 21 项全绿）。PDF 单独立项：创建 OpenSpec change kb-export-pdf（proposal/specs/design/tasks 四件，validate --strict 通过），按 spike 结论只加 webview2-com 0.39 + windows 0.62、不升 Tauri。
+- 2026-11-18 00:36:53 · log · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · PDF 导出实现完成：Rust 侧 pdf/{mod,webview,inline}.rs（离屏 WebView2 PrintToPdf、图片 data URI 内联、30s 超时、串行化、tmp+rename），前端 pdf-html/pdf-theme/kb-item-detail 双按钮，契约 76→77 四方同步；单测 pdf 14 项 + docx 34 项、pdf-html 7 项全绿，门禁 21 项全绿（logs/check-20261118-083547.log）。真机 5.3 待验。
+- 2026-11-18 01:34:55 · close · @simy · afcfcca0-be4c-4afd-931b-16fdade9d4fd · sealed: Word 与 PDF 两路导出全部落地并归档：Word 手写 OOXML + store-only ZIP，PDF 走离屏 WebView2 PrintToPdf（不升 Tauri，单引 webview2-com 0.39）；导出为只读操作、用户指定目录、默认下载位置、中性文档基线（不带外观主题）。命令契约 76→77 四方同步，门禁 21 项全绿（logs/check-20261118-092159.log），提交见下一条记录，用户实机验收通过。OpenSpec：kb-export-word / kb-export-pdf 均已归档，主规格 knowledge-base/export 含 12 条需求。
