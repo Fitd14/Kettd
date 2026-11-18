@@ -20,11 +20,11 @@
 - [x] 目录选择：保存对话框，默认 `<系统下载目录>/<条目标题>.docx`
 - [x] Word 保真范围：标题 / 段落 / 粗斜体 / 列表 / 引用 / 代码块 / 表格 / 图片（无页码、无目录页）
 - [x] 图片嵌入：Rust 读 `<数据目录>/assets` 字节写入 `word/media/`，最大宽度 15 cm、单张上限 5 MB
-- [ ] 门禁与真机验证（门禁已绿；真机冒烟待用户）
+- [x] 门禁与真机验证（门禁 21 项全绿；2026-11-18 09:33 用户实机验收通过，Word 与 PDF 两路都跑过）
 
 ## Next
 
-用户在运行中的应用里跑五条冒烟（导出成功、默认下载目录、取消不报错、空文档按钮禁用、导出后原文与列表未变），确认后在 `openspec/changes/kb-export-word/tasks.md` 勾 5.2/5.3 并归档。
+已结案。若日后要补 PDF 的分页控制（页码、目录页）或字体嵌入，另起 change，不要把这两类需求塞回导出入口。
 
 ## Process
 
@@ -41,10 +41,17 @@
   - 外部校验：`python-docx 1.2.0` 打开富样本 → Heading 1/2 样式、中文完好、1 张表、1 个内嵌图（9525×9525 EMU）、A4 页面、超链接存在；`.NET ZipFile` 读出 7 个条目、6 份 XML 全部 well-formed。
   - 门禁：`npm run check` 首跑因测试写 `%TEMP%` 被 ACL 拒绝（13 红），改为 `test_dir` 回退 `target/docx-test-tmp` 后 `cargo test docx::` 34 passed，重跑门禁全绿。
   - 遗留：真机五条冒烟与「导出前后数据未变」由用户体验确认；PDF 待网络恢复后升级 `webview2-com` 再做。
+- 2026-11-18 09:22 实机反馈改口径：用户原话「pdf 会带有页面的css样式，实际上是不需要这些样式，仅保留文章原有的编排格式」。删掉 `src-react/src/lib/pdf-theme.ts`（原来把外观主题 59 个令牌映射成打印样式），`buildPdfHtml` 只收 `{ title, bodyHtml }`，输出改为中性文档基线（白底、`#1A1A1A` 正文、无圆角、无斑马纹、不读 `--paper`/`--ink-*`/`--kb-*`）；`pdf-html.test.mjs` 断言反转成「不得含主题变量与主题纸色」。同口径同步 `openspec/changes/kb-export-pdf/specs/knowledge-base/export/spec.md`（Requirement 改名「PDF 内容与阅读视图结构一致」）、`design.md`、`tasks.md` 3.1/3.4、README。
 
 ## Conclusion
 
-<!-- What got done, what got left behind -->
+Word 与 PDF 两路导出都已交付并结案（2026-11-18 09:33 用户实机验收通过）。
+
+- **Word**：手写 OOXML + store-only ZIP，零新增依赖；块模型在前端解析、写盘在 Rust，图片从 `assets/` 读字节嵌入 `word/media/`。`python-docx` 与 `.NET ZipFile` 外部校验通过。
+- **PDF**：离屏 WebView2（`ICoreWebView2_7::PrintToPdf`）在独立 STA 线程打印，自建不可见窗口、30s 超时、串行化、tmp+rename；不升 Tauri，只加 `webview2-com 0.39` + `windows 0.62`。
+- **两次口径修正**：① PDF 起初套用外观主题，实机看是错的 → 改成中性文档基线；② PDF 目标路径曾被 `resolve_target_path` 补成 `.pdf.docx` → 抽出 `resolve_target_path_with(raw, extension)`。
+- **契约**：命令 75 → 76（`export_kb_docx`）→ 77（`export_kb_pdf`），四方同步 + parity 门禁；主规格 `knowledge-base/export` 合并为 12 条需求。
+- **留下的坑**：WebView2 需要可写 user data 目录，放 `%TEMP%` 会在创建控制器时报 `0x8000FFFF 灾难性故障`（已固定在 `<数据目录>/pdf-webview/`）；沙箱里真打印必须 `danger-full-access`。
 
 ## Execution Log
 
